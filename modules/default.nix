@@ -13,8 +13,6 @@
     ./printing
     ./packages
     ./shell
-    ./terminal
-    ./file-manager
     ./bluetooth
     ./wm
   ];
