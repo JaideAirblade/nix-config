@@ -45,8 +45,12 @@
   # Git — fill in your email when you have one.
   programs.git = {
     enable = true;
-    userName = "Jaide";
-    userEmail = "jaide@example.com"; # TODO: set your real email
+    settings = {
+      user = {
+        name = "Jaide";
+        email = "jaide@example.com"; # TODO: set your real email
+      };
+    };
   };
 
   # Bash with a couple of handy aliases.
