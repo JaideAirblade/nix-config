@@ -17,6 +17,10 @@
     tree
     btop     # better htop
     nix-output-monitor # `nom` — richer `nix` output
+    # desktop apps
+    ghostty  # GPU-accelerated terminal (config lives in ~/.config/ghostty)
+    kitty    # fallback terminal, also GPU-accelerated
+    nautilus # GNOME Files — graphical file manager
   ];
 
   programs.firefox.enable = true;

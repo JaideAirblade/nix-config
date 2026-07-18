@@ -13,6 +13,7 @@
     ./printing
     ./packages
     ./shell
+    ./bluetooth
     ./wm
   ];
 }
