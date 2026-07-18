@@ -106,6 +106,14 @@
   };
   nix.settings.auto-optimise-store = true;
 
+  # --- zram swap -----------------------------------------------------------
+  # Compressed RAM swap. Good on systems with enough RAM that disk swap is
+  # rarely needed but you want a safety net without wearing the SSD.
+  zramSwap = {
+    enable = true;
+    algorithm = "zstd";
+  };
+
   # --- State version -------------------------------------------------------
   # Leave this at the release the system was first installed with.
   system.stateVersion = "26.05";
