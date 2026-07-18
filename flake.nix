@@ -3,48 +3,43 @@
 
   inputs = {
     # Main package source: the unstable channel.
-    # System-level packages and home-manager both follow this.
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
     # Stable channel, available to modules as `inputs.stable-nixpkgs`
     # for pinning individual packages to a stable release when needed.
     stable-nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
 
-    # home-manager, used for managing user-level (home directory) configuration.
-    # `master` tracks nixos-unstable; `release-26.05` would track stable.
-    # `follows` keeps home-manager's nixpkgs in sync with the one above,
-    # avoiding duplicate / divergent nixpkgs versions in the closure.
-    home-manager = {
-      url = "github:nix-community/home-manager/master";
+    # Mango — Wayland compositor (dwl-based). Provides nixosModules.mango
+    # (programs.mango.enable) and hmModules.mango.
+    mangowm = {
+      url = "github:mangowm/mango";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # DankMaterialShell — desktop shell (bar/launcher/lock/notifs) + greeter.
+    # Used as NixOS modules (nixosModules.dank-material-shell + nixosModules.greeter)
+    # so we don't need home-manager. `follows` keeps nixpkgs in sync.
+    # Using master (-git) per the user's request to consume the shell directly
+    # from the official repo; option names follow the flake module's
+    # `programs.dank-material-shell.*` naming.
+    dms = {
+      url = "github:AvengeMedia/DankMaterialShell";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
-  outputs = inputs@{ self, nixpkgs, stable-nixpkgs, home-manager, ... }: {
+  outputs = inputs@{ self, nixpkgs, stable-nixpkgs, mangowm, dms, ... }: {
     nixosConfigurations = {
-      # The hostname (set in configuration.nix) must match this key,
-      # or you must pass `--flake .#Uwu` to nixos-rebuild.
+      # The hostname (set in modules/network/default.nix) must match this
+      # key, or you must pass `--flake .#Uwu` to nixos-rebuild.
       Uwu = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         # Make `inputs` available to every module under modules = [...],
-        # so configuration.nix / home.nix can reference e.g.
-        # `inputs.stable-nixpkgs.legacyPackages.x86_64-linux.<pkg>`.
+        # so e.g. modules/wm/mango/default.nix can do
+        # `imports = [ inputs.mangowm.nixosModules.mango ];`.
         specialArgs = { inherit inputs; };
         modules = [
-          ./configuration.nix
-
-          # Load home-manager as a NixOS module so it is applied
-          # automatically whenever `nixos-rebuild switch` runs —
-          # no separate `home-manager switch` needed.
-          home-manager.nixosModules.home-manager
-          {
-            home-manager.useGlobalPkgs = true;
-            home-manager.useUserPackages = true;
-            home-manager.users.jaide = import ./home.nix;
-            # Pass `inputs` down to home.nix too, in case it needs them
-            # (e.g. to pull a package from stable-nixpkgs).
-            home-manager.extraSpecialArgs = { inherit inputs; };
-          }
+          ./hosts/Uwu
         ];
       };
     };
