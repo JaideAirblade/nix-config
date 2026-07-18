@@ -6,6 +6,9 @@ result-*
 *.qcow2
 *.vdi
 
+# Local backups of auto-generated files (kept on disk, not in git)
+*.bak-old
+
 # Editor / OS cruft
 .DS_Store
 *.swp
