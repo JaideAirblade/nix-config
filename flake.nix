@@ -31,15 +31,15 @@
   outputs = inputs@{ self, nixpkgs, stable-nixpkgs, mangowm, dms, ... }: {
     nixosConfigurations = {
       # The hostname (set in modules/network/default.nix) must match this
-      # key, or you must pass `--flake .#Uwu` to nixos-rebuild.
-      Uwu = nixpkgs.lib.nixosSystem {
+      # key, or you must pass `--flake .#UwU` to nixos-rebuild.
+      UwU = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         # Make `inputs` available to every module under modules = [...],
         # so e.g. modules/wm/mango/default.nix can do
         # `imports = [ inputs.mangowm.nixosModules.mango ];`.
         specialArgs = { inherit inputs; };
         modules = [
-          ./hosts/Uwu
+          ./hosts/UwU
         ];
       };
     };

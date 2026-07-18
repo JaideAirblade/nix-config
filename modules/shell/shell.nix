@@ -12,8 +12,8 @@
     completion.enable = true;
     shellAliases = {
       ll = "ls -lAh";
-      rebuild = "sudo nixos-rebuild switch --flake /etc/nixos#Uwu";
-      update = "cd /etc/nixos && nix flake update && sudo nixos-rebuild switch --flake .#Uwu";
+      rebuild = "sudo nixos-rebuild switch --flake /etc/nixos#UwU";
+      update = "cd /etc/nixos && nix flake update && sudo nixos-rebuild switch --flake .#UwU";
       gc-old = "sudo nix-collect-garbage --delete-old";
     };
   };
