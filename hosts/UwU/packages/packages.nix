@@ -33,6 +33,25 @@
       exec = "ivpn-ui --ozone-platform=x11 --disable-gpu";
       startupNotify = true;
     }))
+
+    # Discord — force XWayland via desktop entry override.
+    # NIXOS_OZONE_WL=1 (set globally in theming.nix) makes Electron apps
+    # try native Wayland. On NVIDIA + MangoWM, Discord flickers badly in
+    # native Wayland mode (libEGL dri2 screen failures + compositor
+    # re-allocation on every frame). XWayland is stable. hiPrio shadows
+    # the upstream .desktop file.
+    (lib.hiPrio (makeDesktopItem {
+      name = "discord";
+      desktopName = "Discord";
+      genericName = "Internet Messenger";
+      comment = "Discord — with Equicord client mod";
+      icon = "discord";
+      categories = [ "Network" "InstantMessaging" ];
+      exec = "discord --ozone-platform=x11";
+      startupNotify = true;
+      mimeTypes = [ "x-scheme-handler/discord" ];
+    }))
+
     # Discord with Equicord (client mod — plugins, custom CSS, etc.)
     # withEquicord patches the stock Discord client via the equicord package.
     (discord.override { withEquicord = true; })
