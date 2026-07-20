@@ -3,4 +3,5 @@
 pkgs: {
   betterbird = pkgs.callPackage ./betterbird { };
   octarine = pkgs.callPackage ./octarine { };
+  hytale = pkgs.callPackage ./hytale { };
 }

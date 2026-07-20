@@ -59,8 +59,12 @@
     # Zed — GPU-accelerated collaborative code editor.
     zed-editor
 
-    # Geary — GTK email client. Follows libadwaita/GNOME theming, fits the
+    # Geary — GTK email client. Follows libadwinda/GNOME theming, fits the
     # standalone-WM + adw-gtk3-dark setup without pulling all of GNOME.
     geary
+
+    # Hytale Launcher — official launcher for Hytale (custom package from pkgs/).
+    # Wrapped in buildFHSEnv so the pre-built binary finds its libraries.
+    hytale
   ];
 }
