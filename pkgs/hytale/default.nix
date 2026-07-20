@@ -169,8 +169,7 @@ in
         gst_all_1.gst-libav
       ]}
       export GIO_EXTRA_MODULES=${glib-networking}/lib/gio/modules
-      export TMPDIR=$HOME/.local/share/Hytale/.tmp
-      mkdir -p "$TMPDIR"
+      export TMPDIR=$HOME/.local/share/Hytale
     '';
 
     runScript = "hytale-launcher";
