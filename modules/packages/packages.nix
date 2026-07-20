@@ -1,4 +1,10 @@
-# System-wide packages. Only things every user (and root) should have.
+# System-wide base packages shared across all hosts.
+#
+# Only the truly universal CLI tools and terminals live here — anything
+# host-specific (Discord, seanime, Geary, Betterbird, disk-recovery,
+# network analysis tools, ...) lives in hosts/<name>/packages/ so each
+# host pulls only what it actually wants.
+#
 # Per-user tools are intentionally NOT managed here — the user owns their
 # dotfiles and per-user installs (no home-manager).
 { pkgs, ... }:
@@ -8,7 +14,7 @@
     vim   # editor of last resort
     wget
     git   # flakes pulls deps via git; also useful as a user tool
-    # handy CLI tools available to everyone
+    just  # command runner for the Justfile (see ~/nixos/Justfile)
     ripgrep
     jq
     fzf
@@ -17,6 +23,9 @@
     tree
     btop     # better htop
     nix-output-monitor # `nom` — richer `nix` output
+
+    # Terminals — every host wants a terminal installed system-wide.
+    ghostty
   ];
 
   programs.firefox.enable = true;

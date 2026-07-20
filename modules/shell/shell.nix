@@ -4,7 +4,7 @@
 # dotfiles (many CLI tools do) stay writable. The user owns ~/.bashrc,
 # ~/.gitconfig, etc. — these system-level settings only provide defaults
 # via /etc and leave per-user overrides intact.
-{ ... }:
+{ lib, ... }:
 
 {
   programs.bash = {
@@ -12,19 +12,22 @@
     completion.enable = true;
     shellAliases = {
       ll = "ls -lAh";
-      rebuild = "sudo nixos-rebuild switch --flake /etc/nixos#UwU";
-      update = "cd /etc/nixos && nix flake update && sudo nixos-rebuild switch --flake .#UwU";
+      # Each host overrides the `rebuild`/`update` aliases with its own
+      # flake target via lib.mkForce in hosts/<name>/shell.nix.
+      rebuild = "sudo nixos-rebuild switch --flake /etc/nixos";
+      update = "cd /etc/nixos && nix flake update && sudo nixos-rebuild switch --flake .";
       gc-old = "sudo nix-collect-garbage --delete-old";
     };
   };
 
   # System-wide git defaults. `~/.gitconfig` overrides these per-user.
+  # Hosts can override the user.name/user.email via lib.mkForce.
   programs.git = {
     enable = true;
     config = {
       user = {
-        name = "Jaide";
-        email = "jaide@example.com"; # TODO: set your real email
+        name = lib.mkDefault "Jaide";
+        email = lib.mkDefault "jaide@example.com";
       };
     };
   };
@@ -35,7 +38,7 @@
   programs.starship = {
     enable = true;
     settings = {
-      add_new_line = false;
+      add_newline = false;
       line_break.disabled = true;
     };
   };
