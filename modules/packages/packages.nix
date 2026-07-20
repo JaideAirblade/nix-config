@@ -30,4 +30,12 @@
   ];
 
   programs.firefox.enable = true;
+
+  # Wire gh as the git credential helper for github.com.
+  # We can't use `gh auth setup-git` because programs.git.config symlinks
+  # ~/.config/git/config into the read-only nix store, so the credential
+  # helper goes here in the NixOS-managed git config instead.
+  programs.git.config.credential."https://github.com" = {
+    helper = "gh auth git-credential";
+  };
 }
