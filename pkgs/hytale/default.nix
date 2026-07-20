@@ -166,6 +166,7 @@ in
       ]}
       export GIO_EXTRA_MODULES=${glib-networking}/lib/gio/modules
       export TMPDIR=$HOME/.local/share/Hytale/.tmp
+      mkdir -p "$TMPDIR"
     '';
 
     runScript = "hytale-launcher";
