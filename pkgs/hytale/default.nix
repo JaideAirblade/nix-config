@@ -137,18 +137,23 @@ in
       gst_all_1.gst-libav
     ]);
 
+    # TMPDIR — the launcher downloads patches to TMPDIR then rename()s
+    # them into ~/.local/share/Hytale/install. bwrap's auto-mounts make
+    # /tmp and /home separate mounts, so rename() across them fails with
+    # EXDEV. Setting TMPDIR inside the Hytale data dir keeps both source
+    # and destination under the same mount. The launcher creates
+    # ~/.local/share/Hytale on first run, so the dir exists by the time
+    # it checks disk space.
+    #
     # WEBKIT_DISABLE_DMABUF_RENDERER=1 — WebKitGTK's DMA-BUF renderer
     # crashes on wlroots-based compositors (Mango). Same fix as Octarine.
     #
-    # GST_PLUGIN_PATH — WebKitGTK uses GStreamer for image/media decoding,
-    # but buildFHSEnv doesn't wire up the plugin paths automatically.
-    # Without gst-plugins-good, images show as broken icons and rich
-    # content (patch notes, banners) fails to render. We point at every
-    # plugin dir so GStreamer finds them inside the FHS sandbox.
+    # GST_PLUGIN_PATH — WebKitGTK uses GStreamer for image/media decoding.
+    # Without gst-plugins-good, images/patch notes render as broken icons.
     #
-    # GIO_EXTRA_MODULES — glib-networking's TLS module so WebKitGTK can
-    # load HTTPS resources (patch notes are fetched over HTTPS).
+    # GIO_EXTRA_MODULES — glib-networking TLS so WebKitGTK loads HTTPS.
     profile = ''
+      export TMPDIR=$HOME/.local/share/Hytale
       export WEBKIT_DISABLE_DMABUF_RENDERER=1
       export __NV_DISABLE_EXPLICIT_SYNC=1
       export GST_PLUGIN_PATH=${lib.makeSearchPathOutput "lib/gstreamer-1.0" "lib/gstreamer-1.0" [
