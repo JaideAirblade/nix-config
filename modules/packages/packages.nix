@@ -14,6 +14,7 @@
     vim   # editor of last resort
     wget
     git   # flakes pulls deps via git; also useful as a user tool
+    gh    # GitHub CLI — `gh auth login`, `gh pr create`, etc.
     just  # command runner for the Justfile (see ~/nixos/Justfile)
     ripgrep
     jq
