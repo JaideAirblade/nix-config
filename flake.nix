@@ -42,6 +42,14 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # DankGreeter — now a separate flake (split from DMS as of July 2026).
+    # Provides nixosModules.default with programs.dms-greeter options.
+    # `follows` keeps nixpkgs in sync.
+    dank-greeter = {
+      url = "github:AvengeMedia/dank-greeter";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # Hermes Agent — Nous Research's terminal AI agent.
     # Consumed via its overlay (modules/ai/hermes-agent.nix) so `pkgs.hermes-agent`
     # is the official build. `follows` keeps nixpkgs in sync to avoid a second
@@ -59,7 +67,7 @@
     nixpkgs-ivpn.url = "github:NixOS/nixpkgs/pull/542306/head";
   };
 
-  outputs = inputs@{ self, nixpkgs, stable-nixpkgs, mangowm, niri, dms, dankcalendar, hermes-agent, nixpkgs-ivpn, ... }: let
+  outputs = inputs@{ self, nixpkgs, stable-nixpkgs, mangowm, niri, dms, dankcalendar, dank-greeter, hermes-agent, nixpkgs-ivpn, ... }: let
     # Pre-create the stable-nixpkgs instance here so submodules can use
     # `pkgs-stable` without each calling `import stable-nixpkgs { ... }`
     # (which would spawn a new nixpkgs evaluation every time — the

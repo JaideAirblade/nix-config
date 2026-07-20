@@ -1,8 +1,9 @@
 # DankMaterialShell overrides for TSBW-W01800.
 #
-# The shared modules/wm/dms/dms.nix already imports the DMS NixOS modules
-# and sets sensible defaults (compositor=mango, calendarEvents=true, etc.)
-# via lib.mkDefault. This module overrides the host-specific bits:
+# The shared modules/wm/dms/dms.nix already imports the DMS + dank-greeter
+# NixOS modules and sets sensible defaults (compositor=mango, calendarEvents
+# via khal, etc.) via lib.mkDefault. This module overrides the host-specific
+# bits:
 #   - compositor.name = "niri" (not mango)
 #   - enableCalendarEvents = false (using DankCalendar instead of khal)
 #   - imports DankCalendar NixOS module + enables it
@@ -42,7 +43,7 @@
   };
 
   # DankGreeter — override compositor to niri (shared default is mango)
-  services.displayManager.dms-greeter = {
+  programs.dms-greeter = {
     enable = true;
     compositor.name = lib.mkForce "niri";
     # Sync greeter theme with user's DMS settings
