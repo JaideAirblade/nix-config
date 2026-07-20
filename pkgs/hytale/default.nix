@@ -154,6 +154,10 @@ in
     # while ~/.local/share/Hytale is on disk, so rename() fails with
     # EXDEV ("invalid cross-device link"). Pointing TMPDIR at a dir on
     # the same filesystem as the install dir makes rename() work.
+    # The mkdir in the profile creates the dir before the launcher's
+    # statfs check runs. (We can't use runScript for mkdir because
+    # buildFHSEnv prepends `exec` to each runScript line, which would
+    # replace the shell before the launcher runs.)
     profile = ''
       export WEBKIT_DISABLE_DMABUF_RENDERER=1
       export __NV_DISABLE_EXPLICIT_SYNC=1
@@ -169,13 +173,7 @@ in
       mkdir -p "$TMPDIR"
     '';
 
-    # buildFHSEnv prepends `exec` to runScript, so we can't use multiple
-    # lines — the first exec would replace the shell before the launcher
-    # runs. Combining into one line with && ensures mkdir runs first,
-    # then exec replaces the shell with the launcher.
-    runScript = ''
-      mkdir -p "$HOME/.local/share/Hytale/.tmp" && exec hytale-launcher "$@"
-    '';
+    runScript = "hytale-launcher";
 
     extraInstallCommands = ''
       mkdir -p "$out/share/applications"
