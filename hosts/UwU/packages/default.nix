@@ -2,5 +2,7 @@
 { ... }:
 
 {
-  imports = [ ./packages.nix ];
+  imports = [ ./packages.nix
+    ./flatpak.nix
+  ];
 }
