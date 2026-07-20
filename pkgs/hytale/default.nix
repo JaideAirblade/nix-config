@@ -169,7 +169,10 @@ in
       mkdir -p "$TMPDIR"
     '';
 
-    runScript = "hytale-launcher";
+    runScript = ''
+      mkdir -p "$HOME/.local/share/Hytale/.tmp"
+      exec hytale-launcher
+    '';
 
     extraInstallCommands = ''
       mkdir -p "$out/share/applications"
