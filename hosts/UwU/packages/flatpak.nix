@@ -1,9 +1,12 @@
-# Flatpak — for apps not available in nixpkgs (Sober/Roblox, etc.)
+# Flatpak — for apps not available in nixpkgs (Sober/Roblox, Twintail
+# Launcher, etc.)
 #
 # Sober is a closed-source Roblox client distributed only via Flathub.
-# There's no nixpkgs package or source to build from. We enable Flatpak
-# and declaratively install Sober via an activation script (same pattern
-# as TSBW-W01800's webbrowsers.nix for Orion/NekoPlay).
+# Twintail Launcher is an open-source anime game launcher (Genshin
+# Impact, Honkai Star Rail, ZZZ, Wuthering Waves, etc.) also on Flathub.
+# Neither has a nixpkgs package. We enable Flatpak and declaratively
+# install both via an activation script (same pattern as TSBW-W01800's
+# webbrowsers.nix for Orion/NekoPlay).
 #
 # Sober requires a working GPU + 3D acceleration (already provided by the
 # NVIDIA driver in graphics.nix). The Flatpak runtime handles the rest.
@@ -32,6 +35,7 @@
       flatpak = pkgs.flatpak;
       desiredFlathubApps = [
         "org.vinegarhq.Sober"
+        "app.twintaillauncher.ttl"
       ];
       desiredApps = builtins.concatStringsSep " " desiredFlathubApps;
     in ''
