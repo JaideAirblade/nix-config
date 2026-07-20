@@ -169,9 +169,12 @@ in
       mkdir -p "$TMPDIR"
     '';
 
+    # buildFHSEnv prepends `exec` to runScript, so we can't use multiple
+    # lines — the first exec would replace the shell before the launcher
+    # runs. Combining into one line with && ensures mkdir runs first,
+    # then exec replaces the shell with the launcher.
     runScript = ''
-      mkdir -p "$HOME/.local/share/Hytale/.tmp"
-      exec hytale-launcher
+      mkdir -p "$HOME/.local/share/Hytale/.tmp" && exec hytale-launcher "$@"
     '';
 
     extraInstallCommands = ''
