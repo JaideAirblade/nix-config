@@ -148,6 +148,12 @@ in
     #
     # GIO_EXTRA_MODULES — glib-networking's TLS module so WebKitGTK can
     # load HTTPS resources (patch notes are fetched over HTTPS).
+    #
+    # TMPDIR — the launcher patches game files by downloading to a temp
+    # dir then rename()ing them into the install dir. /tmp is tmpfs (RAM)
+    # while ~/.local/share/Hytale is on disk, so rename() fails with
+    # EXDEV ("invalid cross-device link"). Pointing TMPDIR at a dir on
+    # the same filesystem as the install dir makes rename() work.
     profile = ''
       export WEBKIT_DISABLE_DMABUF_RENDERER=1
       export __NV_DISABLE_EXPLICIT_SYNC=1
@@ -159,6 +165,7 @@ in
         gst_all_1.gst-libav
       ]}
       export GIO_EXTRA_MODULES=${glib-networking}/lib/gio/modules
+      export TMPDIR=$HOME/.local/share/Hytale/.tmp
     '';
 
     runScript = "hytale-launcher";
