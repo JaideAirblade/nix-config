@@ -59,7 +59,18 @@
     nixpkgs-ivpn.url = "github:NixOS/nixpkgs/pull/542306/head";
   };
 
-  outputs = inputs@{ self, nixpkgs, stable-nixpkgs, mangowm, niri, dms, dankcalendar, hermes-agent, nixpkgs-ivpn, ... }: {
+  outputs = inputs@{ self, nixpkgs, stable-nixpkgs, mangowm, niri, dms, dankcalendar, hermes-agent, nixpkgs-ivpn, ... }: let
+    # Pre-create the stable-nixpkgs instance here so submodules can use
+    # `pkgs-stable` without each calling `import stable-nixpkgs { ... }`
+    # (which would spawn a new nixpkgs evaluation every time — the
+    # "1000 instances of nixpkgs" problem from the guide's
+    # downgrade-or-upgrade-packages chapter).
+    system = "x86_64-linux";
+    pkgs-stable = import stable-nixpkgs {
+      inherit system;
+      config.allowUnfree = true;
+    };
+  in {
     # Custom packages overlay — exposes pkgs.betterbird, pkgs.octarine.
     # Applied by each host via nixpkgs.overlays in their host config.
     overlays = import ./overlays;
@@ -68,11 +79,13 @@
       # The hostname (set in modules/network/default.nix) must match this
       # key, or you must pass `--flake .#UwU` to nixos-rebuild.
       UwU = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        # Make `inputs` available to every module under modules = [...],
-        # so e.g. modules/wm/mango/default.nix can do
-        # `imports = [ inputs.mangowm.nixosModules.mango ];`.
-        specialArgs = { inherit inputs; };
+        inherit system;
+        # Make `inputs` and `pkgs-stable` available to every module under
+        # modules = [...].  `inputs` lets e.g. modules/wm/mango/default.nix
+        # do `imports = [ inputs.mangowm.nixosModules.mango ];`.  `pkgs-stable`
+        # lets any module pull a package from the stable nixpkgs branch
+        # without creating a new nixpkgs instance.
+        specialArgs = { inherit inputs pkgs-stable; };
         modules = [
           # Apply the custom-packages overlay so pkgs.betterbird / pkgs.octarine
           # are available to this host's modules.
@@ -84,8 +97,8 @@
       # TSBW-W01800 — Jaide's work laptop (AMD, LUKS, Thunderbolt, YubiKey).
       # Hostname set in hosts/TSBW-W01800/network/network.nix.
       TSBW-W01800 = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        specialArgs = { inherit inputs; };
+        inherit system;
+        specialArgs = { inherit inputs pkgs-stable; };
         modules = [
           { nixpkgs.overlays = [ inputs.self.overlays.additions ]; }
           ./hosts/TSBW-W01800

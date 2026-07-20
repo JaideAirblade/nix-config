@@ -1,8 +1,10 @@
 # Nix / nixpkgs settings: flakes, unfree, editor.
-{ ... }:
+{ lib, ... }:
 
 {
-  nixpkgs.config.allowUnfree = true;
+  # mkDefault so a host can override (e.g. a minimal server that wants
+  # unfree disabled) without needing mkForce.
+  nixpkgs.config.allowUnfree = lib.mkDefault true;
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 

@@ -43,9 +43,9 @@
       # PDF editing
       masterpdfeditor4    # Visual PDF editor — text, images, OCR, forms (free, no watermark)
 
-      # 1Password (the shared modules/packages/onepassword is not imported
-      # by this host — we pull it in here instead so the work host gets it
-      # without importing the whole UwU-style subfolder tree).
+      # 1Password — the NixOS modules (programs._1password / programs._1password-gui)
+      # are imported via the shared modules/packages/onepassword module.  We only
+      # add the beta GUI package here as the host-specific choice.
       _1password-gui-beta
 
       # Hermes Agent — installed via the shared modules/ai module's overlay,
@@ -57,13 +57,5 @@
       zed-editor-fhs
     ];
     variables.EDITOR = "vim";
-  };
-
-  # 1Password — enable the NixOS modules so browser native-messaging hosts
-  # are auto-wired and polkit policy is installed for system-auth unlock.
-  programs._1password.enable = true;
-  programs._1password-gui = {
-    enable = true;
-    polkitPolicyOwners = [ "jaide" ];
   };
 }

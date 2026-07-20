@@ -9,6 +9,10 @@ result-*
 # Local backups of auto-generated files (kept on disk, not in git)
 *.bak-old
 
+# Game logs / launcher configs (not NixOS config)
+logs/
+launchersettings.json
+
 # Editor / OS cruft
 .DS_Store
 *.swp
