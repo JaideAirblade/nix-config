@@ -4,7 +4,7 @@
 # network-tools, media) that UwU wants, and adds UwU-only GUI apps that
 # the work host doesn't need (Discord+Equicord, Seanime, Geary, Chromium
 # for WebHID, etc.).
-{ pkgs, ... }:
+{ pkgs, lib, ... }:
 
 {
   imports = [
@@ -17,6 +17,22 @@
   ];
 
   environment.systemPackages = with pkgs; [
+    # IVPN UI desktop entry override — force X11 + --disable-gpu.
+    # The stock ivpn-ui wrapper honours NIXOS_OZONE_WL=1 (set globally in
+    # theming.nix) and adds --ozone-platform-hint=auto, which makes Electron
+    # try native Wayland. On MangoWM that crashes with a Vulkan/Wayland
+    # incompatibility, killing the UI (including the close/disconnect dialog).
+    # hiPrio shadows the upstream .desktop file so app launchers pick this one.
+    (lib.hiPrio (makeDesktopItem {
+      name = "ivpn-ui";
+      desktopName = "IVPN";
+      genericName = "VPN Client";
+      comment = "UI interface for IVPN";
+      icon = "ivpn-ui";
+      categories = [ "Network" ];
+      exec = "ivpn-ui --ozone-platform=x11 --disable-gpu";
+      startupNotify = true;
+    }))
     # Discord with Equicord (client mod — plugins, custom CSS, etc.)
     # withEquicord patches the stock Discord client via the equicord package.
     (discord.override { withEquicord = true; })
