@@ -14,6 +14,12 @@
     ./packages
     ./shell
     ./bluetooth
+    ./theming
+    ./fonts
+    ./firmware
+    ./keyring
     ./wm
+    ./ai
+    ./cloud
   ];
 }
