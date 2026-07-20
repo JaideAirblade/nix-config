@@ -23,6 +23,7 @@
   libsoup_3,
   gdk-pixbuf,
   glib,
+  glib-networking,
   webkitgtk_4_1,
   xdg-utils,
   openssl,
@@ -39,6 +40,9 @@
   libdecor,
   alsa-lib,
   libpulseaudio,
+  hicolor-icon-theme,
+  adwaita-icon-theme,
+  gst_all_1,
 }: let
   version = "2026.07.07-325d709";
   pname = "hytale-launcher";
@@ -103,6 +107,7 @@ in
       libsoup_3
       gdk-pixbuf
       glib
+      glib-networking
       webkitgtk_4_1
       xdg-utils
       mesa
@@ -123,11 +128,37 @@ in
       libdecor
       alsa-lib
       libpulseaudio
+      hicolor-icon-theme
+      adwaita-icon-theme
+      gst_all_1.gst-plugins-base
+      gst_all_1.gst-plugins-good
+      gst_all_1.gst-plugins-bad
+      gst_all_1.gst-plugins-ugly
+      gst_all_1.gst-libav
     ]);
 
+    # WEBKIT_DISABLE_DMABUF_RENDERER=1 — WebKitGTK's DMA-BUF renderer
+    # crashes on wlroots-based compositors (Mango). Same fix as Octarine.
+    #
+    # GST_PLUGIN_PATH — WebKitGTK uses GStreamer for image/media decoding,
+    # but buildFHSEnv doesn't wire up the plugin paths automatically.
+    # Without gst-plugins-good, images show as broken icons and rich
+    # content (patch notes, banners) fails to render. We point at every
+    # plugin dir so GStreamer finds them inside the FHS sandbox.
+    #
+    # GIO_EXTRA_MODULES — glib-networking's TLS module so WebKitGTK can
+    # load HTTPS resources (patch notes are fetched over HTTPS).
     profile = ''
       export WEBKIT_DISABLE_DMABUF_RENDERER=1
       export __NV_DISABLE_EXPLICIT_SYNC=1
+      export GST_PLUGIN_PATH=${lib.makeSearchPathOutput "lib/gstreamer-1.0" "lib/gstreamer-1.0" [
+        gst_all_1.gst-plugins-base
+        gst_all_1.gst-plugins-good
+        gst_all_1.gst-plugins-bad
+        gst_all_1.gst-plugins-ugly
+        gst_all_1.gst-libav
+      ]}
+      export GIO_EXTRA_MODULES=${glib-networking}/lib/gio/modules
     '';
 
     runScript = "hytale-launcher";
