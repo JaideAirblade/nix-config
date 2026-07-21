@@ -121,7 +121,12 @@
     # --- Disable Wake-on-LAN on Ethernet + WiFi ---
     # Prevents network interfaces from waking the laptop from suspend.
     # Lid open, keyboard, and power button still wake normally.
-    ACTION=="add", SUBSYSTEM=="net", KERNEL=="enp1s0|wlp2s0", RUN+="/bin/sh -c 'echo disabled > /sys/class/net/%k/device/power/wakeup 2>/dev/null'"
+    # Match by PCI vendor:device ID instead of interface name — the net
+    # interface name may not be assigned yet at udev "add" time for PCI
+    # devices. Realtek RTL8111 Ethernet = 10ec:8168,
+    # Realtek RTL8852CE WiFi = 10ec:c852.
+    ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x10ec", ATTR{device}=="0x8168", RUN+="/bin/sh -c 'echo disabled > /sys$devpath/power/wakeup 2>/dev/null'"
+    ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x10ec", ATTR{device}=="0xc852", RUN+="/bin/sh -c 'echo disabled > /sys$devpath/power/wakeup 2>/dev/null'"
   '';
 
   # Diagnostic tools — just the binaries, NOT the powertop auto-tune
