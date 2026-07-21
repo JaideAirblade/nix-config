@@ -30,7 +30,7 @@
   # boot via graphical.target (after NetworkManager so DHCP DNS is available).
   systemd.services.dnsproxy-battery = {
     description = "Manage dnsproxy on battery (stop) vs AC (start)";
-    after = [ "NetworkManager.service" "network.target" ];
+    after = [ "NetworkManager.service" "network.target" "resolv-conf-init.service" ];
     wantedBy = [ "graphical.target" ];
     serviceConfig = {
       Type = "oneshot";
@@ -44,9 +44,10 @@
         systemctl start dnsproxy.service 2>/dev/null || true
         cat > /etc/resolv.conf << 'RESOLV'
 nameserver 127.0.0.1
-search ausbildung.tsbw.de tsbw.de
+search tsbw.de ausbildung.tsbw.de
 options edns0 trust-ad
 RESOLV
+        chmod 644 /etc/resolv.conf
       else
         # Battery: stop dnsproxy, use DHCP DNS directly
         systemctl stop dnsproxy.service 2>/dev/null || true
@@ -60,20 +61,22 @@ RESOLV
         done
         if [ -n "$dhcp_dns" ]; then
           tmp=$(mktemp)
-          echo "search ausbildung.tsbw.de tsbw.de" > "$tmp"
+          echo "search tsbw.de ausbildung.tsbw.de" > "$tmp"
           echo "options edns0 trust-ad" >> "$tmp"
           for ip in $dhcp_dns; do
             echo "nameserver $ip"
           done >> "$tmp"
-          mv "$tmp" /etc/resolv.conf
+          cp "$tmp" /etc/resolv.conf && rm -f "$tmp"
+          chmod 644 /etc/resolv.conf
         else
           # Fallback: use Cloudflare DNS directly
           cat > /etc/resolv.conf << 'RESOLV'
 nameserver 1.1.1.1
 nameserver 9.9.9.9
-search ausbildung.tsbw.de tsbw.de
+search tsbw.de ausbildung.tsbw.de
 options edns0 trust-ad
 RESOLV
+          chmod 644 /etc/resolv.conf
         fi
       fi
     '';

@@ -141,14 +141,35 @@
     '';
   };
 
-  # Make the system use dnsproxy as its DNS resolver
-  # The search line lets short names like "serverfarm" expand to
-  # "serverfarm.ausbildung.tsbw.de" via glibc's search-domain logic.
-  environment.etc."resolv.conf".text = ''
-    nameserver 127.0.0.1
-    search ausbildung.tsbw.de tsbw.de
-    options edns0 trust-ad
-  '';
+  # Create /etc/resolv.conf as a real writable file (not a store symlink
+  # via environment.etc) so the dnsproxy-battery service can rewrite it
+  # on power-state changes.  The default content points to dnsproxy on
+  # 127.0.0.1; dnsproxy-battery overwrites it on battery/AC transitions.
+  systemd.services.resolv-conf-init = {
+    description = "Initialize /etc/resolv.conf as a writable file";
+    after = [ "NetworkManager.service" "network.target" ];
+    before = [ "dnsproxy.service" "dnsproxy-battery.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      # Remove Nix store symlink if present (from old config using environment.etc)
+      if [ -L /etc/resolv.conf ]; then
+        rm /etc/resolv.conf
+      fi
+      # Write default content (AC mode — dnsproxy listening on 127.0.0.1)
+      # The search line lets short names like "serverfarm" expand to
+      # "serverfarm.ausbildung.tsbw.de" via glibc's search-domain logic.
+      cat > /etc/resolv.conf << 'RESOLV'
+nameserver 127.0.0.1
+search tsbw.de ausbildung.tsbw.de
+options edns0 trust-ad
+RESOLV
+      chmod 644 /etc/resolv.conf
+    '';
+  };
 
   # Don't let NetworkManager overwrite /etc/resolv.conf
   networking.resolvconf.enable = false;

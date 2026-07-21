@@ -8,11 +8,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1784602839,
-        "narHash": "sha256-sy2wMWeVCR161lzBI/7rRBNHFCHVNQkxl3NQAWE/Gho=",
+        "lastModified": 1784608084,
+        "narHash": "sha256-RPEXolWxbavYM5CrZBtRJ7ZciY+3VGOBSjAc6UDkd2c=",
         "owner": "AvengeMedia",
         "repo": "dank-greeter",
-        "rev": "87ef04bac6a38b77bfa989233c3aaaf731f82c94",
+        "rev": "da8cc02226d756c75aec1f1266829fe7273639a0",
         "type": "github"
       },
       "original": {
@@ -201,11 +201,11 @@
         "uv2nix": "uv2nix"
       },
       "locked": {
-        "lastModified": 1784595732,
-        "narHash": "sha256-YFKbF6peilDbXkhEAnHQL03IvHOAUn2mJEcptN4UVwY=",
+        "lastModified": 1784638845,
+        "narHash": "sha256-u1FdYMy5fl86wDd6OaL+BJ63kKEMb4ZYZt5hFaxeUEE=",
         "owner": "NousResearch",
         "repo": "hermes-agent",
-        "rev": "477c08b44766ace8b890faa72bf82ecbcf2b3ba8",
+        "rev": "ed3c39108b1b5521414cc60a8854cebd7c5af9bf",
         "type": "github"
       },
       "original": {
