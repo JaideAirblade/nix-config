@@ -206,15 +206,23 @@
     SUBSYSTEM=="power_supply", ACTION=="change", RUN+="/bin/sh -c 'systemctl start power-battery-tune.service 2>/dev/null || true'"
   '';
 
-  # GPU DPM on battery — systemd service for power source changes.
+  # GPU DPM + EPP fallback on battery — systemd service for power source changes.
   #
   # Re-applies GPU DPM when power source changes (unplug/plug AC).
-  # The initial boot-time setting is done by the DRM udev rule above.
-  # This service handles runtime transitions.
+  # The initial boot-time GPU DPM setting is done by the DRM udev rule.
+  # This service handles runtime transitions AND acts as a fallback for
+  # EPP setting when PPD crashes.
+  #
+  # PPD 0.30 has a bug with amd_pstate_epp active mode: it tries to write
+  # to per-policy boost files on startup and gets EINVAL, causing the CPU
+  # driver to fail initialization. When this happens, PPD never sets
+  # EPP=power, leaving it stuck at balance_performance with min freq at
+  # 1.1GHz instead of 416MHz. This service sets EPP=power directly as a
+  # fallback so the CPU always drops to 416MHz at idle on battery.
   #
   # CPU boost is NOT set here — see note above about PPD crash.
   systemd.services.power-battery-tune = {
-    description = "Set GPU DPM low on battery";
+    description = "Set GPU DPM low + EPP power on battery";
     after = [ "power-profiles-daemon.service" "systemd-udevd.service" ];
     wantedBy = [ "graphical.target" ];
     serviceConfig = {
@@ -225,13 +233,23 @@
       ac=$(cat /sys/class/power_supply/ADP1/online 2>/dev/null || echo 0)
       if [ "$ac" = "1" ]; then
         gpu_level=auto
+        epp=balance_performance
       else
         gpu_level=low
+        epp=power
       fi
       # GPU DPM — force lowest clock states on battery
       for card in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
         if [ -w "$card" ]; then
           echo "$gpu_level" > "$card" 2>/dev/null || true
+        fi
+      done
+      # EPP fallback — set energy_performance_preference on all CPUs.
+      # PPD 0.30 crashes on amd_pstate_epp (EINVAL writing per-policy
+      # boost), so it never sets EPP. We set it directly here.
+      for cpu in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
+        if [ -w "$cpu" ]; then
+          echo "$epp" > "$cpu" 2>/dev/null || true
         fi
       done
     '';
