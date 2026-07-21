@@ -8,5 +8,6 @@
     ./steam.nix
     ./upower.nix
     ./gvfs.nix
+    ./power.nix    # battery life optimization (PPD stays, adds thermald/ASPM/Wi-Fi powersave)
   ];
 }
