@@ -125,18 +125,22 @@
   #    - AMD internal USB xHCI controllers (0x1022:0x161f, 0x15d6, 0x15d7)
   #    - AMD USB2 controllers (0x1022:0x162f)
   #    Lid open, power button, and the dock keyboard still wake normally.
-  # 4. CPU boost disable on battery — PPD sets EPP=power but doesn't
-  #    touch the boost flag (/sys/devices/system/cpu/cpufreq/boost).
-  #    On battery, boost=0 caps the CPU at base clock (2.3GHz instead of
-  #    3.3GHz), saving ~1-2W. Restored to boost=1 on AC.
-  # 5. GPU DPM force 'low' on battery — amdgpu's power_dpm_state stays at
+  # 4. GPU DPM force 'low' on battery — amdgpu's power_dpm_state stays at
   #    'performance' even when PPD sets platform_profile=low-power. We
   #    force power_dpm_force_performance_level to 'low' on battery so the
   #    GPU uses the lowest clock states. Restored to 'auto' on AC.
-  # 6. laptop_mode on battery (batch writes → SSD sleeps).
-  # 7. Disable WoL wakeup triggers on Ethernet + WiFi to prevent
+  #    Done via a systemd oneshot service (not udev) because amdgpu may
+  #    not be fully initialized when power_supply udev events fire.
+  # 5. laptop_mode on battery (batch writes → SSD sleeps).
+  # 6. Disable WoL wakeup triggers on Ethernet + WiFi to prevent
   #    spurious wakeups during suspend (battery drain). Lid open,
   #    keyboard, and power button still wake the system.
+  #
+  # NOTE: CPU boost (cpufreq/boost) is NOT set here — PPD handles it.
+  # Writing boost via udev before PPD starts causes PPD to crash with
+  # EINVAL when it tries to write per-policy boost, leaving EPP stuck
+  # at balance_performance instead of power. PPD in power-saver mode
+  # sets both boost=0 and EPP=power correctly when it can start cleanly.
   #
   # NOTE: udev interprets $$ as a literal $ passed to the shell.
   # Do NOT use ACTION=="add|change" — systemd 261 udevadm verify rejects
@@ -172,25 +176,6 @@
     # AMD USB2 controllers (0x1022:0x162f)
     ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x1022", ATTR{device}=="0x162f", RUN+="/bin/sh -c 'echo disabled > /sys$devpath/power/wakeup 2>/dev/null'"
 
-    # --- CPU boost disable on battery ---
-    # PPD sets EPP=power but doesn't disable boost. On battery, cap the
-    # CPU at base clock (2.3GHz vs 3.3GHz boost) to save ~1-2W.
-    # Restored to boost=1 on AC for full performance.
-    SUBSYSTEM=="power_supply", ACTION=="add", ATTR{online}=="0", RUN+="/bin/sh -c 'echo 0 > /sys/devices/system/cpu/cpufreq/boost 2>/dev/null'"
-    SUBSYSTEM=="power_supply", ACTION=="add", ATTR{online}=="1", RUN+="/bin/sh -c 'echo 1 > /sys/devices/system/cpu/cpufreq/boost 2>/dev/null'"
-    SUBSYSTEM=="power_supply", ACTION=="change", ATTR{online}=="0", RUN+="/bin/sh -c 'echo 0 > /sys/devices/system/cpu/cpufreq/boost 2>/dev/null'"
-    SUBSYSTEM=="power_supply", ACTION=="change", ATTR{online}=="1", RUN+="/bin/sh -c 'echo 1 > /sys/devices/system/cpu/cpufreq/boost 2>/dev/null'"
-
-    # --- GPU DPM force 'low' on battery ---
-    # amdgpu's power_dpm_force_performance_level stays 'auto' and
-    # power_dpm_state stays 'performance' even in PPD power-saver mode.
-    # Forcing 'low' on battery makes the GPU use the lowest clock states.
-    # Restored to 'auto' on AC for full GPU performance.
-    SUBSYSTEM=="power_supply", ACTION=="add", ATTR{online}=="0", RUN+="/bin/sh -c 'echo low > /sys/class/drm/card0/device/power_dpm_force_performance_level 2>/dev/null; echo low > /sys/class/drm/card1/device/power_dpm_force_performance_level 2>/dev/null'"
-    SUBSYSTEM=="power_supply", ACTION=="add", ATTR{online}=="1", RUN+="/bin/sh -c 'echo auto > /sys/class/drm/card0/device/power_dpm_force_performance_level 2>/dev/null; echo auto > /sys/class/drm/card1/device/power_dpm_force_performance_level 2>/dev/null'"
-    SUBSYSTEM=="power_supply", ACTION=="change", ATTR{online}=="0", RUN+="/bin/sh -c 'echo low > /sys/class/drm/card0/device/power_dpm_force_performance_level 2>/dev/null; echo low > /sys/class/drm/card1/device/power_dpm_force_performance_level 2>/dev/null'"
-    SUBSYSTEM=="power_supply", ACTION=="change", ATTR{online}=="1", RUN+="/bin/sh -c 'echo auto > /sys/class/drm/card0/device/power_dpm_force_performance_level 2>/dev/null; echo auto > /sys/class/drm/card1/device/power_dpm_force_performance_level 2>/dev/null'"
-
     # --- laptop_mode on battery (batch writes → SSD sleeps) ---
     # Split into add/change rules — udevadm verify (systemd 261) rejects
     # pipe lists for ACTION (see thunderbolt.nix for the same pattern).
@@ -208,7 +193,46 @@
     # Realtek RTL8852CE WiFi = 10ec:c852.
     ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x10ec", ATTR{device}=="0x8168", RUN+="/bin/sh -c 'echo disabled > /sys$devpath/power/wakeup 2>/dev/null'"
     ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x10ec", ATTR{device}=="0xc852", RUN+="/bin/sh -c 'echo disabled > /sys$devpath/power/wakeup 2>/dev/null'"
+
+    # --- GPU DPM on power source change ---
+    # Trigger the gpu-dpm-battery service to re-apply GPU clock settings.
+    # The actual write happens in the systemd service (not here) because
+    # amdgpu may not be fully initialized when udev fires at boot.
+    SUBSYSTEM=="power_supply", ACTION=="change", RUN+="/bin/sh -c 'systemctl start gpu-dpm-battery.service 2>/dev/null || true'"
   '';
+
+  # GPU DPM force 'low' on battery — systemd service approach.
+  # amdgpu's power_dpm_force_performance_level stays 'auto' and
+  # power_dpm_state stays 'performance' even in PPD power-saver mode.
+  # Forcing 'low' on battery makes the GPU use the lowest clock states.
+  # Restored to 'auto' on AC for full GPU performance.
+  #
+  # Done as a systemd oneshot (not udev) because amdgpu may not be fully
+  # initialized when power_supply udev events fire at boot — the udev
+  # approach failed with exit code 1 in testing.
+  systemd.services.gpu-dpm-battery = {
+    description = "Set GPU DPM to low power on battery";
+    after = [ "power-profiles-daemon.service" "systemd-udevd.service" ];
+    wants = [ "power-profiles-daemon.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      ac=$(cat /sys/class/power_supply/ADP1/online 2>/dev/null || echo 0)
+      if [ "$ac" = "1" ]; then
+        level=auto
+      else
+        level=low
+      fi
+      for card in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
+        if [ -w "$card" ]; then
+          echo "$level" > "$card" 2>/dev/null || true
+        fi
+      done
+    '';
+  };
 
   # Diagnostic tools — just the binaries, NOT the powertop auto-tune
   # service (powerManagement.powertop.enable conflicts with PPD).
