@@ -13,5 +13,8 @@
     mangohud        # Vulkan/OpenGL overlay — FPS, CPU/GPU stats, frame timing
     gamescope       # Steam micro-compositor — window manager for games
     gamemode        # Daemon to optimize CPU/governor performance for games
+
+    # --- Native Electron for Electron-based Steam games (FeeBay, etc.) ---
+    electron        # Run Windows Electron games natively on Linux via app.asar
   ];
 }
