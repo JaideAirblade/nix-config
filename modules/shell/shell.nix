@@ -26,8 +26,8 @@
     enable = true;
     config = {
       user = {
-        name = lib.mkDefault "Jaide";
-        email = lib.mkDefault "jaide@example.com";
+        name = lib.mkDefault "JaideAirblade";
+        email = lib.mkDefault "mail@jaidechan.moe";
       };
     };
   };

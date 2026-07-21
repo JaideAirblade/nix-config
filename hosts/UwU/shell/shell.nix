@@ -13,7 +13,7 @@
   };
 
   programs.git.config.user = {
-    name = lib.mkForce "Jaide";
-    email = lib.mkForce "jaide@example.com"; # TODO: set your real email
+    name = lib.mkForce "JaideAirblade";
+    email = lib.mkForce "mail@jaidechan.moe";
   };
 }
