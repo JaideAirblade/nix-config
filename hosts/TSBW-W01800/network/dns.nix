@@ -17,7 +17,8 @@
 # Boot race: dnsproxy After=NetworkManager, but NM "started" ≠ DHCP lease
 # acquired.  The preStart tolerates missing DHCP DNS (writes a placeholder;
 # `grep -v` failure is caught with `|| true` and no `set -e`) so ExecStartPre
-# never fails.  The NM dispatcher fills the real upstreams once DHCP completes.
+# never fails.  The NM dispatcher (args: $1=iface, $2=action) fills the real
+# upstreams once DHCP completes and restarts dnsproxy.
 #
 # https://github.com/AdguardTeam/dnsproxy
 {lib, pkgs, ...}: {
@@ -42,35 +43,35 @@
 
     preStart = ''
       mkdir -p /run/dnsproxy
-      # Create internal-upstreams file with current DHCP DNS if it doesn't exist.
-      # NOTE: No `set -e` here — at boot, NetworkManager may have just started
-      # and no DHCP lease exists yet.  nmcli returns nothing, and the grep in
-      # the pipeline would exit 1, killing ExecStartPre.  We tolerate empty
-      # output; the NM dispatcher fills this file once DHCP completes.
+      # ALWAYS refresh internal-upstreams from current DHCP state.
+      # No `set -e` — at boot NetworkManager may have just started and no
+      # DHCP lease exists yet.  nmcli returns nothing and the grep would
+      # exit 1, killing ExecStartPre.  We tolerate empty output; the NM
+      # dispatcher re-fills this file on dhcp4-change events.
       #
       # Only collect DNS from interfaces carrying the tsbw.de search domain,
       # to avoid polluting the upstream list with DNS from unrelated networks.
-      if [ ! -f /run/dnsproxy/internal-upstreams.txt ]; then
-        DNS_SERVERS=""
-        for dev in $(nmcli -t -f GENERAL.DEVICE dev show 2>/dev/null | cut -d: -f2); do
-          DOMAIN=$(nmcli -t -f IP4.DOMAIN dev show "$dev" 2>/dev/null | cut -d: -f2)
-          case " $DOMAIN " in
-            *"tsbw.de"*) : ;;
-            *) continue ;;
-          esac
-          for dns in $(nmcli -t -f IP4.DNS dev show "$dev" 2>/dev/null | cut -d: -f2); do
-            [ -n "$dns" ] && DNS_SERVERS="$DNS_SERVERS $dns"
-          done
+      DNS_SERVERS=""
+      for dev in $(nmcli -t -f GENERAL.DEVICE dev show 2>/dev/null | cut -d: -f2); do
+        DOMAIN=$(nmcli -t -f IP4.DOMAIN dev show "$dev" 2>/dev/null | cut -d: -f2)
+        case " $DOMAIN " in
+          *"tsbw.de"*) : ;;
+          *) continue ;;
+        esac
+        for dns in $(nmcli -t -f IP4.DNS dev show "$dev" 2>/dev/null | cut -d: -f2); do
+          [ -n "$dns" ] && DNS_SERVERS="$DNS_SERVERS $dns"
         done
-        DNS_SERVERS=$(echo "$DNS_SERVERS" | tr ' ' '\n' | sort -u | grep -v '^$' || true)
-        if [ -n "''${DNS_SERVERS:-}" ]; then
-          for ip in $DNS_SERVERS; do
-            echo "[/tsbw.de/]$ip"
-          done > /run/dnsproxy/internal-upstreams.txt
-        else
-          echo "# Placeholder — filled by NM dispatcher" > /run/dnsproxy/internal-upstreams.txt
-        fi
+      done
+      DNS_SERVERS=$(echo "$DNS_SERVERS" | tr ' ' '\n' | sort -u | grep -v '^$' || true)
+      TMPFILE=$(mktemp /run/dnsproxy/internal-upstreams.txt.XXXXXX)
+      if [ -n "''${DNS_SERVERS:-}" ]; then
+        for ip in $DNS_SERVERS; do
+          echo "[/tsbw.de/]$ip"
+        done > "$TMPFILE"
+      else
+        echo "# No DHCP DNS yet — NM dispatcher will update on dhcp4-change" > "$TMPFILE"
       fi
+      mv "$TMPFILE" /run/dnsproxy/internal-upstreams.txt
     '';
 
     serviceConfig = {
@@ -100,7 +101,9 @@
   environment.etc."NetworkManager/dispatcher.d/01-dnsproxy-internal-dns" = {
     mode = "0755";
     source = pkgs.writeShellScript "dnsproxy-internal-dns-dispatcher" ''
-      ACTION="$1"
+      # NM dispatcher args: $1 = interface name, $2 = action
+      IFACE="$1"
+      ACTION="$2"
       case "$ACTION" in
         up|dhcp4-change|dhcp6-change) ;;
         *) exit 0 ;;
