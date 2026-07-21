@@ -8,6 +8,10 @@
 #     and fall back to the DHCP DNS server directly (saves the TLS
 #     connection overhead + process memory). On AC, restart dnsproxy and
 #     point resolv.conf back to 127.0.0.1.
+#   - smartd: polls NVMe SMART attributes periodically, waking the SSD.
+#     Stopped on battery — disk health can wait for AC.
+#   - avahi: mDNS/DNS-SD sends periodic multicast packets. Stopped on
+#     battery — printer/service discovery can wait for AC.
 { lib, pkgs, ... }:
 
 {
@@ -71,6 +75,28 @@ search ausbildung.tsbw.de tsbw.de
 options edns0 trust-ad
 RESOLV
         fi
+      fi
+    '';
+  };
+
+  # smartd + avahi battery management — stop on battery, start on AC.
+  # smartd polls NVMe SMART attributes (wakes SSD), avahi sends mDNS
+  # multicast packets. Both are unnecessary on battery.
+  systemd.services.services-battery = {
+    description = "Stop smartd + avahi on battery, start on AC";
+    wantedBy = [ "graphical.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      ac=$(cat /sys/class/power_supply/ADP1/online 2>/dev/null || echo 0)
+      if [ "$ac" = "1" ]; then
+        systemctl start smartd.service 2>/dev/null || true
+        systemctl start avahi-daemon.service 2>/dev/null || true
+      else
+        systemctl stop smartd.service 2>/dev/null || true
+        systemctl stop avahi-daemon.service 2>/dev/null || true
       fi
     '';
   };

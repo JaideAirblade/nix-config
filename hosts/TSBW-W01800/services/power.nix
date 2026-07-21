@@ -7,6 +7,8 @@
 #   - Wi-Fi powersave (rtw89_8852ce)
 #   - PCIe ASPM powersave policy (kernel boot param)
 #   - NVMe APST (Autonomous Power State Transition — SSD sleeps when idle)
+#   - amd_pstate=guided (hardware autonomous frequency management)
+#   - amdgpu GFXOFF (GPU graphics engine powers off when idle)
 #   - VM sysctl tuning (swappiness, dirty ratios)
 #   - All-PCI-device runtime PM (udev rule, autosuspend when idle)
 #   - USB device autosuspend (dock peripherals, camera, BT — all 'auto')
@@ -54,6 +56,11 @@
     # devices are connected. Saves ~0.2-0.5W. Devices pair/wake
     # normally when needed.
     options btusb enable_autosuspend=1
+    # GFXOFF — enables the amdgpu RLC firmware to power off the graphics
+    # engine entirely when idle. This is the single most effective GPU
+    # power saving feature on AMD APUs. Saves ~0.5-1W when the GPU is
+    # idle (no rendering, static display).
+    options amdgpu gfxoff=1
   '';
 
   # NMI watchdog disable — the watchdog generates periodic interrupts
@@ -87,6 +94,15 @@
     # questionable latency values. force_apst=1 overrides this and
     # enables APST unconditionally. Saves ~0.3-0.5W on an idle SSD.
     "nvme_core.force_apst=1"
+
+    # amd_pstate=guided — let the CPU hardware autonomously manage
+    # frequency based on workload, rather than the OS controlling it
+    # via EPP hints (active mode). Framework community users report
+    # guided mode halves power consumption on similar AMD APUs
+    # (10-14W → 5-8W). The hardware reacts faster and more efficiently
+    # than the OS scheduler. PPD still works — it sets the platform
+    # profile, and guided mode respects it.
+    "amd_pstate=guided"
   ];
 
   # VM sysctl — safe for both AC and battery on an SSD laptop.
@@ -192,6 +208,12 @@
     ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x10ec", ATTR{device}=="0x8168", RUN+="/bin/sh -c 'echo disabled > /sys$devpath/power/wakeup 2>/dev/null'"
     ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x10ec", ATTR{device}=="0xc852", RUN+="/bin/sh -c 'echo disabled > /sys$devpath/power/wakeup 2>/dev/null'"
 
+    # --- SD card reader force runtime suspend ---
+    # O2 Micro OZ711 SD/MMC Card Reader (0x1217:0x8621) stays active
+    # even with power/control=auto because no autosuspend timeout fires.
+    # Set a short autosuspend delay so it suspends when no card is inserted.
+    ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x1217", ATTR{device}=="0x8621", RUN+="/bin/sh -c 'echo 1 > /sys$devpath/power/autosuspend_delay_ms 2>/dev/null; echo auto > /sys$devpath/power/control 2>/dev/null'"
+
     # --- GPU DPM on DRM card add (amdgpu ready) ---
     # When amdgpu loads and creates the DRM card device, set GPU DPM to
     # 'low' if on battery. This fires after amdgpu is fully initialized,
@@ -200,11 +222,12 @@
     # shell $() command substitution inside RUN+=.
     ACTION=="add", SUBSYSTEM=="drm", KERNEL=="card[0-9]", RUN+="${pkgs.bash}/bin/bash ${./gpu-dpm.sh}"
 
-    # --- GPU DPM on power source change ---
-    # Trigger the power-battery-tune service to re-apply GPU DPM when
-    # power source changes. The service runs after PPD to avoid conflicts.
-    # Also trigger dnsproxy-battery to stop/start dnsproxy on battery/AC.
-    SUBSYSTEM=="power_supply", ACTION=="change", RUN+="/bin/sh -c 'systemctl start power-battery-tune.service 2>/dev/null || true; systemctl start dnsproxy-battery.service 2>/dev/null || true'"
+    # --- GPU DPM + dnsproxy + services on power source change ---
+    # Trigger battery-aware services when power source changes:
+    #   - power-battery-tune: GPU DPM + EPP fallback
+    #   - dnsproxy-battery: stop/start dnsproxy, rewrite resolv.conf
+    #   - services-battery: stop/start smartd + avahi
+    SUBSYSTEM=="power_supply", ACTION=="change", RUN+="/bin/sh -c 'systemctl start power-battery-tune.service 2>/dev/null || true; systemctl start dnsproxy-battery.service 2>/dev/null || true; systemctl start services-battery.service 2>/dev/null || true'"
   '';
 
   # GPU DPM + EPP fallback on battery — systemd service for power source changes.
