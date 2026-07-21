@@ -35,7 +35,10 @@
   # We can't use `gh auth setup-git` because programs.git.config symlinks
   # ~/.config/git/config into the read-only nix store, so the credential
   # helper goes here in the NixOS-managed git config instead.
+  # The `!` prefix is required — without it git tries to run
+  # `git credential-gh` (a non-existent binary) instead of treating
+  # the value as a shell command.
   programs.git.config.credential."https://github.com" = {
-    helper = "gh auth git-credential";
+    helper = "!gh auth git-credential";
   };
 }
