@@ -48,10 +48,15 @@
     compositor.name = lib.mkForce "niri";
     # Sync greeter theme with user's DMS settings
     configHome = "/home/jaide";
-    # Save greeter logs for debugging
+    # Save greeter logs for debugging. Use /var/log/dms-greeter.log
+    # instead of /tmp — /tmp files survive reboots but can be owned by
+    # a stale greeter UID after a rebuild shifts system user IDs,
+    # causing a permission-denied crash loop on greeter startup.
+    # /var/log is root-owned and the greeter session script runs as
+    # the greeter user, so we pre-create the file via tmpfiles.
     logs = {
       save = true;
-      path = "/tmp/dms-greeter.log";
+      path = "/var/log/dms-greeter.log";
     };
   };
 
@@ -74,4 +79,16 @@
 
   # Use DMS's built-in polkit agent instead of niri-flake's default
   systemd.user.services.niri-flake-polkit.enable = false;
+
+  # Pre-create the greeter log file AND fix stale ownership of greeter
+  # state directories. When system user IDs shift between generations
+  # (e.g. adding thermald), the greeter user gets a new UID but the
+  # .cache/.local/.config dirs under /var/lib/dms-greeter retain the old
+  # UID with 0700 perms — the greeter can't access them and crashes on
+  # startup. The tmpfiles 'z' rule recursively fixes ownership on every
+  # activation, so it self-heals even after UID shifts.
+  systemd.tmpfiles.rules = [
+    "f /var/log/dms-greeter.log 0666 greeter greeter -"
+    "Z /var/lib/dms-greeter - greeter greeter -"
+  ];
 }
