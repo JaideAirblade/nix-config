@@ -1,6 +1,9 @@
 # Niri — scrollable tiling Wayland compositor
 # https://github.com/YaLTeR/niri
 # Using niri-flake which provides both NixOS and home-manager modules
+#
+# Niri is the SECONDARY compositor on this host (mango is primary).
+# It stays installed so it can be selected at the DMS greeter.
 {inputs, pkgs, ...}: {
   imports = [
     inputs.niri.nixosModules.niri

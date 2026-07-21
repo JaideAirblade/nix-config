@@ -12,8 +12,10 @@
 #     nixosModules.greeter inside the DMS flake.
 #
 # Defaults here are deliberately written with lib.mkDefault so a host can
-# override them (e.g. TSBW-W01800 sets compositor.name = "niri" and pulls in
-# DankCalendar). UwU uses the defaults (mango, calendar events via khal).
+# override them (e.g. TSBW-W01800 previously set compositor.name = "niri"
+# but now uses the default "mango" with niri as a secondary option,
+# and pulls in DankCalendar). UwU uses the defaults (mango, calendar
+# events via khal).
 { inputs, lib, ... }:
 
 {

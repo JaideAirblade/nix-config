@@ -42,10 +42,12 @@
     };
   };
 
-  # DankGreeter — override compositor to niri (shared default is mango)
+  # DankGreeter — compositor is now mango (switched from niri).
+  # Mango is the primary compositor on this host; niri stays installed
+  # as a secondary option (can be selected at the greeter).
   programs.dms-greeter = {
     enable = true;
-    compositor.name = lib.mkForce "niri";
+    compositor.name = lib.mkForce "mango";
     # Sync greeter theme with user's DMS settings
     configHome = "/home/jaide";
     # Save greeter logs for debugging. Use /var/log/dms-greeter.log

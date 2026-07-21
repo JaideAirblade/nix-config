@@ -1,7 +1,7 @@
 # MangoWC — Wayland compositor based on dwl
 # https://github.com/mangowm/mango
 #
-# Mango is the secondary compositor on this host (niri is primary).
+# Mango is the PRIMARY compositor on this host.
 # The shared modules/wm/mango already imports inputs.mangowm.nixosModules.mango
 # and enables programs.mango. We only need the mango-session target so
 # DMS (and other graphical-session services) auto-start when mango launches.

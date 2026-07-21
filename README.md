@@ -63,7 +63,7 @@ Jaide's NixOS flake configuration, structured following [ryan4yin's NixOS & Flak
         ├── boot/          # systemd initrd (for FIDO2 + Thunderbolt)
         ├── network/       # Hostname + dnsproxy (DoH + internal DNS routing)
         ├── services/      # Printing, scanning, Steam, upower, gvfs
-        ├── desktop/       # niri (primary) + mango (secondary), DMS overrides
+        ├── desktop/       # mango (primary) + niri (secondary), DMS overrides
         ├── packages/      # Work tools, games, browsers, disk recovery, archives
         ├── users/         # Host-specific groups + kate
         └── shell/         # Rebuild alias targets .#TSBW-W01800, git identity
@@ -82,7 +82,7 @@ Jaide's NixOS flake configuration, structured following [ryan4yin's NixOS & Flak
 | Host | Hardware | Compositor | Use case |
 |------|----------|------------|----------|
 | UwU | AMD CPU, NVIDIA RTX 3080, 32GB RAM | MangoWM | Personal — gaming, media, dev |
-| TSBW-W01800 | AMD APU, 16GB RAM, LUKS + Thunderbolt dock | niri (primary) + MangoWM (secondary) | Work — YubiKey login, printing, remote desktop |
+| TSBW-W01800 | AMD APU, 16GB RAM, LUKS + Thunderbolt dock | mango (primary) + niri (secondary) | Work — YubiKey login, printing, remote desktop |
 
 ## Usage
 
