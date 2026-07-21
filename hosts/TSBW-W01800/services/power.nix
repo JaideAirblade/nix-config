@@ -16,20 +16,22 @@
 { lib, pkgs, ... }:
 
 {
-  # thermald — thermal management daemon. Uses AMD DPTF adaptive tables
-  # when available (--adaptive flag). Complements PPD: PPD handles power
-  # profiles (CPU governor, EPP), thermald handles thermal throttling.
-  services.thermald.enable = true;
+  # thermald — REMOVED: Intel DPTF only, crashes on AMD ("Unsupported
+  # cpu model or platform"). AMD thermal management is handled by the
+  # kernel's native cpufreq/amd_pstate driver + PPD power profiles.
+  # services.thermald.enable = true;
 
   # Wi-Fi powersave — rtw89_8852ce supports it, saves ~0.5-1W.
   networking.networkmanager.wifi.powersave = true;
 
   # PCIe ASPM — force powersave policy at boot. The kernel default is
   # "default" (BIOS-controlled), which often leaves links in L0s/L1
-  # disabled, wasting ~1-2W on AMD laptops. "powersave" enables ASPM
-  # L1 for all PCIe links. Use "powersupersave" for L1 substates if
-  # stability allows (some ThinkBook USB4 docks have issues with it).
-  boot.kernelParams = [ "pcie_aspm=powersave" ];
+  # disabled, wasting ~1-2W on AMD laptops. We need pcie_aspm.policy=
+  # (not just pcie_aspm=) to override the sysfs policy at boot — without
+  # the .policy= suffix, the param sets the default mode for new devices
+  # but doesn't override the active policy shown in
+  # /sys/module/pcie_aspm/parameters/policy.
+  boot.kernelParams = [ "pcie_aspm.policy=powersave" ];
 
   # VM sysctl — safe for both AC and battery on an SSD laptop.
   # swappiness=10: prefer keeping apps in RAM, only swap under pressure.
