@@ -11,7 +11,7 @@
 #   - amdgpu GFXOFF (GPU graphics engine powers off when idle)
 #   - VM sysctl tuning (swappiness, dirty ratios)
 #   - All-PCI-device runtime PM (udev rule, autosuspend when idle)
-#   - USB device autosuspend (dock peripherals, camera, BT — all 'auto')
+#   - USB device autosuspend on battery only (dock peripherals stay 'on' on AC)
 #   - PCI wakeup source pruning (only essential devices can wake from suspend)
 #   - GPU DPM force 'low' on battery (udev on DRM add + systemd service)
 #   - laptop_mode on battery (udev rule, batch writes → SSD sleeps)
@@ -126,11 +126,11 @@
   #    AMD chipset bridges, Data Fabric functions, WiFi, Ethernet, SD
   #    reader, IOMMU, SMBus, PSP/CCP, etc. Previously we only set amdgpu
   #    + NVMe; expanding to all PCI devices saves ~1.5-2.5W.
-  # 2. All USB devices → runtime PM 'auto' (autosuspend when idle).
-  #    Covers dock peripherals (keyboard, mouse, dock audio, dock MCU,
-  #    dock LAN), internal camera, fingerprint reader, and Bluetooth.
-  #    Devices resume instantly on access. The keyboard keeps wakeup
-  #    enabled so it can wake the system from suspend.
+  # 2. All USB devices → runtime PM 'auto' on battery only (autosuspend when
+  #    idle). On AC, USB devices stay at 'on' so dock peripherals don't sleep.
+  #    The power-battery-tune service handles the AC↔battery transition.
+  #    Covers dock peripherals (keyboard, mouse, dock audio, dock MCU, dock
+  #    LAN), internal camera, fingerprint reader, and Bluetooth.
   # 3. PCI wakeup source pruning — disable wakeup on non-essential PCI
   #    devices to prevent spurious wakeups during suspend:
   #    - AMD PCIe GPP bridges (0x1022:0x14ba, 0x1022:0x14cd) — bridges
@@ -165,12 +165,13 @@
     # Fires at boot when PCI devices are discovered (ACTION=="add").
     ACTION=="add", SUBSYSTEM=="pci", RUN+="/bin/sh -c 'for d in /sys/bus/pci/devices/*/power/control; do [ -w \"$$d\" ] && echo auto > \"$$d\" 2>/dev/null; done'"
 
-    # --- All USB device runtime PM at boot ---
-    # Set every USB device to 'auto' so they can autosuspend when idle.
-    # This catches dock peripherals (keyboard, mouse, dock audio, dock
-    # MCU, dock LAN), internal camera, fingerprint reader, and Bluetooth.
-    # Devices resume instantly on access — no functional impact.
-    ACTION=="add", SUBSYSTEM=="usb", RUN+="/bin/sh -c 'for d in /sys/bus/usb/devices/*/power/control; do [ -w \"$$d\" ] && echo auto > \"$$d\" 2>/dev/null; done'"
+    # --- USB device runtime PM at boot (battery-only) ---
+    # Set all USB devices to 'auto' (autosuspend when idle) ONLY on battery.
+    # On AC, devices stay at 'on' (default) so dock peripherals don't sleep.
+    # The power-battery-tune service handles the AC↔battery transition.
+    # Uses a helper script because udev's $$ substitution doesn't support
+    # shell $() command substitution inside RUN+=.
+    ACTION=="add", SUBSYSTEM=="usb", RUN+="${pkgs.bash}/bin/bash ${./usb-autosuspend.sh}"
 
     # --- PCI wakeup source pruning ---
     # Disable wakeup on non-essential PCI devices to prevent spurious
@@ -246,7 +247,7 @@
   #
   # CPU boost is NOT set here — see note above about PPD crash.
   systemd.services.power-battery-tune = {
-    description = "Set GPU DPM low + EPP power on battery";
+    description = "Set GPU DPM + EPP + USB runtime PM on battery";
     after = [ "power-profiles-daemon.service" "systemd-udevd.service" ];
     wantedBy = [ "graphical.target" ];
     serviceConfig = {
@@ -257,9 +258,16 @@
       ac=$(cat /sys/class/power_supply/ADP1/online 2>/dev/null || echo 0)
       if [ "$ac" = "1" ]; then
         gpu_level=auto
+        usb_mode=on
       else
         gpu_level=low
+        usb_mode=auto
       fi
+      # USB runtime PM — 'auto' (autosuspend) on battery, 'on' (always on) on AC.
+      # Prevents dock peripherals from sleeping while charging.
+      for d in /sys/bus/usb/devices/*/power/control; do
+        [ -w "$d" ] && echo "$usb_mode" > "$d" 2>/dev/null || true
+      done
       # GPU DPM — force lowest clock states on battery
       for card in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
         if [ -w "$card" ]; then
