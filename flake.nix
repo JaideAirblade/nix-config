@@ -79,9 +79,20 @@
       config.allowUnfree = true;
     };
   in {
-    # Custom packages overlay — exposes pkgs.betterbird, pkgs.octarine.
+    # Custom packages overlay — exposes pkgs.betterbird, pkgs.octarine, pkgs.hytale.
     # Applied by each host via nixpkgs.overlays in their host config.
     overlays = import ./overlays;
+
+    # Standalone package outputs — `nix build .#betterbird`, `nix build .#octarine`, etc.
+    # Reuses pkgs-stable (already created above) so we don't spawn another nixpkgs
+    # instance. These are all pre-built binaries wrapped with autoPatchelfHook, so
+    # the stable/unstable difference is negligible; in-system builds go through the
+    # overlay with the host's unstable pkgs.
+    packages.${system} = {
+      betterbird = pkgs-stable.callPackage ./pkgs/betterbird { };
+      octarine = pkgs-stable.callPackage ./pkgs/octarine { };
+      hytale = pkgs-stable.callPackage ./pkgs/hytale { };
+    };
 
     nixosConfigurations = {
       # The hostname (set in modules/network/default.nix) must match this

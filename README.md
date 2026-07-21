@@ -36,11 +36,12 @@ Jaide's NixOS flake configuration, structured following [ryan4yin's NixOS & Flak
 │   ├── ai/                # Hermes Agent + Mnemosyne memory provider
 │   └── cloud/             # rclone Google Drive sync (systemd user timer)
 ├── overlays/
-│   └── default.nix        # Exposes pkgs.betterbird, pkgs.octarine
+│   └── default.nix        # Exposes pkgs.betterbird, pkgs.octarine, pkgs.hytale
 ├── pkgs/                  # Custom packages (via callPackage)
 │   ├── default.nix        # Aggregator
 │   ├── betterbird/        # Thunderbird fork (pre-built binary)
-│   └── octarine/          # Markdown note-taking app (Tauri)
+│   ├── octarine/          # Markdown note-taking app (Tauri)
+│   └── hytale/            # Hytale game launcher (FHS-wrapped binary)
 └── hosts/                 # Per-host configuration
     ├── UwU/               # Personal laptop (AMD + NVIDIA RTX 3080)
     │   ├── default.nix    # Imports shared modules + host-specific
