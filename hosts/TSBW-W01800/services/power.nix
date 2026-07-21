@@ -8,7 +8,8 @@
 #   - Wi-Fi powersave (rtw89_8852ce)
 #   - PCIe ASPM powersave policy (kernel boot param)
 #   - VM sysctl tuning (swappiness, dirty ratios)
-#   - laptop_mode + device runtime PM (udev rule, battery-only)
+#   - All-PCI-device runtime PM (udev rule, autosuspend when idle)
+#   - laptop_mode on battery (udev rule, batch writes → SSD sleeps)
 #   - system76-scheduler (CFS profile tuning on/off battery)
 #   - Audio codec power save (snd_hda_intel power_save=1)
 #   - NMI watchdog disable (fewer timer interrupts → deeper C-states)
@@ -80,26 +81,47 @@
   # swappiness=10: prefer keeping apps in RAM, only swap under pressure.
   # dirty_ratio=10 / dirty_background_ratio=5: smaller dirty write buffers
   #   reduce sync latency and let the SSD enter low-power APST sooner.
+  # dirty_writeback_centisecs=1500: flush dirty pages every 15s (default 5s)
+  #   so the SSD stays idle longer between write flushes. Recommended by
+  #   powertop.
   boot.kernel.sysctl = {
     "vm.swappiness" = 10;
     "vm.dirty_ratio" = 10;
     "vm.dirty_background_ratio" = 5;
+    "vm.dirty_writeback_centisecs" = 1500;
   };
 
   # udev rules for battery-aware power management.
-  # laptop_mode batches disk writes so the SSD can sleep between flushes
-  # (5-second timeout). Only on battery — on AC, laptop_mode=0 for lower
-  # write latency. Also set device runtime PM to auto at boot so amdgpu
-  # and NVMe can autosuspend when idle.
+  # 1. All PCI devices → runtime PM 'auto' (autosuspend when idle).
+  #    powertop recommends this for every PCI device on this laptop —
+  #    AMD chipset bridges, Data Fabric functions, WiFi, Ethernet, SD
+  #    reader, IOMMU, SMBus, PSP/CCP, etc. Previously we only set amdgpu
+  #    + NVMe; expanding to all PCI devices saves ~1.5-2.5W.
+  # 2. laptop_mode on battery (batch writes → SSD sleeps).
+  # 3. Disable WoL wakeup triggers on Ethernet + WiFi to prevent
+  #    spurious wakeups during suspend (battery drain). Lid open,
+  #    keyboard, and power button still wake the system.
   services.udev.extraRules = ''
-    # --- Device runtime PM at boot / on power change ---
-    # amdgpu + NVMe: allow autosuspend when idle (safe on both AC/battery).
-    # NOTE: udev interprets $$  as a literal $ passed to the shell.
-    ACTION=="add|change", SUBSYSTEM=="power_supply", RUN+="/bin/sh -c 'for d in /sys/class/drm/card*/device/power/control /sys/class/nvme/*/device/power/control; do [ -w \"$$d\" ] && echo auto > \"$$d\" 2>/dev/null; done'"
+    # --- All PCI device runtime PM at boot ---
+    # Set every PCI device to 'auto' so they can autosuspend when idle.
+    # Fires at boot when PCI devices are discovered (ACTION=="add").
+    # NOTE: udev interprets $$ as a literal $ passed to the shell.
+    # Do NOT use ACTION=="add|change" — systemd 261 udevadm verify rejects
+    # pipe lists for ACTION (see thunderbolt.nix for the same pattern).
+    ACTION=="add", SUBSYSTEM=="pci", RUN+="/bin/sh -c 'for d in /sys/bus/pci/devices/*/power/control; do [ -w \"$$d\" ] && echo auto > \"$$d\" 2>/dev/null; done'"
 
     # --- laptop_mode on battery (batch writes → SSD sleeps) ---
-    SUBSYSTEM=="power_supply", ATTR{online}=="0", RUN+="/bin/sh -c 'echo 5 > /proc/sys/vm/laptop_mode'"
-    SUBSYSTEM=="power_supply", ATTR{online}=="1", RUN+="/bin/sh -c 'echo 0 > /proc/sys/vm/laptop_mode'"
+    # Split into add/change rules — udevadm verify (systemd 261) rejects
+    # pipe lists for ACTION (see thunderbolt.nix for the same pattern).
+    SUBSYSTEM=="power_supply", ACTION=="add", ATTR{online}=="0", RUN+="/bin/sh -c 'echo 5 > /proc/sys/vm/laptop_mode'"
+    SUBSYSTEM=="power_supply", ACTION=="add", ATTR{online}=="1", RUN+="/bin/sh -c 'echo 0 > /proc/sys/vm/laptop_mode'"
+    SUBSYSTEM=="power_supply", ACTION=="change", ATTR{online}=="0", RUN+="/bin/sh -c 'echo 5 > /proc/sys/vm/laptop_mode'"
+    SUBSYSTEM=="power_supply", ACTION=="change", ATTR{online}=="1", RUN+="/bin/sh -c 'echo 0 > /proc/sys/vm/laptop_mode'"
+
+    # --- Disable Wake-on-LAN on Ethernet + WiFi ---
+    # Prevents network interfaces from waking the laptop from suspend.
+    # Lid open, keyboard, and power button still wake normally.
+    ACTION=="add", SUBSYSTEM=="net", KERNEL=="enp1s0|wlp2s0", RUN+="/bin/sh -c 'echo disabled > /sys/class/net/%k/device/power/wakeup 2>/dev/null'"
   '';
 
   # Diagnostic tools — just the binaries, NOT the powertop auto-tune
