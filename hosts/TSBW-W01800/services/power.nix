@@ -257,10 +257,8 @@
       ac=$(cat /sys/class/power_supply/ADP1/online 2>/dev/null || echo 0)
       if [ "$ac" = "1" ]; then
         gpu_level=auto
-        epp=balance_performance
       else
         gpu_level=low
-        epp=power
       fi
       # GPU DPM — force lowest clock states on battery
       for card in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
@@ -268,14 +266,48 @@
           echo "$gpu_level" > "$card" 2>/dev/null || true
         fi
       done
-      # EPP fallback — set energy_performance_preference on all CPUs.
-      # PPD 0.30 crashes on amd_pstate_epp (EINVAL writing per-policy
-      # boost), so it never sets EPP. We set it directly here.
-      for cpu in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
-        if [ -w "$cpu" ]; then
-          echo "$epp" > "$cpu" 2>/dev/null || true
+      # CPU frequency management — two modes depending on amd_pstate driver:
+      #   - active (amd-pstate-epp): set EPP=power on battery, balance_performance on AC.
+      #     PPD normally does this but crashes on 0.30 (EINVAL policy11/boost).
+      #   - guided (amd-pstate): no EPP sysfs, so set scaling_min_freq and
+      #     scaling_max_freq directly. On battery, cap at base clock (the
+      #     lowest non-boost P-state) and allow min to drop to cpuinfo_min.
+      #     On AC, restore full range.
+      if [ -w /sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference ]; then
+        # Active mode — use EPP
+        if [ "$ac" = "1" ]; then
+          epp=balance_performance
+        else
+          epp=power
         fi
-      done
+        for cpu in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
+          [ -w "$cpu" ] && echo "$epp" > "$cpu" 2>/dev/null || true
+        done
+      else
+        # Guided mode — use frequency limits
+        if [ "$ac" = "1" ]; then
+          min_freq=""
+          max_freq=""
+        else
+          # On battery: min = cpuinfo_min_freq (416MHz), max = base clock
+          # Base clock for Ryzen 5 7535HS = 3301000 (3.3GHz, highest non-boost P-state)
+          min_freq=$(cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_min_freq 2>/dev/null || echo "")
+          max_freq="3301000"
+        fi
+        for cpu_min in /sys/devices/system/cpu/cpu*/cpufreq/scaling_min_freq; do
+          if [ -n "$min_freq" ] && [ -w "$cpu_min" ]; then
+            echo "$min_freq" > "$cpu_min" 2>/dev/null || true
+          fi
+        done
+        for cpu_max in /sys/devices/system/cpu/cpu*/cpufreq/scaling_max_freq; do
+          if [ -n "$max_freq" ] && [ -w "$cpu_max" ]; then
+            echo "$max_freq" > "$cpu_max" 2>/dev/null || true
+          elif [ -z "$max_freq" ] && [ -w "$cpu_max" ]; then
+            # AC: restore max to cpuinfo_max_freq
+            echo "$(cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq 2>/dev/null)" > "$cpu_max" 2>/dev/null || true
+          fi
+        done
+      fi
     '';
   };
 
