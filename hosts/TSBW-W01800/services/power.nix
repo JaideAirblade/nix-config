@@ -9,6 +9,11 @@
 #   - PCIe ASPM powersave policy (kernel boot param)
 #   - VM sysctl tuning (swappiness, dirty ratios)
 #   - laptop_mode + device runtime PM (udev rule, battery-only)
+#   - system76-scheduler (CFS profile tuning on/off battery)
+#   - Audio codec power save (snd_hda_intel power_save=1)
+#   - NMI watchdog disable (fewer timer interrupts → deeper C-states)
+#   - Bluetooth USB autosuspend (btusb suspends when no devices paired)
+#   - Suspend-then-hibernate after 1h (zero overnight battery drain)
 #   - powertop + iw + usbutils for manual diagnostics
 #
 # Do NOT add TLP, auto-cpufreq, or powerManagement.powertop.enable —
@@ -23,6 +28,44 @@
 
   # Wi-Fi powersave — rtw89_8852ce supports it, saves ~0.5-1W.
   networking.networkmanager.wifi.powersave = true;
+
+  # system76-scheduler — userspace CPU/IO scheduler optimizer.
+  # Tweaks CFS latency parameters when switching on/off battery via PPD.
+  # Improves performance-per-watt without reducing functionality — the
+  # CPU spends more time in idle states without losing responsiveness.
+  # Does NOT conflict with PPD (it listens to PPD's D-Bus signals).
+  services.system76-scheduler = {
+    enable = true;
+    settings.cfsProfiles.enable = true;  # default, explicit for clarity
+  };
+
+  # Audio codec power save — snd_hda_intel suspends the HDA codec after
+  # 1 second of silence. The codec is a common powertop top-offender,
+  # drawing ~0.5-1W even when no audio is playing. Audio still works
+  # instantly when needed (may produce a faint pop on some codecs —
+  # increase to power_save=5 if that's bothersome).
+  boot.extraModprobeConfig = ''
+    options snd_hda_intel power_save=1
+    # Bluetooth USB autosuspend — btusb module suspends when no BT
+    # devices are connected. Saves ~0.2-0.5W. Devices pair/wake
+    # normally when needed.
+    options btusb enable_autosuspend=1
+  '';
+
+  # NMI watchdog disable — the watchdog generates periodic interrupts
+  # that prevent CPU cores from reaching deep C-states. Disabling it
+  # has zero functional impact (it's only for kernel-hang debugging)
+  # and saves ~0.1-0.3W.
+  boot.kernel.sysctl."kernel.nmi_watchdog" = 0;
+
+  # Suspend-then-hibernate — after suspending, systemd transitions to
+  # hibernate (RAM → swap, full power-off) after 1 hour. Fast resume
+  # for short suspend, zero battery drain for overnight/long suspend.
+  # Requires working hibernation (swap device configured — we have
+  # LUKS swap + zram).
+  systemd.sleep.settings.Sleep = {
+    HibernateDelaySec = "1h";
+  };
 
   # PCIe ASPM — force powersave policy at boot. The kernel default is
   # "default" (BIOS-controlled), which often leaves links in L0s/L1
