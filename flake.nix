@@ -11,8 +11,10 @@
 
     # Mango — Wayland compositor (dwl-based). Provides nixosModules.mango
     # (programs.mango.enable) and hmModules.mango.
+    # Using the wl-only branch for HDR support (requires Vulkan renderer,
+    # drops scenefx effects like blur/shadows/rounded corners).
     mangowm = {
-      url = "github:mangowm/mango";
+      url = "github:mangowm/mango/wl-only";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
