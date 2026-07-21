@@ -8,11 +8,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1784516427,
-        "narHash": "sha256-uYHpbrbkrbLjZlXnYPkY7vB8IQdWCflX8wdn1CUlZlw=",
+        "lastModified": 1784602839,
+        "narHash": "sha256-sy2wMWeVCR161lzBI/7rRBNHFCHVNQkxl3NQAWE/Gho=",
         "owner": "AvengeMedia",
         "repo": "dank-greeter",
-        "rev": "d73d3c0430a9429fb12505f1b9ba9d53ec4da64b",
+        "rev": "87ef04bac6a38b77bfa989233c3aaaf731f82c94",
         "type": "github"
       },
       "original": {
@@ -56,11 +56,11 @@
     "dank-qml-common_3": {
       "flake": false,
       "locked": {
-        "lastModified": 1784485083,
-        "narHash": "sha256-hRTmcd3Ms9DF3X35ZiapXM15rG5X1DtIdlrQZwRINFE=",
+        "lastModified": 1784591373,
+        "narHash": "sha256-oChgAprzgLrpMXDI/AyVt1lJ+S9ayErRZw+1j9d8Sbg=",
         "owner": "AvengeMedia",
         "repo": "dank-qml-common",
-        "rev": "c0f2d837e1c9933e6789eeb38e7d456088bd5d1b",
+        "rev": "1451ac603844f2b686e58fa062b1456373693c22",
         "type": "github"
       },
       "original": {
@@ -77,11 +77,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1784551937,
-        "narHash": "sha256-5HxWuveU/fFqbupn0AXZtYNuMT2PD5lbhYqTip5lYu8=",
+        "lastModified": 1784583337,
+        "narHash": "sha256-36YUjY99J88xYUPfB8b9ksdqveBWmNdcsF4y9gDiVHo=",
         "owner": "AvengeMedia",
         "repo": "dankcalendar",
-        "rev": "d5afff616bc327578e0645c4ef1caf0bbcaa6c2a",
+        "rev": "0d73ce5903746f3b3125dbcb416fe61388178dcc",
         "type": "github"
       },
       "original": {
@@ -99,11 +99,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1784578061,
-        "narHash": "sha256-vuH5JlpdvzhuDctGu6jF3qfHM+pdNk/UKcGkJrUX2ts=",
+        "lastModified": 1784593260,
+        "narHash": "sha256-+p4m1oyMBIx+Ufq5tCOyE/rUg6H3w0pRUu2IFLR6FPg=",
         "owner": "AvengeMedia",
         "repo": "DankMaterialShell",
-        "rev": "68e60f036d2e4640630eef99573a50adff2f0751",
+        "rev": "fa6c36ad570f3d1b2a8a7f93aebbd38df1c5bd16",
         "type": "github"
       },
       "original": {
@@ -201,11 +201,11 @@
         "uv2nix": "uv2nix"
       },
       "locked": {
-        "lastModified": 1784577852,
-        "narHash": "sha256-L4ZdNUdlDG/L+4NdCijhdNXlzV6A4ggAlaTGS4FtmSI=",
+        "lastModified": 1784595732,
+        "narHash": "sha256-YFKbF6peilDbXkhEAnHQL03IvHOAUn2mJEcptN4UVwY=",
         "owner": "NousResearch",
         "repo": "hermes-agent",
-        "rev": "d7b36070ef807841699ad32c5b6af547fee3ff64",
+        "rev": "477c08b44766ace8b890faa72bf82ecbcf2b3ba8",
         "type": "github"
       },
       "original": {
@@ -223,11 +223,11 @@
         "scenefx": "scenefx"
       },
       "locked": {
-        "lastModified": 1784526138,
-        "narHash": "sha256-u92qHl33f0h9dxXd50AOGDqsG+IFdpCyJe8mWsJnBwY=",
+        "lastModified": 1784602027,
+        "narHash": "sha256-vbL9hO4vdG5MYEDocW8ORFr/qhphEUvY0ZkmrJuhrIc=",
         "owner": "mangowm",
         "repo": "mango",
-        "rev": "b5efdd24e76c3c9aa2300e626fe013fcd3617cca",
+        "rev": "71278aa7a44ff4174c0a8dbb2483a291e292846d",
         "type": "github"
       },
       "original": {
