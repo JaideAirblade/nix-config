@@ -70,5 +70,12 @@
     # mod management. Qt-based; runs Java Edition instances with per-instance
     # mods, resource packs, and Java versions.
     prismlauncher
+
+    # --- Native Electron for Electron-based Steam games (FeeBay, etc.) ---
+    # Run Windows Electron games natively on Linux by extracting app.asar
+    # from the Windows install and launching with the Linux electron binary.
+    # On NVIDIA + MangoWM, Electron's native Wayland backend flickers badly
+    # (MangoWM issue #1181) — launch with --ozone-platform=x11 to force XWayland.
+    electron
   ];
 }
