@@ -11,8 +11,7 @@
 #   - All-PCI-device runtime PM (udev rule, autosuspend when idle)
 #   - USB device autosuspend (dock peripherals, camera, BT — all 'auto')
 #   - PCI wakeup source pruning (only essential devices can wake from suspend)
-#   - CPU boost disable on battery (cap at base clock, saves ~1-2W)
-#   - GPU DPM force 'low' on battery (amdgpu clock gating)
+#   - GPU DPM + CPU boost on battery (systemd service after PPD starts)
 #   - laptop_mode on battery (udev rule, batch writes → SSD sleeps)
 #   - system76-scheduler (CFS profile tuning on/off battery)
 #   - Audio codec power save (snd_hda_intel power_save=1)
@@ -194,27 +193,38 @@
     ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x10ec", ATTR{device}=="0x8168", RUN+="/bin/sh -c 'echo disabled > /sys$devpath/power/wakeup 2>/dev/null'"
     ACTION=="add", SUBSYSTEM=="pci", ATTR{vendor}=="0x10ec", ATTR{device}=="0xc852", RUN+="/bin/sh -c 'echo disabled > /sys$devpath/power/wakeup 2>/dev/null'"
 
-    # --- GPU DPM on power source change ---
-    # Trigger the gpu-dpm-battery service to re-apply GPU clock settings.
-    # The actual write happens in the systemd service (not here) because
-    # amdgpu may not be fully initialized when udev fires at boot.
-    SUBSYSTEM=="power_supply", ACTION=="change", RUN+="/bin/sh -c 'systemctl start gpu-dpm-battery.service 2>/dev/null || true'"
+    # --- GPU DPM + CPU boost on power source change ---
+    # Trigger the power-battery-tune service to re-apply GPU clock and
+    # CPU boost settings. The actual write happens in the systemd service
+    # (not here) because amdgpu may not be ready at udev time, and writing
+    # boost before PPD starts crashes PPD.
+    SUBSYSTEM=="power_supply", ACTION=="change", RUN+="/bin/sh -c 'systemctl start power-battery-tune.service 2>/dev/null || true'"
   '';
 
-  # GPU DPM force 'low' on battery — systemd service approach.
-  # amdgpu's power_dpm_force_performance_level stays 'auto' and
-  # power_dpm_state stays 'performance' even in PPD power-saver mode.
-  # Forcing 'low' on battery makes the GPU use the lowest clock states.
-  # Restored to 'auto' on AC for full GPU performance.
+  # GPU DPM + CPU boost on battery — systemd service approach.
   #
-  # Done as a systemd oneshot (not udev) because amdgpu may not be fully
-  # initialized when power_supply udev events fire at boot — the udev
-  # approach failed with exit code 1 in testing.
-  systemd.services.gpu-dpm-battery = {
-    description = "Set GPU DPM to low power on battery";
+  # Two things PPD doesn't manage that we set on battery:
+  #   1. GPU DPM: amdgpu's power_dpm_force_performance_level stays 'auto'
+  #      and power_dpm_state stays 'performance' even in PPD power-saver.
+  #      Forcing 'low' on battery makes the GPU use lowest clock states.
+  #   2. CPU boost: PPD 0.30 with amd_pstate_epp only controls EPP, not
+  #      the boost flag. boost=0 caps the CPU at base clock (2.3GHz vs
+  #      3.3GHz), saving ~1-2W. Restored to boost=1 on AC.
+  #
+  # Done as a systemd oneshot (not udev) because:
+  #   - amdgpu may not be fully initialized when power_supply udev events
+  #     fire at boot (udev approach failed with exit code 1 in testing).
+  #   - Writing boost via udev BEFORE PPD starts causes PPD to crash with
+  #     EINVAL when it probes per-policy boost files. Running AFTER PPD
+  #     avoids this timing conflict.
+  #
+  # Uses wantedBy = [ "graphical.target" ] (not multi-user.target) to
+  # avoid an ordering cycle: PPD is wantedBy multi-user.target, so
+  # after=PPD + wantedBy=multi-user creates a circular dependency.
+  systemd.services.power-battery-tune = {
+    description = "Set GPU DPM low + CPU boost off on battery";
     after = [ "power-profiles-daemon.service" "systemd-udevd.service" ];
-    wants = [ "power-profiles-daemon.service" ];
-    wantedBy = [ "multi-user.target" ];
+    wantedBy = [ "graphical.target" ];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
@@ -222,15 +232,23 @@
     script = ''
       ac=$(cat /sys/class/power_supply/ADP1/online 2>/dev/null || echo 0)
       if [ "$ac" = "1" ]; then
-        level=auto
+        gpu_level=auto
+        cpu_boost=1
       else
-        level=low
+        gpu_level=low
+        cpu_boost=0
       fi
+      # GPU DPM — force lowest clock states on battery
       for card in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
         if [ -w "$card" ]; then
-          echo "$level" > "$card" 2>/dev/null || true
+          echo "$gpu_level" > "$card" 2>/dev/null || true
         fi
       done
+      # CPU boost — cap at base clock on battery
+      # Write the global boost file; amd_pstate propagates to per-policy.
+      if [ -w /sys/devices/system/cpu/cpufreq/boost ]; then
+        echo "$cpu_boost" > /sys/devices/system/cpu/cpufreq/boost 2>/dev/null || true
+      fi
     '';
   };
 
