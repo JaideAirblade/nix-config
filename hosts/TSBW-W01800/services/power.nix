@@ -203,7 +203,8 @@
     # --- GPU DPM on power source change ---
     # Trigger the power-battery-tune service to re-apply GPU DPM when
     # power source changes. The service runs after PPD to avoid conflicts.
-    SUBSYSTEM=="power_supply", ACTION=="change", RUN+="/bin/sh -c 'systemctl start power-battery-tune.service 2>/dev/null || true'"
+    # Also trigger dnsproxy-battery to stop/start dnsproxy on battery/AC.
+    SUBSYSTEM=="power_supply", ACTION=="change", RUN+="/bin/sh -c 'systemctl start power-battery-tune.service 2>/dev/null || true; systemctl start dnsproxy-battery.service 2>/dev/null || true'"
   '';
 
   # GPU DPM + EPP fallback on battery — systemd service for power source changes.

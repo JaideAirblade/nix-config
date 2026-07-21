@@ -8,6 +8,7 @@
     ./steam.nix
     ./upower.nix
     ./gvfs.nix
-    ./power.nix    # battery life optimization (PPD stays, adds thermald/ASPM/Wi-Fi powersave)
+    ./power.nix           # battery life optimization (PPD stays, adds ASPM/Wi-Fi powersave)
+    ./battery-services.nix # geoclue disabled, dnsproxy stopped on battery
   ];
 }
