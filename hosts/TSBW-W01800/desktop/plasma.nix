@@ -4,8 +4,8 @@
   services.xserver = {
     enable = true;
     xkb = {
-      layout = "us";
-      variant = "";
+      layout = "us,de";
+      variant = ",";
     };
   };
 
