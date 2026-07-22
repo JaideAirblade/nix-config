@@ -5,5 +5,8 @@
 { ... }:
 
 {
-  imports = [ ./theming.nix ];
+  imports = [
+    ./theming.nix
+    ./millennium-theme.nix
+  ];
 }
