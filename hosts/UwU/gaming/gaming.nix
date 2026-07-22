@@ -49,8 +49,7 @@
     mangohud   # performance overlay (FPS, frametime, CPU/GPU temp) — set MANGOHUD=1
     vkbasalt   # post-processing chain (CAS sharpening, SMAA, etc.) — set VKBASALT=1
     heroic     # Heroic Games Launcher: Epic / GOG / Amazon / SCE games
-    lutris     # general launcher for non-store games; handy for the rare
-               # installer that doesn't fit steam-run
+    itch       # itch.io desktop client — indie game store + launcher
 
     # Wine — wineWow64Packages.waylandFull is the WoW64 build with native
     # Wayland support (unstable, but the most capable). If a game misbehaves,

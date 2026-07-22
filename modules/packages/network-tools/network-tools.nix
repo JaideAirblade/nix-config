@@ -44,8 +44,15 @@
 
     # --- IP & MAC manipulation ---
     ipcalc         # IP subnet calculator — CIDR, broadcast, network range
-    macchanger     # View/spoof MAC addresses
+    macchanger     # View/spoof MAC addresses (CLI tool; NM handles boot-time randomization)
     arpoison       # Inject ARP replies — for testing ARP cache poisoning
+
+    # --- Metadata ---
+    exiftool       # Read/write/edit EXIF, IPTC, XMP metadata in files
+    mat2           # Metadata scrubber — removes metadata from images, audio,
+                   # video, documents (PDF, Office, epub, etc.)
+    mediainfo      # Technical metadata for video/audio files (codec, bitrate,
+                   # resolution, duration, etc.) — complements exiftool
 
     # --- Serial & console ---
     minicom        # Serial terminal — configure switches/routers via console cable

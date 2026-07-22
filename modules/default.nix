@@ -7,6 +7,7 @@
     ./boot
     ./nix
     ./network
+    ./firewall
     ./locale
     ./users
     ./audio
@@ -21,5 +22,7 @@
     ./wm
     ./ai
     ./cloud
+    ./facemask
+    ./metadata
   ];
 }
