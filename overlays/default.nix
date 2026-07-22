@@ -6,4 +6,9 @@
 {
   # Expose custom packages from pkgs/ as part of pkgs
   additions = final: _prev: import ../pkgs final;
+
+  # Millennium overlay — applies upstream Millennium overlay + fixes
+  # pkgsi686Linux.minizip-ng test failures in the Nix sandbox.
+  # Pass the millennium flake input so it can reference overlays.default.
+  millennium = import ./millennium.nix;
 }

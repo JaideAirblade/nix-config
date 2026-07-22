@@ -24,6 +24,9 @@
   # transfers).
   programs.steam = {
     enable = true;
+    # Use Millennium-wrapped Steam (injects Millennium's .so for theme/skin
+    # loading). The overlay from inputs.millennium provides pkgs.millennium-steam.
+    package = pkgs.millennium-steam;
     gamescopeSession.enable = true; # adds the "gamescope + steam" session
     remotePlay.openFirewall = false;
     dedicatedServer.openFirewall = false;

@@ -59,6 +59,16 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Millennium — Steam skin/theme loader. Used by UwU's gaming config
+    # to replace the stock Steam package with millennium-steam (a wrapper
+    # that injects Millennium's .so into Steam's bootstrap path). DMS has
+    # its own matugen pipeline; this input is only for the Millennium
+    # runtime itself. The flake is under packages/nix/ in the repo.
+    millennium = {
+      url = "github:SteamClientHomebrew/Millennium?dir=packages/nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # Temporary pin of nixpkgs to the open IVPN update PR (kilyanni's
     # #542306: ivpn/ivpn-service/ivpn-ui 3.15.6 -> 3.15.13). Consumed only
     # via an overlay in modules/network/ivpn-overlay.nix so just the three
@@ -67,7 +77,7 @@
     nixpkgs-ivpn.url = "github:NixOS/nixpkgs/pull/542306/head";
   };
 
-  outputs = inputs@{ self, nixpkgs, stable-nixpkgs, mangowm, niri, dms, dankcalendar, dank-greeter, hermes-agent, nixpkgs-ivpn, ... }: let
+  outputs = inputs@{ self, nixpkgs, stable-nixpkgs, mangowm, niri, dms, dankcalendar, dank-greeter, hermes-agent, millennium, nixpkgs-ivpn, ... }: let
     # Pre-create the stable-nixpkgs instance here so submodules can use
     # `pkgs-stable` without each calling `import stable-nixpkgs { ... }`
     # (which would spawn a new nixpkgs evaluation every time — the
@@ -109,6 +119,10 @@
           # Apply the custom-packages overlay so pkgs.betterbird / pkgs.octarine
           # are available to this host's modules.
           { nixpkgs.overlays = [ inputs.self.overlays.additions ]; }
+          # Apply the Millennium overlay so pkgs.millennium-steam is available
+          # to gaming.nix (programs.steam.package). Uses our composed overlay
+          # (overlays/millennium.nix) which also fixes minizip-ng test failures.
+          { nixpkgs.overlays = [ (inputs.self.overlays.millennium { millennium-input = inputs.millennium; }) ]; }
           ./hosts/UwU
         ];
       };
@@ -120,6 +134,10 @@
         specialArgs = { inherit inputs pkgs-stable; };
         modules = [
           { nixpkgs.overlays = [ inputs.self.overlays.additions ]; }
+          # Apply the Millennium overlay so pkgs.millennium-steam is available
+          # to services/steam.nix (programs.steam.package). Uses our composed
+          # overlay (overlays/millennium.nix) which also fixes minizip-ng tests.
+          { nixpkgs.overlays = [ (inputs.self.overlays.millennium { millennium-input = inputs.millennium; }) ]; }
           ./hosts/TSBW-W01800
         ];
       };
