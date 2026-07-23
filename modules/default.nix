@@ -8,6 +8,7 @@
     ./nix
     ./network
     ./firewall
+    ./security
     ./locale
     ./users
     ./audio

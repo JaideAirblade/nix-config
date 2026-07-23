@@ -127,6 +127,22 @@ let
       echo "Installed Material-Theme to $THEME_DIR"
     fi
 
+    # --- Deploy Material-Theme to skins/ for Steam loopback compatibility ---
+    # Material-Theme's matugen.js loads CSS from steamloopback.host/skins/...
+    # but Millennium 3.x stores themes in millennium/themes/. Steam's internal
+    # web server does NOT follow symlinks, so we copy the theme directory
+    # (with -L to dereference any symlinks from the Nix store fetch) to skins/.
+    # The "Material Theme is broken" fallback text appears if this path 404s.
+    SKINS_DIR="$STEAM_DIR/skins/Material-Theme"
+    if [[ ! -f "$SKINS_DIR/skin.json" ]] || [[ "$SKINS_DIR/skin.json" -ot "$THEME_DIR/skin.json" ]]; then
+      rm -rf "$SKINS_DIR"
+      mkdir -p "$SKINS_DIR"
+      cp -rL "$THEME_DIR/." "$SKINS_DIR/"
+      echo "Deployed Material-Theme to $SKINS_DIR"
+    fi
+    # Always update matugen.css in skins/ (it changes when DMS regenerates colors)
+    cp -f "$THEME_DIR/css/main/colors/matugen.css" "$SKINS_DIR/css/main/colors/matugen.css" 2>/dev/null || true
+
     # --- Generate matugen.css from DMS's dank-colors.css ---
     # dank-colors.css has @define-color X #hex — we convert these to
     # the --md-sys-color-* variables that Material-Theme expects.
@@ -244,13 +260,40 @@ let
       cp -f "$STATIC_THEME/css/main/colors/matugen.css" "$THEME_DIR/css/main/colors/matugen.css"
     fi
 
-    # --- Also deploy to the Steam loopback path (steamui/skins/) ---
-    # Millennium may look for the theme under steamui/skins/ as well.
-    LOOPBACK_DIR="$STEAM_DIR/steamui/skins/Material-Theme"
-    if [[ -d "$STEAM_DIR/steamui/skins" ]]; then
-      mkdir -p "$LOOPBACK_DIR/css/main/colors"
-      cp -f "$THEME_DIR/css/main/colors/matugen.css" "$LOOPBACK_DIR/css/main/colors/matugen.css"
-    fi
+    # --- Inject matugen color variables into root-colors.css ---
+    # Material-Theme's "broken" fallback text in library.css becomes visible
+    # when --md-sys-color-* variables are undefined. The matugen.js loads
+    # matugen.css via a <link> element AFTER the page renders, causing a
+    # brief flash of the "broken" text. By injecting the variables into
+    # root-colors.css (which Millennium loads via its CSS injection system,
+    # before any JS runs), the variables are available from first paint.
+    inject_root_colors() {
+      local root_colors="$THEME_DIR/css/main/root-colors.css"
+      local matugen_css="$THEME_DIR/css/main/colors/matugen.css"
+      if [[ ! -f "$root_colors" || ! -f "$matugen_css" ]]; then
+        return
+      fi
+      # Restore the original root-colors.css from the static theme, then
+      # append the --md-sys-color-* variables inside the :root block.
+      cp -f "$STATIC_THEME/css/main/root-colors.css" "$root_colors"
+      # Extract the --md-sys-color-* lines from matugen.css and insert
+      # them before the final closing brace of root-colors.css.
+      local vars
+      vars=$(grep -E '^\s+--md-sys-color-' "$matugen_css" || true)
+      if [[ -n "$vars" ]]; then
+        # Remove the last line (closing }) and append vars + new closing brace
+        local last_line
+        last_line=$(tail -1 "$root_colors")
+        if [[ "$last_line" == "}" ]]; then
+          head -n -1 "$root_colors" > "$root_colors.tmp"
+          printf '%s\n}\n' "$vars" >> "$root_colors.tmp"
+          mv "$root_colors.tmp" "$root_colors"
+        fi
+      fi
+    }
+    inject_root_colors
+    # Copy the injected root-colors.css to skins/ too
+    cp -f "$THEME_DIR/css/main/root-colors.css" "$SKINS_DIR/css/main/root-colors.css" 2>/dev/null || true
 
     # --- Configure Millennium to use Material-Theme with Matugen colors ---
     if command -v python3 >/dev/null 2>&1; then
@@ -298,6 +341,8 @@ let
   # Placed at ~/.config/matugen/config.toml so manual `matugen image`
   # runs also regenerate the Steam theme colors.
   matugenConfig = pkgs.writeText "config.toml" ''
+    [config]
+
     [templates.millennium]
     input_path = '~/.config/matugen/templates/millennium-material.css'
     output_path = '~/.local/share/Steam/millennium/themes/Material-Theme/css/main/colors/matugen.css'
@@ -316,6 +361,8 @@ in {
       Type = "oneshot";
       RemainAfterExit = true;
     };
+    # python3 is needed by the sync script to update millennium's config.json
+    path = [ pkgs.python3 ];
     preStart = ''
       ${pkgs.coreutils}/bin/mkdir -p "$HOME/.config/matugen/templates"
       ${pkgs.coreutils}/bin/ln -sf "${matugenConfig}" "$HOME/.config/matugen/config.toml"

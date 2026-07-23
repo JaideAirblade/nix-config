@@ -3,7 +3,9 @@
 
 {
   imports = [
-    ./printing.nix
+    # printing.nix removed — shared modules/printing now handles CUPS
+    # (socket activation, no browsed, cups CLI tools). No host-specific
+    # overrides needed.
     ./scanning.nix
     ./steam.nix
     ./upower.nix

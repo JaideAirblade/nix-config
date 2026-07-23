@@ -16,7 +16,7 @@
 # but now uses the default "mango" with niri as a secondary option,
 # and pulls in DankCalendar). UwU uses the defaults (mango, calendar
 # events via khal).
-{ inputs, lib, ... }:
+{ inputs, lib, pkgs, ... }:
 
 {
   imports = [
@@ -30,6 +30,19 @@
   # polkit agent (polkit_gnome, polkit_kde, ...) is enabled on this system,
   # so there is no conflict — DMS is the sole agent.
   security.polkit.enable = true;
+
+  # gsettings schemas — DMS's Theme Sync plugin runs `gsettings get/set`
+  # to apply GTK theme + icon theme settings. On NixOS the compiled
+  # gsettings schemas live in per-package paths that glib's setup-hook
+  # adds to XDG_DATA_DIRS — but only for login shells, not for systemd
+  # user services. Without these paths, gsettings returns '' for every
+  # key and the theme sync reports "gsettings gtk-theme stays ''".
+  # Prepend the schema paths to the session environment so DMS (and any
+  # other systemd user service) can find them.
+  environment.sessionVariables.XDG_DATA_DIRS = lib.mkBefore [
+    "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}"
+    "${pkgs.gtk4}/share/gsettings-schemas/${pkgs.gtk4.name}"
+  ];
 
   programs.dank-material-shell = {
     enable = true;

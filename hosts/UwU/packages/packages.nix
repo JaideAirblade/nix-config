@@ -13,6 +13,7 @@
     ../../../modules/packages/file-manager
     ../../../modules/packages/onepassword
     ../../../modules/packages/network-tools
+    ../../../modules/packages/osint
     ../../../modules/packages/media
   ];
 
@@ -59,14 +60,40 @@
     # Readest — modern ebook reader.
     readest
 
+    # Calibre — ebook management. Used with ACSM Input + DeDRM plugins
+    # to download EPUBs from Google Play Books (ACSM → DRM-free EPUB).
+    calibre
+
     # Basic USB tooling — lsusb and friends. Without this you can't even
     # identify what's plugged in from the CLI.
     usbutils
 
-    # Secondary Chromium-based browser. Needed for WebHID device configuration
-    # (Scyrox web configurator at scyrox.net) — Firefox doesn't support WebHID.
-    # Also a reasonable fallback for sites that break under your main browser
-    # or your Equicord-patched Discord setup.
+    # Chromium — force XWayland via desktop entry override.
+    # NIXOS_OZONE_WL=1 (set globally in theming.nix) makes Chromium try native
+    # Wayland, which on NVIDIA + MangoWM flickers and produces visual artifacts
+    # (MangoWM issue #1181 — same root cause as the Discord override above).
+    # XWayland is stable. hiPrio shadows the upstream .desktop file.
+    (lib.hiPrio (makeDesktopItem {
+      name = "chromium";
+      desktopName = "Chromium";
+      genericName = "Web Browser";
+      comment = "Chromium browser (XWayland)";
+      icon = "chromium";
+      categories = [ "Network" "WebBrowser" ];
+      exec = "chromium --ozone-platform=x11";
+      startupNotify = true;
+      mimeTypes = [
+        "x-scheme-handler/http"
+        "x-scheme-handler/https"
+        "x-scheme-handler/ftp"
+        "text/html"
+        "text/xml"
+        "application/xhtml+xml"
+      ];
+    }))
+
+    # The actual chromium binary (the desktop entry above just shadows the
+    # upstream .desktop to add --ozone-platform=x11 for app-launcher use).
     chromium
 
     # Seanime — self-hosted anime/manga media server (desktop app + web UI).

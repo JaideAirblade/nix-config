@@ -14,10 +14,12 @@ Jaide's NixOS flake configuration, structured following [ryan4yin's NixOS & Flak
 │   ├── boot/              # systemd-boot, zram, fstrim, gc, kernel
 │   ├── nix/               # Flakes, unfree, editor, nix-channel disable
 │   ├── network/           # NetworkManager, IVPN (+ pinned IVPN overlay)
+│   ├── firewall/          # nftables stealth firewall (default-deny incoming)
+│   ├── security/          # USBGuard (USB device whitelist)
 │   ├── locale/            # Timezone (Europe/Berlin), locale (en_US + de_DE)
 │   ├── users/             # User account (jaide) — no home-manager
 │   ├── audio/             # PipeWire + WirePlumber (device profile pinning)
-│   ├── printing/          # CUPS
+│   ├── printing/          # CUPS (socket-activated, no auto-discovery)
 │   ├── packages/          # Base CLI tools + opt-in subfolders
 │   │   ├── packages.nix   # Universal: vim, git, ripgrep, jq, fzf, ghostty...
 │   │   ├── file-manager/  # Nautilus + gvfs + udisks2
@@ -106,3 +108,50 @@ git checkout HEAD^1 && just deploy
 # Nix REPL with flake in scope
 just repl
 ```
+
+## USBGuard — USB Device Whitelist
+
+USBGuard blocks unknown USB devices (BadUSB, rubber ducky, etc.) plugged in
+after boot. Devices already connected when the daemon starts are trusted
+automatically, so your keyboard, mouse, YubiKeys, and dock always work.
+
+The rules are managed **declaratively** in `modules/security/security.nix`
+via `services.usbguard.rules` — version-controlled and immutable at runtime.
+
+### Adding a new device
+
+```bash
+# 1. Plug in the new device.
+
+# 2. List blocked devices (no sudo needed — IPCAllowedUsers includes jaide)
+usb-accept                 # interactive — shows blocked devices, prompts for ID
+usbguard list-devices --blocked   # manual alternative
+
+# 3. Allow it for this session (until reboot)
+usb-accept <id>            # or: usbguard allow-device <id>
+
+# 4. Get the permanent rule to paste into security.nix
+usb-accept --rule <id>     # prints the rule line
+
+# 5. Paste the rule into services.usbguard.rules in modules/security/security.nix
+#    under the appropriate section, then: just deploy
+```
+
+### Quick reference
+
+```bash
+usbguard list-devices              # all devices + status
+usbguard list-devices --blocked    # only blocked devices
+usbguard allow-device <id>         # allow for this session
+usbguard block-device <id>         # block a device
+usbguard reject-device <id>        # reject (logically removes from system)
+```
+
+### How it works
+
+| Policy | Setting | Meaning |
+|--------|---------|---------|
+| `presentDevicePolicy` | `allow` | Devices connected at daemon start are trusted (no lockout) |
+| `presentControllerPolicy` | `keep` | USB controllers keep their current state |
+| `insertedDevicePolicy` | `apply-policy` | New devices plugged in after boot are evaluated against rules |
+| `implicitPolicyTarget` | `block` | Devices matching no rule are blocked |
