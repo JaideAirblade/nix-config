@@ -25,5 +25,6 @@
     ./cloud
     ./facemask
     ./metadata
+    ./secrets
   ];
 }

@@ -334,6 +334,22 @@
         "type": "github"
       }
     },
+    "nixos-secrets": {
+      "locked": {
+        "lastModified": 1784831204,
+        "narHash": "sha256-LBjrDxH0ROGlmoG29W972VK0rMd8vPRfimvMXGMTwwk=",
+        "ref": "master",
+        "rev": "8198d33eb64b6c018980032db349fa1ba2ec4276",
+        "revCount": 2,
+        "type": "git",
+        "url": "ssh://git@github.com/JaideAirblade/nixos-secrets.git"
+      },
+      "original": {
+        "ref": "master",
+        "type": "git",
+        "url": "ssh://git@github.com/JaideAirblade/nixos-secrets.git"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1784497964,
@@ -477,8 +493,10 @@
         "mangowm": "mangowm",
         "millennium": "millennium",
         "niri": "niri",
+        "nixos-secrets": "nixos-secrets",
         "nixpkgs": "nixpkgs",
         "nixpkgs-ivpn": "nixpkgs-ivpn",
+        "sops-nix": "sops-nix",
         "stable-nixpkgs": "stable-nixpkgs"
       }
     },
@@ -502,6 +520,26 @@
       "original": {
         "owner": "wlrfx",
         "repo": "scenefx",
+        "type": "github"
+      }
+    },
+    "sops-nix": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1783174389,
+        "narHash": "sha256-aCWC8ngycU7OdJrU2+Je3qf+1a2ykuBvpPhZT/9tXMc=",
+        "owner": "Mic92",
+        "repo": "sops-nix",
+        "rev": "f1406619a3884cd5c47992a70b8b35c9c0fcb4c9",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Mic92",
+        "repo": "sops-nix",
         "type": "github"
       }
     },

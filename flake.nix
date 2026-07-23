@@ -69,6 +69,24 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # sops-nix — declarative secrets management via Mozilla SOPS + age.
+    # Secrets are encrypted in the repo (safe for GitHub) and decrypted
+    # at activation time using a per-host age key.
+    # The user encrypts/edits secrets using age-plugin-yubikey (PIV applet),
+    # so the encryption keys never touch disk.
+    sops-nix = {
+      url = "github:Mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # Encrypted secrets — separate PRIVATE repo to keep encrypted blobs
+    # out of the public config repo (defense-in-depth against future
+    # quantum attacks on age/X25519). Accessed via SSH deploy key
+    # (~/.ssh/id_ed25519, registered as a repo deploy key).
+    nixos-secrets = {
+      url = "git+ssh://git@github.com/JaideAirblade/nixos-secrets.git?ref=master";
+    };
+
     # Temporary pin of nixpkgs to the open IVPN update PR (kilyanni's
     # #542306: ivpn/ivpn-service/ivpn-ui 3.15.6 -> 3.15.13). Consumed only
     # via an overlay in modules/network/ivpn-overlay.nix so just the three
@@ -77,7 +95,7 @@
     nixpkgs-ivpn.url = "github:NixOS/nixpkgs/pull/542306/head";
   };
 
-  outputs = inputs@{ self, nixpkgs, stable-nixpkgs, mangowm, niri, dms, dankcalendar, dank-greeter, hermes-agent, millennium, nixpkgs-ivpn, ... }: let
+  outputs = inputs@{ self, nixpkgs, stable-nixpkgs, mangowm, niri, dms, dankcalendar, dank-greeter, hermes-agent, millennium, sops-nix, nixos-secrets, nixpkgs-ivpn, ... }: let
     # Pre-create the stable-nixpkgs instance here so submodules can use
     # `pkgs-stable` without each calling `import stable-nixpkgs { ... }`
     # (which would spawn a new nixpkgs evaluation every time — the
@@ -102,6 +120,7 @@
       betterbird = pkgs-stable.callPackage ./pkgs/betterbird { };
       octarine = pkgs-stable.callPackage ./pkgs/octarine { };
       hytale = pkgs-stable.callPackage ./pkgs/hytale { };
+      net-report = pkgs-stable.callPackage ./pkgs/net-report { };
     };
 
     nixosConfigurations = {
