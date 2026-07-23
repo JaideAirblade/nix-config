@@ -11,6 +11,7 @@
     ./webbrowsers.nix
     ./disk-recovery.nix
     ./archives.nix
+    ./windows-tools
     ./work
   ];
 }
