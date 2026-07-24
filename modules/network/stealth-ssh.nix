@@ -95,8 +95,6 @@ in
         AuthenticationMethods = "publickey";
 
         # Require FIDO2 touch + PIN verification
-        # This is enforced by the key type (ed25519-sk with verify-required),
-        # but we also set SecurityKeyProvider to ensure the right backend.
         SecurityKeyProvider = "internal";
 
         # Timeout for YubiKey touch — 30 seconds should be enough

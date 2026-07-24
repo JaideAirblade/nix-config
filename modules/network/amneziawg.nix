@@ -114,20 +114,15 @@ in
     # (ipv6_stub removed in 7.x, replaced with ip6_dst_lookup_flow)
     # We override boot.kernelPackages to include the patched module so
     # the wg-quick NixOS module picks it up automatically.
-    # Override kernelPackages to inject the patched amneziawg module.
-    # We use mkForce to win against any default (e.g. from hardware-configuration.nix).
-    # The kernel module needs patching for Linux 7.x (ipv6_stub removed).
-    # We use postPatch to apply the patches since the sourceRoot is src/
-    # and the patches reference src/socket.h (one level up from our CWD).
-    boot.kernelPackages = lib.mkForce (pkgs.linuxPackages.extend (kpFinal: kpPrev: {
-      amneziawg = kpPrev.amneziawg.overrideAttrs (old: {
-        # Clear existing patches and apply our own via postPatch.
-        # We use postPatch because sourceRoot is src/ and the patches
-        # reference src/socket.h — standard patches can't find the file.
+    # Patch the amneziawg kernel module for Linux 7.x (ipv6_stub removed).
+    # We extend the EXISTING kernelPackages (not replace them) so the
+    # running kernel stays the same — we only override the amneziawg package.
+    boot.extraModulePackages = [
+      (config.boot.kernelPackages.amneziawg.overrideAttrs (old: {
         patches = [ ];
         postPatch = ''
           # socket.h: add forward declarations for kernel 7.x
-          # -p2 strips a/src/ → socket.h (we're already in src/)
+          # -p2 strips a/src/ → socket.h (sourceRoot is src/)
           patch -p2 < ${pkgs.fetchurl {
             url = "https://github.com/amnezia-vpn/amneziawg-linux-kernel-module/commit/60c1bd0105246bbd309e5148f1399ac41c8ffd9f.patch";
             hash = "sha256-foDqFTt2jy8V8SF3674iBniodzMrWTiMEtH/rdjzFj0=";
@@ -138,8 +133,8 @@ in
             hash = "sha256-gP20swVf5vddqEbkwmx0jsaPJsrQud8NvK6x+4jHtF8=";
           }}
         '';
-      });
-    }));
+      }))
+    ];
     environment.systemPackages = [ pkgs.amneziawg-tools ];
 
     # AmneziaWG interface via wg-quick with type = "amneziawg"
