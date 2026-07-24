@@ -82,7 +82,7 @@ in
 
       settings = {
         # Listen ONLY on the VPN interface — not on 0.0.0.0
-        ListenAddress = [ cfg.listenAddress ];
+        ListenAddress = cfg.listenAddress;
 
         # Hardened security settings
         PermitRootLogin = "no";
