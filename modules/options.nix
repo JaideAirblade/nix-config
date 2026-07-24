@@ -82,6 +82,7 @@
       disko = import ./disko/disko.nix;
       disko-single-disk-xfs = import ./disko/single-disk-xfs.nix;
       disko-single-disk-btrfs = import ./disko/single-disk-btrfs.nix;
+      disko-btrfs-dedup = import ./disko/btrfs-dedup.nix;
 
       # ── Opt-in shared package modules ─────────────────────────────
       # These are NOT included by default — each host pulls the ones

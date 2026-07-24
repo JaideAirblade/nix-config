@@ -50,6 +50,7 @@
       # ── Disko — btrfs with subvolumes + deduplication ──────────────
       inputs.disko.nixosModules.disko
       config.nixosModules.disko
+      config.nixosModules.disko-btrfs-dedup
       (import ./disk-layout.nix)
 
       # ── Host-specific modules ────────────────────────────────────
