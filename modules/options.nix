@@ -78,6 +78,10 @@
       # Secrets
       secrets = import ./secrets/secrets.nix;
 
+      # Disko — declarative disk layout (imported per-host, not always-on)
+      disko = import ./disko/disko.nix;
+      disko-single-disk-xfs = import ./disko/single-disk-xfs.nix;
+
       # ── Opt-in shared package modules ─────────────────────────────
       # These are NOT included by default — each host pulls the ones
       # it wants into its modules list.

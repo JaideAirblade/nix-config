@@ -74,6 +74,19 @@
       url = "github:hercules-ci/flake-parts";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    # disko — declarative disk partitioning for nixos-anywhere.
+    disko = {
+      url = "github:nix-community/disko";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # nixos-anywhere — zero-touch NixOS provisioning via SSH.
+    # Not a NixOS module — it's a CLI tool run from the workstation.
+    nixos-anywhere = {
+      url = "github:nix-community/nixos-anywhere";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = inputs@{ self, nixpkgs, stable-nixpkgs, flake-parts, ... }:

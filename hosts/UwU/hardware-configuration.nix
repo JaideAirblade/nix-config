@@ -13,12 +13,16 @@
   boot.kernelModules = [ "kvm-amd" ];
   boot.extraModulePackages = [ ];
 
-  fileSystems."/" =
+  # NOTE: fileSystems are now managed declaratively by disko (disk-layout.nix).
+  # These entries are kept as fallbacks with mkDefault so disko's values win.
+  # When reinstalling via nixos-anywhere, this file will be regenerated and
+  # these entries can be removed entirely (disko handles everything).
+  fileSystems."/" = lib.mkDefault
     { device = "/dev/disk/by-uuid/129f8c1b-2bec-4502-9fef-d96e8103be8b";
       fsType = "xfs";
     };
 
-  fileSystems."/boot" =
+  fileSystems."/boot" = lib.mkDefault
     { device = "/dev/disk/by-uuid/A767-B462";
       fsType = "vfat";
       options = [ "fmask=0077" "dmask=0077" ];

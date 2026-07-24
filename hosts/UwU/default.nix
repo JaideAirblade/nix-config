@@ -43,6 +43,11 @@
       config.nixosModules.metadata
       config.nixosModules.secrets
 
+      # Disko — declarative disk layout
+      inputs.disko.nixosModules.disko
+      config.nixosModules.disko
+      (import ./disk-layout.nix)
+
       # ── Opt-in shared package modules (UwU wants these) ────────────
       config.nixosModules.packages-file-manager
       config.nixosModules.packages-onepassword
