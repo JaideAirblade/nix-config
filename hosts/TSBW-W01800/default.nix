@@ -29,6 +29,7 @@
       config.nixosModules.shell
       config.nixosModules.bluetooth
       config.nixosModules.theming
+      config.nixosModules.theming-millennium
       config.nixosModules.fonts
       config.nixosModules.firmware
       config.nixosModules.keyring
@@ -37,6 +38,7 @@
       config.nixosModules.ai-hermes
       config.nixosModules.ai-mnemosyne
       config.nixosModules.cloud
+      config.nixosModules.facemask
       config.nixosModules.metadata
       config.nixosModules.secrets
 
