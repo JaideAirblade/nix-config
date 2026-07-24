@@ -117,7 +117,7 @@ in
       extraConfig = ''
         # ONLY accept FIDO2 security key types (ed25519-sk, ecdsa-sk)
         # Regular ed25519/rsa keys are rejected even if in authorized_keys
-        PubkeyAcceptedAlgorithms ssh-ed25519-sk@openssh.com,ecdsa-sk-sha2-nistp256@openssh.com,sk-ssh-ed25519@openssh.com,sk-ecdsa-sha2-nistp256@openssh.com
+        PubkeyAcceptedAlgorithms ssh-ed25519-sk@openssh.com ecdsa-sk-sha2-nistp256@openssh.com sk-ssh-ed25519@openssh.com sk-ecdsa-sha2-nistp256@openssh.com
       '';
     };
 
