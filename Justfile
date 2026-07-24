@@ -65,3 +65,27 @@ gc:
 # Stage + show what's about to be committed. Rollback = `git checkout <sha> && just deploy`.
 status:
   git status --short
+
+# ── nixos-anywhere (provisioning new hosts) ─────────────────────
+# Provision a fresh machine via nixos-anywhere. The target must be
+# booted from a NixOS installer USB (or any Linux with kexec + SSH).
+# This WIPES the target disk and installs NixOS from the flake.
+# Usage: just provision hostname=homelab ip=192.168.1.50
+provision hostname ip:
+  nix run github:nix-community/nixos-anywhere -- \
+    --flake .#{{hostname}} \
+    --target-host root@{{ip}} \
+    --generate-hardware-config nixos-generate-config hosts/{{hostname}}/hardware-configuration.nix
+
+# Test a host's disk layout in a VM — no install, no disk changes.
+# Boots a QEMU VM with the disko config to verify partitioning works.
+# Usage: just vm-test hostname=UwU
+vm-test hostname:
+  nix run github:nix-community/nixos-anywhere -- \
+    --flake .#{{hostname}} \
+    --vm-test
+
+# Deploy to an existing remote host (after first provisioning).
+# Usage: just deploy-remote hostname=homelab ip=192.168.1.50
+deploy-remote hostname ip:
+  nixos-rebuild switch --flake .#{{hostname}} --target-host root@{{ip}}
