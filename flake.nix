@@ -99,6 +99,7 @@
         # + host-specific modules imported directly.
         ./hosts/UwU/default.nix
         ./hosts/TSBW-W01800/default.nix
+        ./hosts/OwO-Family/default.nix
       ];
 
       systems = [ "x86_64-linux" ];
