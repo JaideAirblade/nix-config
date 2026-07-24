@@ -159,7 +159,15 @@
     user.signingkey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKozofCo3TsmA85edEMGsysfAkLf1/wWL3cv+DR0Ck04";
     # Use SSH instead of HTTPS for GitHub
     url."git@github.com:".insteadOf = "https://github.com/";
+    # Allow git to verify SSH signatures locally
+    gpg.ssh.allowedSignersFile = "/etc/git/allowed_signers";
   };
+
+  # Allowed signers file — maps email → SSH public key for signature verification.
+  # Not secret — public key + email.
+  environment.etc."git/allowed_signers".text = ''
+    mail@jaidechan.moe ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKozofCo3TsmA85edEMGsysfAkLf1/wWL3cv+DR0Ck04 jaide_nixos
+  '';
 
   # ── CLI tools for managing secrets ──────────────────────────────────
   environment.systemPackages = [
