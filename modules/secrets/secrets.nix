@@ -115,5 +115,6 @@
     pkgs.sops                 # SOPS CLI — encrypt/edit/decrypt secrets
     pkgs.age                  # age CLI — key generation, manual encrypt/decrypt
     pkgs.age-plugin-yubikey  # YubiKey-backed age identities
+    pkgs.yubikey-manager     # ykman CLI — PIV/OTP/FIDO management
   ];
 }

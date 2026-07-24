@@ -12,6 +12,7 @@
     completion.enable = true;
     shellAliases = {
       ll = "ls -lAh";
+      sf = "superfile";
       # Each host overrides the `rebuild`/`update` aliases with its own
       # flake target via lib.mkForce in hosts/<name>/shell.nix.
       rebuild = "sudo nixos-rebuild switch --flake /etc/nixos";

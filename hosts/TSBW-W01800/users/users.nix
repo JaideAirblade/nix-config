@@ -7,7 +7,7 @@
 {
   users.users."jaide" = {
     description = lib.mkForce "Simon";
-    extraGroups = lib.mkForce [ "networkmanager" "wheel" "wireshark" ];
+    extraGroups = lib.mkForce [ "networkmanager" "wheel" "wireshark" "_lldpd" ];
     packages = with pkgs; [
       kdePackages.kate
     ];

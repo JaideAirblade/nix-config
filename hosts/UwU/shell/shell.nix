@@ -7,6 +7,7 @@
 {
   programs.bash.shellAliases = lib.mkForce {
     ll = "ls -lAh";
+    sf = "superfile";
     rebuild = "sudo nixos-rebuild switch --flake /etc/nixos#UwU";
     update = "cd /etc/nixos && nix flake update && sudo nixos-rebuild switch --flake .#UwU";
     gc-old = "sudo nix-collect-garbage --delete-old";

@@ -68,11 +68,18 @@
     # identify what's plugged in from the CLI.
     usbutils
 
-    # Chromium — force XWayland via desktop entry override.
+    # Chromium — force XWayland via desktop entry overrides.
     # NIXOS_OZONE_WL=1 (set globally in theming.nix) makes Chromium try native
     # Wayland, which on NVIDIA + MangoWM flickers and produces visual artifacts
     # (MangoWM issue #1181 — same root cause as the Discord override above).
-    # XWayland is stable. hiPrio shadows the upstream .desktop file.
+    # XWayland is stable.
+    #
+    # We shadow BOTH upstream .desktop files:
+    #   chromium.desktop        — used by app launchers
+    #   chromium-browser.desktop — used by xdg-mime as the default HTTP handler
+    # Without shadowing the second one, links clicked from Discord/other apps
+    # launch the unpatched entry → native Wayland → GPU segfaults in
+    # libnvidia-eglcore.so → compositor flicker. hiPrio ensures both override.
     (lib.hiPrio (makeDesktopItem {
       name = "chromium";
       desktopName = "Chromium";
@@ -91,9 +98,29 @@
         "application/xhtml+xml"
       ];
     }))
+    (lib.hiPrio (makeDesktopItem {
+      name = "chromium-browser";
+      desktopName = "Chromium";
+      genericName = "Web Browser";
+      comment = "Chromium browser (XWayland)";
+      icon = "chromium";
+      categories = [ "Network" "WebBrowser" ];
+      exec = "chromium --ozone-platform=x11 %U";
+      startupNotify = true;
+      startupWMClass = "chromium-browser";
+      noDisplay = true;
+      mimeTypes = [
+        "x-scheme-handler/http"
+        "x-scheme-handler/https"
+        "x-scheme-handler/ftp"
+        "text/html"
+        "text/xml"
+        "application/xhtml+xml"
+      ];
+    }))
 
-    # The actual chromium binary (the desktop entry above just shadows the
-    # upstream .desktop to add --ozone-platform=x11 for app-launcher use).
+    # The actual chromium binary (the desktop entries above just shadow the
+    # upstream .desktop files to add --ozone-platform=x11).
     chromium
 
     # Seanime — self-hosted anime/manga media server (desktop app + web UI).

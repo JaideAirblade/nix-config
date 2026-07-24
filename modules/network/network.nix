@@ -16,7 +16,44 @@
   # This is the full configuration tool (static IP, DNS, routes, MAC cloning,
   # 802.1x, etc.), NOT the nm-applet tray icon. Launch it from the app menu
   # or run `nm-connection-editor` from the terminal.
-  environment.systemPackages = [ pkgs.networkmanagerapplet ];
+  # net-report — full network status report (LLDP, routes, DNS, firewall,
+  # WiFi, sockets, VPN, public IP, traceroute, etc.)
+  # Run `net-report` for everything, `net-report --section lldp` for one section,
+  # `net-report --json` for machine-readable output.
+  environment.systemPackages = with pkgs; [
+    networkmanagerapplet
+    net-report
+    iw  # for wifi-scan section (monitor mode setup)
+  ];
+
+  # Capabilities for net-report wifi-scan section (deauth + probe sniffing)
+  # This allows the wifi-scan section to run without sudo by granting
+  # cap_net_admin (create monitor interfaces, set channels) and
+  # cap_net_raw (capture/inject raw 802.11 frames) to the tools it uses.
+  # Only enable if you want sudo-less wifi-scan (it does increase attack surface).
+  security.wrappers = {
+    net-report-iw = {
+      source = "${pkgs.iw}/bin/iw";
+      owner = "root";
+      group = "root";
+      permissions = "u+rx,g+rx";
+      capabilities = "cap_net_admin,cap_net_raw+eip";
+    };
+    net-report-tcpdump = {
+      source = "${pkgs.tcpdump}/bin/tcpdump";
+      owner = "root";
+      group = "root";
+      permissions = "u+rx,g+rx";
+      capabilities = "cap_net_raw+eip";
+    };
+    net-report-aireplay = {
+      source = "${pkgs.aircrack-ng}/bin/aireplay-ng";
+      owner = "root";
+      group = "root";
+      permissions = "u+rx,g+rx";
+      capabilities = "cap_net_raw+eip";
+    };
+  };
 
   services.ivpn.enable = true;
 
@@ -253,6 +290,22 @@
         2>/dev/null && echo "Set DHCP hostname to $rand for $CONNECTION_ID" \
         || true
     '';
+  };
+
+  # --- LLDP neighbor discovery (802.1AB) -----------------------------------
+  # lldpd listens for LLDP (Link Layer Discovery Protocol) frames from
+  # adjacent switches/routers, letting you see which switch port you're
+  # plugged into, the switch's hostname/management IP, VLAN IDs, port
+  # descriptions, and the full topology chain (if upstream switches also
+  # run LLDP). The -c flag also enables CDP (Cisco Discovery Protocol)
+  # reception for mixed-vendor environments.
+  #
+  # Query neighbors with:  lldpctl
+  #  JSON output:          lldpctl -f json
+  #  Specific interface:   lldpctl -p <iface>
+  services.lldpd = {
+    enable = true;
+    extraArgs = [ "-c" ];  # also receive CDP frames
   };
 
   # --- Bluetooth MAC randomization -----------------------------------------

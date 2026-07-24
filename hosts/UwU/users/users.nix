@@ -13,6 +13,6 @@
 {
   users.users."jaide" = {
     description = lib.mkForce "Jaide";
-    extraGroups = [ "networkmanager" "wheel" "wireshark" ];
+    extraGroups = [ "networkmanager" "wheel" "wireshark" "_lldpd" ];
   };
 }

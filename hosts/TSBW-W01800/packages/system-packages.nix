@@ -5,7 +5,9 @@
 # tools (YubiKey, remmina, octarine, masterpdfeditor, ...). Custom
 # packages (betterbird, octarine) come from the pkgs/ overlay declared
 # in flake.nix.
-{pkgs, ...}: {
+{ pkgs, lib, ... }:
+
+{
   environment = {
     systemPackages = with pkgs; [
       # Terminals (beyond the shared ghostty)
@@ -22,8 +24,22 @@
       # Remote desktop
       remmina           # GTK remote desktop client (RDP, VNC, SSH, etc.)
 
-      # File manager (Nautilus — uses gvfs from services/gvfs.nix)
+      # File managers — superfile (TUI, default) + Nautilus (GUI fallback
+      # for SMB/network shares that superfile can't browse). Superfile has
+      # no upstream .desktop so we wrap it in ghostty for app launchers.
+      superfile
       nautilus
+      (makeDesktopItem {
+        name = "superfile";
+        desktopName = "Superfile";
+        genericName = "File Manager";
+        comment = "Pretty fancy terminal file manager";
+        icon = "system-file-manager";
+        categories = [ "System" "FileManager" "Utility" ];
+        exec = "ghostty -e superfile";
+        startupNotify = true;
+        mimeTypes = [ "inode/directory" ];
+      })
 
       # Note-taking & reading
       octarine         # Private markdown note-taking app (custom package from pkgs/)
@@ -58,4 +74,12 @@
     ];
     variables.EDITOR = "vim";
   };
+
+  # Superfile is the default file manager for directory MIME types.
+  # The shared file-manager module also writes this, but TSBW-W01800
+  # doesn't import that module, so set it here too.
+  environment.etc."xdg/mimeapps.list".text = ''
+    [Default Applications]
+    inode/directory=superfile.desktop
+  '';
 }

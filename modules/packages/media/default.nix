@@ -4,5 +4,6 @@
 {
   imports = [
     ./media.nix
+    ./animejanai.nix
   ];
 }
