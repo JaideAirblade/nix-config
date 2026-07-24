@@ -176,13 +176,4 @@
     pkgs.age-plugin-yubikey  # YubiKey-backed age identities
     pkgs.yubikey-manager     # ykman CLI — PIV/OTP/FIDO management
   ];
-
-  # ── YubiKey age identity for sops ───────────────────────────────────
-  # sops needs to know where to find age identities for decrypting/editing
-  # secrets as a regular user (no sudo). This file contains the YubiKey
-  # plugin identity strings — one per line, one for each YubiKey.
-  # The actual private keys live on the YubiKeys (never on disk).
-  # When sops tries to decrypt, age-plugin-yubikey is invoked, prompts for
-  # PIN + touch, and does the crypto on the YubiKey.
-  environment.sessionVariables.SOPS_AGE_KEY_FILE = "/home/jaide/.config/sops/age/keys.txt";
 }

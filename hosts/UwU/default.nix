@@ -1,32 +1,72 @@
-# Per-host entry for "UwU" — Jaide's personal AMD laptop.
+# UwU — Jaide's desktop PC (AMD CPU, NVIDIA RTX 3080).
 #
-# Imports the shared module tree (../../modules) plus host-specific
-# modules that were split out of the shared tree because they only apply
-# to this host's hardware/usage:
-#   graphics  — NVIDIA RTX 3080 proprietary driver, latest kernel
-#   gaming    — Steam + Proton + Heroic + Wine + MangoHud + gamescope
-#   macrotool — Tauri v2 macro app runtime deps + udev rules
-#   devices   — YubiKey + Scyrox keyboard/mouse udev rules
-#   packages  — UwU-only GUI apps (Discord+Equicord, Seanime, Geary, etc.)
-#
-# The host-specific network.nix sets the hostname; shell.nix overrides the
-# rebuild alias to target .#UwU.
-{ ... }:
+# flake-parts module that assembles the nixosSystem configuration.
+# Shared modules come from config.nixosModules (collected in modules/options.nix).
+# Host-specific modules are imported directly here and also assigned to
+# config.nixosModules so they merge with the deferredModule type.
+{ inputs, config, lib, ... }:
 
 {
-  imports = [
-    ./hardware-configuration.nix
-    ./state.nix
-    ../../modules
+  config.flake.nixosConfigurations.UwU = inputs.nixpkgs.lib.nixosSystem {
+    system = "x86_64-linux";
 
-    # Host-specific modules
-    ./graphics
-    ./gaming
-    ./macrotool
-    ./devices
-    ./packages
-    ./network
-    ./shell
-    ./users
-  ];
+    specialArgs = {
+      inherit inputs;
+      pkgs-stable = config.pkgs-stable;
+    };
+
+    modules = [
+      # ── Shared modules (every host wants these) ───────────────────
+      config.nixosModules.boot
+      config.nixosModules.nix
+      config.nixosModules.network
+      config.nixosModules.firewall
+      config.nixosModules.security
+      config.nixosModules.locale
+      config.nixosModules.users
+      config.nixosModules.audio
+      config.nixosModules.printing
+      config.nixosModules.packages-base
+      config.nixosModules.shell
+      config.nixosModules.bluetooth
+      config.nixosModules.theming
+      config.nixosModules.theming-millennium
+      config.nixosModules.fonts
+      config.nixosModules.firmware
+      config.nixosModules.keyring
+      config.nixosModules.wm-mango
+      config.nixosModules.wm-dms
+      config.nixosModules.ai-hermes
+      config.nixosModules.ai-mnemosyne
+      config.nixosModules.cloud
+      config.nixosModules.facemask
+      config.nixosModules.metadata
+      config.nixosModules.secrets
+
+      # ── Opt-in shared package modules (UwU wants these) ────────────
+      config.nixosModules.packages-file-manager
+      config.nixosModules.packages-onepassword
+      config.nixosModules.packages-network-tools
+      config.nixosModules.packages-osint
+      config.nixosModules.packages-media
+      config.nixosModules.packages-animejanai
+
+      # ── Host-specific modules (imported directly) ────────────────
+      ./hardware-configuration.nix
+      (import ./state.nix)
+      (import ./graphics/graphics.nix)
+      (import ./gaming/gaming.nix)
+      (import ./macrotool/macrotool.nix)
+      (import ./devices/devices.nix)
+      (import ./packages/packages.nix)
+      (import ./packages/flatpak.nix)
+      (import ./network/network.nix)
+      (import ./shell/shell.nix)
+      (import ./users/users.nix)
+
+      # ── Overlays ──────────────────────────────────────────────────
+      { nixpkgs.overlays = [ inputs.self.overlays.additions ]; }
+      { nixpkgs.overlays = [ (import ../../overlays/millennium.nix { millennium-input = inputs.millennium; }) ]; }
+    ];
+  };
 }

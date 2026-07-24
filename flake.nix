@@ -1,11 +1,11 @@
 {
-  description = "Jaide's NixOS flake configuration";
+  description = "Jaide's NixOS flake configuration (dendritic pattern)";
 
   inputs = {
     # Main package source: the unstable channel.
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
-    # Stable channel, available to modules as `inputs.stable-nixpkgs`
+    # Stable channel, available to modules as `config.pkgs-stable`
     # for pinning individual packages to a stable release when needed.
     stable-nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
 
@@ -25,142 +25,84 @@
     };
 
     # DankMaterialShell — desktop shell (bar/launcher/lock/notifs) + greeter.
-    # Used as NixOS modules (nixosModules.dank-material-shell + nixosModules.greeter)
-    # so we don't need home-manager. `follows` keeps nixpkgs in sync.
-    # Using master (-git) per the user's request to consume the shell directly
-    # from the official repo; option names follow the flake module's
-    # `programs.dank-material-shell.*` naming.
     dms = {
       url = "github:AvengeMedia/DankMaterialShell";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # DankCalendar — calendar backend for DMS 1.5+ (replaces khal).
-    # Used by the TSBW-W01800 work host. UwU doesn't import it.
     dankcalendar = {
       url = "github:AvengeMedia/dankcalendar";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # DankGreeter — now a separate flake (split from DMS as of July 2026).
-    # Provides nixosModules.default with programs.dms-greeter options.
-    # `follows` keeps nixpkgs in sync.
     dank-greeter = {
       url = "github:AvengeMedia/dank-greeter";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # Hermes Agent — Nous Research's terminal AI agent.
-    # Consumed via its overlay (modules/ai/hermes-agent.nix) so `pkgs.hermes-agent`
-    # is the official build. `follows` keeps nixpkgs in sync to avoid a second
-    # copy of nixpkgs in the closure.
     hermes-agent = {
       url = "github:NousResearch/hermes-agent";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Millennium — Steam skin/theme loader. Used by UwU's gaming config
-    # to replace the stock Steam package with millennium-steam (a wrapper
-    # that injects Millennium's .so into Steam's bootstrap path). DMS has
-    # its own matugen pipeline; this input is only for the Millennium
-    # runtime itself. The flake is under packages/nix/ in the repo.
+    # Millennium — Steam skin/theme loader.
     millennium = {
       url = "github:SteamClientHomebrew/Millennium?dir=packages/nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # sops-nix — declarative secrets management via Mozilla SOPS + age.
-    # Secrets are encrypted in the repo (safe for GitHub) and decrypted
-    # at activation time using a per-host age key.
-    # The user encrypts/edits secrets using age-plugin-yubikey (PIV applet),
-    # so the encryption keys never touch disk.
     sops-nix = {
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Encrypted secrets — separate PRIVATE repo to keep encrypted blobs
-    # out of the public config repo (defense-in-depth against future
-    # quantum attacks on age/X25519). Accessed via SSH deploy key
-    # (~/.ssh/id_ed25519, registered as a repo deploy key).
+    # Encrypted secrets — separate PRIVATE repo.
     nixos-secrets = {
       url = "git+ssh://git@github.com/JaideAirblade/nixos-secrets.git?ref=main";
       flake = false;
     };
 
-    # Temporary pin of nixpkgs to the open IVPN update PR (kilyanni's
-    # #542306: ivpn/ivpn-service/ivpn-ui 3.15.6 -> 3.15.13). Consumed only
-    # via an overlay in modules/network/ivpn-overlay.nix so just the three
-    # packages come from here; everything else stays on the main input.
-    # Drop this input + the overlay once the PR lands in nixos-unstable.
+    # Temporary pin of nixpkgs to the open IVPN update PR.
     nixpkgs-ivpn.url = "github:NixOS/nixpkgs/pull/542306/head";
-  };
 
-  outputs = inputs@{ self, nixpkgs, stable-nixpkgs, mangowm, niri, dms, dankcalendar, dank-greeter, hermes-agent, millennium, sops-nix, nixos-secrets, nixpkgs-ivpn, ... }: let
-    # Pre-create the stable-nixpkgs instance here so submodules can use
-    # `pkgs-stable` without each calling `import stable-nixpkgs { ... }`
-    # (which would spawn a new nixpkgs evaluation every time — the
-    # "1000 instances of nixpkgs" problem from the guide's
-    # downgrade-or-upgrade-packages chapter).
-    system = "x86_64-linux";
-    pkgs-stable = import stable-nixpkgs {
-      inherit system;
-      config.allowUnfree = true;
-    };
-  in {
-    # Custom packages overlay — exposes pkgs.betterbird, pkgs.octarine, pkgs.hytale.
-    # Applied by each host via nixpkgs.overlays in their host config.
-    overlays = import ./overlays;
-
-    # Standalone package outputs — `nix build .#betterbird`, `nix build .#octarine`, etc.
-    # Reuses pkgs-stable (already created above) so we don't spawn another nixpkgs
-    # instance. These are all pre-built binaries wrapped with autoPatchelfHook, so
-    # the stable/unstable difference is negligible; in-system builds go through the
-    # overlay with the host's unstable pkgs.
-    packages.${system} = {
-      betterbird = pkgs-stable.callPackage ./pkgs/betterbird { };
-      octarine = pkgs-stable.callPackage ./pkgs/octarine { };
-      hytale = pkgs-stable.callPackage ./pkgs/hytale { };
-      net-report = pkgs-stable.callPackage ./pkgs/net-report { };
-    };
-
-    nixosConfigurations = {
-      # The hostname (set in modules/network/default.nix) must match this
-      # key, or you must pass `--flake .#UwU` to nixos-rebuild.
-      UwU = nixpkgs.lib.nixosSystem {
-        inherit system;
-        # Make `inputs` and `pkgs-stable` available to every module under
-        # modules = [...].  `inputs` lets e.g. modules/wm/mango/default.nix
-        # do `imports = [ inputs.mangowm.nixosModules.mango ];`.  `pkgs-stable`
-        # lets any module pull a package from the stable nixpkgs branch
-        # without creating a new nixpkgs instance.
-        specialArgs = { inherit inputs pkgs-stable; };
-        modules = [
-          # Apply the custom-packages overlay so pkgs.betterbird / pkgs.octarine
-          # are available to this host's modules.
-          { nixpkgs.overlays = [ inputs.self.overlays.additions ]; }
-          # Apply the Millennium overlay so pkgs.millennium-steam is available
-          # to gaming.nix (programs.steam.package). Uses our composed overlay
-          # (overlays/millennium.nix) which also fixes minizip-ng test failures.
-          { nixpkgs.overlays = [ (inputs.self.overlays.millennium { millennium-input = inputs.millennium; }) ]; }
-          ./hosts/UwU
-        ];
-      };
-
-      # TSBW-W01800 — Jaide's work laptop (AMD, LUKS, Thunderbolt, YubiKey).
-      # Hostname set in hosts/TSBW-W01800/network/network.nix.
-      TSBW-W01800 = nixpkgs.lib.nixosSystem {
-        inherit system;
-        specialArgs = { inherit inputs pkgs-stable; };
-        modules = [
-          { nixpkgs.overlays = [ inputs.self.overlays.additions ]; }
-          # Apply the Millennium overlay so pkgs.millennium-steam is available
-          # to services/steam.nix (programs.steam.package). Uses our composed
-          # overlay (overlays/millennium.nix) which also fixes minizip-ng tests.
-          { nixpkgs.overlays = [ (inputs.self.overlays.millennium { millennium-input = inputs.millennium; }) ]; }
-          ./hosts/TSBW-W01800
-        ];
-      };
+    # flake-parts — module system for flakes (enables the dendritic pattern).
+    flake-parts = {
+      url = "github:hercules-ci/flake-parts";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
   };
+
+  outputs = inputs@{ self, nixpkgs, stable-nixpkgs, flake-parts, ... }:
+    flake-parts.lib.mkFlake { inherit inputs; } {
+      imports = [
+        # The module collector — declares options.nixosModules (deferredModule)
+        # and imports every shared NixOS module file into it.
+        ./modules/options.nix
+        # Host entry points — each assembles a nixosSystem from config.nixosModules
+        # + host-specific modules imported directly.
+        ./hosts/UwU/default.nix
+        ./hosts/TSBW-W01800/default.nix
+      ];
+
+      systems = [ "x86_64-linux" ];
+
+      perSystem = { pkgs, ... }: {
+        # Standalone package outputs — `nix build .#betterbird`, etc.
+        packages = {
+          betterbird = (import stable-nixpkgs { system = "x86_64-linux"; config.allowUnfree = true; }).callPackage ./pkgs/betterbird { };
+          octarine = (import stable-nixpkgs { system = "x86_64-linux"; config.allowUnfree = true; }).callPackage ./pkgs/octarine { };
+          hytale = (import stable-nixpkgs { system = "x86_64-linux"; config.allowUnfree = true; }).callPackage ./pkgs/hytale { };
+          net-report = (import stable-nixpkgs { system = "x86_64-linux"; config.allowUnfree = true; }).callPackage ./pkgs/net-report { };
+        };
+      };
+
+      flake = {
+        # Custom packages overlay — exposes pkgs.betterbird, pkgs.octarine, etc.
+        overlays = import ./overlays;
+      };
+    };
 }

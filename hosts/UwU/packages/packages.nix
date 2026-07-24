@@ -7,15 +7,9 @@
 { pkgs, lib, ... }:
 
 {
-  imports = [
-    # Shared subfolder modules — these live under modules/packages/ and
-    # are opt-in per host.
-    ../../../modules/packages/file-manager
-    ../../../modules/packages/onepassword
-    ../../../modules/packages/network-tools
-    ../../../modules/packages/osint
-    ../../../modules/packages/media
-  ];
+  # Shared package modules (file-manager, onepassword, network-tools,
+  # osint, media) are imported by the host entry point (default.nix)
+  # via config.nixosModules.packages-* — not via imports here.
 
   environment.systemPackages = with pkgs; [
     # IVPN UI desktop entry override — force X11 + --disable-gpu.
