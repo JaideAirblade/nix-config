@@ -123,11 +123,13 @@ in
           (pkgs.fetchpatch {
             url = "https://github.com/amnezia-vpn/amneziawg-linux-kernel-module/commit/60c1bd0105246bbd309e5148f1399ac41c8ffd9f.patch";
             hash = "sha256-foDqFTt2jy8V8SF3674iBniodzMrWTiMEtH/rdjzFj0=";
+            stripLen = 2;
           })
           # socket.c: replace ipv6_stub with ip6_dst_lookup_flow
           (pkgs.fetchpatch {
             url = "https://github.com/amnezia-vpn/amneziawg-linux-kernel-module/commit/40b04a8d43f1e24ed6e495a5a97c05883ab1d122.patch";
             hash = "sha256-Ac7HCk5UHPkvGzvJ5bJO8x3EeL528NIMZUIivzEJacU=";
+            stripLen = 2;
           })
         ];
       });
