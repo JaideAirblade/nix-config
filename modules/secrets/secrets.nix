@@ -127,14 +127,19 @@
   # ── Deploy SSH key from sops to ~/.ssh/ ──────────────────────────────
   # sops-nix writes secrets to /run/secrets/ (owned by root, tmpfs).
   # We symlink the SSH private key into jaide's ~/.ssh/ so git can use it.
-  # The public key and ssh config are NOT secret — they go in the regular
-  # NixOS config below.
+  # The public key is NOT secret — written directly in the activation script.
   system.activationScripts.deploy-ssh-key = lib.stringAfter [ "setupSecrets" "users" ] ''
     if [ -f /run/secrets/ssh_key ]; then
       mkdir -p /home/jaide/.ssh
       chmod 700 /home/jaide/.ssh
       ln -sfn /run/secrets/ssh_key /home/jaide/.ssh/id_ed25519
       chown -h jaide:users /home/jaide/.ssh/id_ed25519
+      # Write the public key (not secret — needed by ssh-keygen for signing)
+      cat > /home/jaide/.ssh/id_ed25519.pub << 'PUBKEY'
+      ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKozofCo3TsmA85edEMGsysfAkLf1/wWL3cv+DR0Ck04 jaide_nixos
+      PUBKEY
+      chown jaide:users /home/jaide/.ssh/id_ed25519.pub
+      chmod 644 /home/jaide/.ssh/id_ed25519.pub
     fi
   '';
 
