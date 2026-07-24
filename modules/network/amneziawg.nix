@@ -110,8 +110,21 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # Kernel module for AmneziaWG
-    boot.extraModulePackages = [ config.boot.kernelPackages.amneziawg ];
+    # Kernel module for AmneziaWG (patched for Linux 7.x — see overlay)
+    boot.extraModulePackages = [
+      (config.boot.kernelPackages.amneziawg.overrideAttrs (old: {
+        patches = (old.patches or [ ]) ++ [
+          (pkgs.fetchpatch {
+            url = "https://github.com/amnezia-vpn/amneziawg-linux-kernel-module/commit/60c1bd0105246bbd309e5148f1399ac41c8ffd9f.patch";
+            hash = "sha256-foDqFTt2jy8V8SF3674iBniodzMrWTiMEtH/rdjzFj0=";
+          })
+          (pkgs.fetchpatch {
+            url = "https://github.com/amnezia-vpn/amneziawg-linux-kernel-module/commit/40b04a8d43f1e24ed6e495a5a97c05883ab1d122.patch";
+            hash = "sha256-gP20swVf5vddqEbkwmx0jsaPJsrQud8NvK6x+4jHtF8=";
+          })
+        ];
+      }))
+    ];
     environment.systemPackages = [ pkgs.amneziawg-tools ];
 
     # AmneziaWG interface via wg-quick with type = "amneziawg"
