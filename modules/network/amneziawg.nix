@@ -110,9 +110,12 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # Kernel module for AmneziaWG (patched for Linux 7.x — see overlay)
-    boot.extraModulePackages = [
-      (config.boot.kernelPackages.amneziawg.overrideAttrs (old: {
+    # Kernel module for AmneziaWG — patched for Linux 7.x
+    # (ipv6_stub removed in 7.x, replaced with ip6_dst_lookup_flow)
+    # We override boot.kernelPackages to include the patched module so
+    # the wg-quick NixOS module picks it up automatically.
+    boot.kernelPackages = pkgs.linuxPackages.extend (kpFinal: kpPrev: {
+      amneziawg = kpPrev.amneziawg.overrideAttrs (old: {
         patches = (old.patches or [ ]) ++ [
           (pkgs.fetchpatch {
             url = "https://github.com/amnezia-vpn/amneziawg-linux-kernel-module/commit/60c1bd0105246bbd309e5148f1399ac41c8ffd9f.patch";
@@ -123,8 +126,8 @@ in
             hash = "sha256-gP20swVf5vddqEbkwmx0jsaPJsrQud8NvK6x+4jHtF8=";
           })
         ];
-      }))
-    ];
+      });
+    });
     environment.systemPackages = [ pkgs.amneziawg-tools ];
 
     # AmneziaWG interface via wg-quick with type = "amneziawg"
