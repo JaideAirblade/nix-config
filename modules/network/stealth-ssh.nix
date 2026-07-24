@@ -114,10 +114,16 @@ in
 
       # Authorized keys for the user — FIDO2 keys only
       # We use a sops-managed file if available, or inline keys.
+      # Use PubkeyAuthOptions to require touch + verify (FIDO2 only)
+      # and restrict PubkeyAcceptedAlgorithms to security key types only.
+      # OpenSSH 10.4 uses sk-ssh-ed25519@openssh.com / sk-ecdsa-sha2-nistp256@openssh.com
+      settings.PubkeyAuthOptions = "touch-required verify-required";
+
       extraConfig = ''
-        # ONLY accept FIDO2 security key types (ed25519-sk, ecdsa-sk)
+        # ONLY accept FIDO2 security key types (sk-* algorithms)
         # Regular ed25519/rsa keys are rejected even if in authorized_keys
-        PubkeyAcceptedAlgorithms ssh-ed25519-sk@openssh.com ecdsa-sk-sha2-nistp256@openssh.com sk-ssh-ed25519@openssh.com sk-ecdsa-sha2-nistp256@openssh.com
+        # Comma-separated per sshd_config syntax.
+        PubkeyAcceptedAlgorithms sk-ssh-ed25519@openssh.com,sk-ecdsa-sha2-nistp256@openssh.com,webauthn-sk-ecdsa-sha2-nistp256@openssh.com
       '';
     };
 
