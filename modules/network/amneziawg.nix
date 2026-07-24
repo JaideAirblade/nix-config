@@ -119,13 +119,15 @@ in
     boot.kernelPackages = lib.mkForce (pkgs.linuxPackages.extend (kpFinal: kpPrev: {
       amneziawg = kpPrev.amneziawg.overrideAttrs (old: {
         patches = (old.patches or [ ]) ++ [
+          # socket.h: add forward declarations for kernel 7.x
           (pkgs.fetchpatch {
             url = "https://github.com/amnezia-vpn/amneziawg-linux-kernel-module/commit/60c1bd0105246bbd309e5148f1399ac41c8ffd9f.patch";
             hash = "sha256-foDqFTt2jy8V8SF3674iBniodzMrWTiMEtH/rdjzFj0=";
           })
+          # socket.c: replace ipv6_stub with ip6_dst_lookup_flow
           (pkgs.fetchpatch {
             url = "https://github.com/amnezia-vpn/amneziawg-linux-kernel-module/commit/40b04a8d43f1e24ed6e495a5a97c05883ab1d122.patch";
-            hash = "sha256-gP20swVf5vddqEbkwmx0jsaPJsrQud8NvK6x+4jHtF8=";
+            hash = "sha256-Ac7HCk5UHPkvGzvJ5bJO8x3EeL528NIMZUIivzEJacU=";
           })
         ];
       });
