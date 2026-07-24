@@ -13,10 +13,12 @@
   environment.systemPackages = with pkgs; [
     vim   # editor of last resort
     wget
+    curl
     git   # flakes pulls deps via git; also useful as a user tool
     gh    # GitHub CLI — `gh auth login`, `gh pr create`, etc.
     just  # command runner for the Justfile (see ~/nixos/Justfile)
     ripgrep
+    fd    # modern find — ripgrep's sibling for filenames
     jq
     fzf
     file
@@ -27,6 +29,38 @@
 
     # Terminals — every host wants a terminal installed system-wide.
     ghostty
+
+    # --- System inspection & debugging ---
+    pciutils     # lspci — inspect GPU/PCIe bus (complements usbutils)
+    usbutils     # lsusb — identify USB devices from CLI
+    lm_sensors   # `sensors` — CPU/GPU/mobo temperatures
+    lsof         # what process has this file/port open?
+    strace       # system call tracing — debugging Wine/Electron/etc
+    dmidecode    # hardware inventory — motherboard, RAM slots, BIOS version
+    ncdu         # disk usage analyzer (TUI) — find what ate your disk
+
+    # --- Modern CLI utilities ---
+    bat          # cat with syntax highlighting
+    delta        # beautiful git diffs (set as diff pager in ~/.gitconfig)
+    dust         # modern du — visual disk usage tree
+    procs        # modern ps — cleaner process listing
+    bottom       # btm — system monitor (alternative to btop)
+    xh           # HTTPie alternative — nicer than curl for API testing
+
+    # --- Python ---
+    python3      # base Python interpreter — not bundled inside tool wrappers
+
+    # --- Crypto & keys ---
+    gnupg        # GnuPG — key management (complements YubiKey/age setup)
+
+    # --- OCR ---
+    tesseract    # OCR engine — extract text from images/scans
+
+    # --- Media download ---
+    gallery-dl   # download images from galleries — complements yt-dlp
+
+    # --- Dev workflow ---
+    direnv       # per-directory env vars — load nix shells, set vars per project
   ];
 
   programs.firefox.enable = true;

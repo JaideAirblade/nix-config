@@ -10,10 +10,19 @@
 { pkgs, lib, ... }:
 
 {
-  # ── Lab network management scripts ────────────────────────────────
-  # These create/destroy the libvirt networks. The isolated NAT network
-  # is the default; the bridge is opt-in per-VM.
-  environment.systemPackages = [
+  # ── AD attack tools + lab management scripts ───────────────────────
+  # Attack tools complement the impacket/evil-winrm/netexec tools from
+  # windows-tools.nix. They're in the ad-lab module because they're
+  # only useful with a running AD lab.
+  environment.systemPackages = with pkgs; [
+    # --- AD attack tools ---
+    responder     # LLMNR/NBT-NS poisoner — capture NTLMv2 hashes from AD clients
+    bloodhound    # AD attack path visualization — maps the whole domain graph
+    mitm6         # IPv6 DNS takeover — forces AD hosts to use your DNS server
+
+    # --- Lab network management scripts ---
+    # These create/destroy the libvirt networks. The isolated NAT network
+    # is the default; the bridge is opt-in per-VM.
     # Create + start the isolated lab network
     (pkgs.writeShellScriptBin "lab-net-create" ''
       set -e

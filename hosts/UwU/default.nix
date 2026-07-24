@@ -48,9 +48,13 @@
       config.nixosModules.virtualisation-ad-lab
 
       # ── Disko — declarative disk layout ─────────────────────────────
-      inputs.disko.nixosModules.disko
-      config.nixosModules.disko
-      (import ./disk-layout.nix)
+      # DISABLED: disk was partitioned manually (labels: EFI, root), not by
+      # disko (which expects labels: disk-main-ESP, disk-main-root).
+      # Enable these when reinstalling via nixos-anywhere so disko can
+      # repartition + relabel the disk to match.
+      # inputs.disko.nixosModules.disko
+      # config.nixosModules.disko
+      # (import ./disk-layout.nix)
 
       # ── Opt-in shared package modules (UwU wants these) ────────────
       config.nixosModules.packages-file-manager

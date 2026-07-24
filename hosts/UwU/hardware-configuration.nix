@@ -13,16 +13,17 @@
   boot.kernelModules = [ "kvm-amd" ];
   boot.extraModulePackages = [ ];
 
-  # NOTE: fileSystems are now managed declaratively by disko (disk-layout.nix).
-  # These entries are kept as fallbacks with mkDefault so disko's values win.
-  # When reinstalling via nixos-anywhere, this file will be regenerated and
-  # these entries can be removed entirely (disko handles everything).
-  fileSystems."/" = lib.mkDefault
+  # NOTE: disko module is disabled in default.nix because the disk was
+  # partitioned manually (labels: EFI, root) and disko's expected labels
+  # (disk-main-ESP, disk-main-root) don't exist. These UUID entries are
+  # the primary source. When reinstalling via nixos-anywhere, re-enable
+  # disko in default.nix and remove these entries.
+  fileSystems."/" =
     { device = "/dev/disk/by-uuid/129f8c1b-2bec-4502-9fef-d96e8103be8b";
       fsType = "xfs";
     };
 
-  fileSystems."/boot" = lib.mkDefault
+  fileSystems."/boot" =
     { device = "/dev/disk/by-uuid/A767-B462";
       fsType = "vfat";
       options = [ "fmask=0077" "dmask=0077" ];

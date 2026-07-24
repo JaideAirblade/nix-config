@@ -58,9 +58,15 @@
     # to download EPUBs from Google Play Books (ACSM → DRM-free EPUB).
     calibre
 
-    # Basic USB tooling — lsusb and friends. Without this you can't even
-    # identify what's plugged in from the CLI.
-    usbutils
+    # --- Disk health monitoring (TSBW has these via disk-recovery.nix) ---
+    smartmontools   # smartctl — SMART health for HDD/SSD
+    nvme-cli        # nvme smart-log — NVMe health & controller logs
+
+    # --- GPU monitor for NVIDIA 3080 (TSBW has nvtopPackages.amd) ---
+    nvtopPackages.nvidia
+
+    # --- System info (TSBW has this in system-packages.nix) ---
+    fastfetch
 
     # Chromium — force XWayland via desktop entry overrides.
     # NIXOS_OZONE_WL=1 (set globally in theming.nix) makes Chromium try native
