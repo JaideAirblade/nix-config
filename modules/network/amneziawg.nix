@@ -121,14 +121,19 @@ in
     # and the patches reference src/socket.h (one level up from our CWD).
     boot.kernelPackages = lib.mkForce (pkgs.linuxPackages.extend (kpFinal: kpPrev: {
       amneziawg = kpPrev.amneziawg.overrideAttrs (old: {
-        postPatch = (old.postPatch or "") + ''
+        # Clear existing patches and apply our own via postPatch.
+        # We use postPatch because sourceRoot is src/ and the patches
+        # reference src/socket.h — standard patches can't find the file.
+        patches = [ ];
+        postPatch = ''
           # socket.h: add forward declarations for kernel 7.x
-          patch -p1 < ${pkgs.fetchurl {
+          # -p2 strips a/src/ → socket.h (we're already in src/)
+          patch -p2 < ${pkgs.fetchurl {
             url = "https://github.com/amnezia-vpn/amneziawg-linux-kernel-module/commit/60c1bd0105246bbd309e5148f1399ac41c8ffd9f.patch";
             hash = "sha256-foDqFTt2jy8V8SF3674iBniodzMrWTiMEtH/rdjzFj0=";
           }}
           # socket.c: replace ipv6_stub with ip6_dst_lookup_flow
-          patch -p1 < ${pkgs.fetchurl {
+          patch -p2 < ${pkgs.fetchurl {
             url = "https://github.com/amnezia-vpn/amneziawg-linux-kernel-module/commit/40b04a8d43f1e24ed6e495a5a97c05883ab1d122.patch";
             hash = "sha256-gP20swVf5vddqEbkwmx0jsaPJsrQud8NvK6x+4jHtF8=";
           }}
