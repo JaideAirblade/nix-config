@@ -89,3 +89,45 @@ vm-test hostname:
 # Usage: just deploy-remote hostname=homelab ip=192.168.1.50
 deploy-remote hostname ip:
   nixos-rebuild switch --flake .#{{hostname}} --target-host root@{{ip}}
+
+# ── AD test lab ─────────────────────────────────────────────────
+# Start the AD lab network + domain controller VM
+lab-up:
+  lab-net-create
+  virsh start ad-dc1 2>/dev/null || echo "DC not defined yet — create with: just lab-create-dc"
+
+# Stop the entire lab (network + all VMs)
+lab-down:
+  -for vm in $(virsh list --name --state-running 2>/dev/null | grep '^ad-'); do virsh shutdown $$vm; done
+  sleep 3
+  -for vm in $(virsh list --name --all 2>/dev/null | grep '^ad-'); do virsh destroy $$vm 2>/dev/null || true; done
+  lab-net-destroy
+
+# Lab status — network + VMs + SSH keys
+lab-status:
+  lab-status
+
+# Create the domain controller VM from ISO (one-time setup)
+lab-create-dc iso="":
+  lab-create-dc {{iso}}
+
+# Create the client base image from ISO (one-time setup)
+lab-create-client-base iso="":
+  lab-create-client-base {{iso}}
+
+# Create a fresh client VM from base image (throws away old one)
+# Generates temp SSH key, injects into VM, adds SSH config entry
+lab-fresh-client name="ad-client1":
+  lab-fresh-client {{name}}
+
+# Revert a client VM to its base snapshot (faster than fresh clone)
+lab-revert name="ad-client1":
+  lab-revert {{name}}
+
+# Nuke a client VM + delete its SSH keys
+lab-nuke name="ad-client1":
+  lab-nuke {{name}}
+
+# Attach a bridged NIC to a VM (for joining a real AD on the physical network)
+lab-bridge name="ad-client1":
+  lab-bridge-attach {{name}}

@@ -43,7 +43,11 @@
       config.nixosModules.metadata
       config.nixosModules.secrets
 
-      # Disko — declarative disk layout
+      # ── Virtualisation (libvirt + AD test lab) ──────────────────────
+      config.nixosModules.virtualisation
+      config.nixosModules.virtualisation-ad-lab
+
+      # ── Disko — declarative disk layout ─────────────────────────────
       inputs.disko.nixosModules.disko
       config.nixosModules.disko
       (import ./disk-layout.nix)

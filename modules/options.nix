@@ -78,6 +78,10 @@
       # Secrets
       secrets = import ./secrets/secrets.nix;
 
+      # Virtualisation
+      virtualisation = import ./virtualisation/libvirt.nix;
+      virtualisation-ad-lab = import ./virtualisation/ad-lab.nix;
+
       # Disko — declarative disk layout (imported per-host, not always-on)
       disko = import ./disko/disko.nix;
       disko-single-disk-xfs = import ./disko/single-disk-xfs.nix;

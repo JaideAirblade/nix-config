@@ -46,6 +46,8 @@
       config.nixosModules.packages-onepassword
       config.nixosModules.packages-network-tools
       config.nixosModules.packages-media
+      config.nixosModules.virtualisation
+      config.nixosModules.virtualisation-ad-lab
 
       # ── Disko — btrfs with subvolumes + deduplication ──────────────
       inputs.disko.nixosModules.disko
