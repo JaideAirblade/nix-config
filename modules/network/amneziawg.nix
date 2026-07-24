@@ -116,22 +116,23 @@ in
     # the wg-quick NixOS module picks it up automatically.
     # Override kernelPackages to inject the patched amneziawg module.
     # We use mkForce to win against any default (e.g. from hardware-configuration.nix).
+    # The kernel module needs patching for Linux 7.x (ipv6_stub removed).
+    # We use postPatch to apply the patches since the sourceRoot is src/
+    # and the patches reference src/socket.h (one level up from our CWD).
     boot.kernelPackages = lib.mkForce (pkgs.linuxPackages.extend (kpFinal: kpPrev: {
       amneziawg = kpPrev.amneziawg.overrideAttrs (old: {
-        patches = (old.patches or [ ]) ++ [
+        postPatch = (old.postPatch or "") + ''
           # socket.h: add forward declarations for kernel 7.x
-          (pkgs.fetchpatch {
+          patch -p1 < ${pkgs.fetchurl {
             url = "https://github.com/amnezia-vpn/amneziawg-linux-kernel-module/commit/60c1bd0105246bbd309e5148f1399ac41c8ffd9f.patch";
             hash = "sha256-foDqFTt2jy8V8SF3674iBniodzMrWTiMEtH/rdjzFj0=";
-            stripLen = 2;
-          })
+          }}
           # socket.c: replace ipv6_stub with ip6_dst_lookup_flow
-          (pkgs.fetchpatch {
+          patch -p1 < ${pkgs.fetchurl {
             url = "https://github.com/amnezia-vpn/amneziawg-linux-kernel-module/commit/40b04a8d43f1e24ed6e495a5a97c05883ab1d122.patch";
-            hash = "sha256-Ac7HCk5UHPkvGzvJ5bJO8x3EeL528NIMZUIivzEJacU=";
-            stripLen = 2;
-          })
-        ];
+            hash = "sha256-gP20swVf5vddqEbkwmx0jsaPJsrQud8NvK6x+4jHtF8=";
+          }}
+        '';
       });
     }));
     environment.systemPackages = [ pkgs.amneziawg-tools ];
