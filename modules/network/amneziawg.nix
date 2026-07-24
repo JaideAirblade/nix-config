@@ -114,7 +114,9 @@ in
     # (ipv6_stub removed in 7.x, replaced with ip6_dst_lookup_flow)
     # We override boot.kernelPackages to include the patched module so
     # the wg-quick NixOS module picks it up automatically.
-    boot.kernelPackages = pkgs.linuxPackages.extend (kpFinal: kpPrev: {
+    # Override kernelPackages to inject the patched amneziawg module.
+    # We use mkForce to win against any default (e.g. from hardware-configuration.nix).
+    boot.kernelPackages = lib.mkForce (pkgs.linuxPackages.extend (kpFinal: kpPrev: {
       amneziawg = kpPrev.amneziawg.overrideAttrs (old: {
         patches = (old.patches or [ ]) ++ [
           (pkgs.fetchpatch {
@@ -127,7 +129,7 @@ in
           })
         ];
       });
-    });
+    }));
     environment.systemPackages = [ pkgs.amneziawg-tools ];
 
     # AmneziaWG interface via wg-quick with type = "amneziawg"
