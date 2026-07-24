@@ -101,13 +101,17 @@
     };
 
     # Default secrets file — points to the nixos-secrets flake input.
-    # Each secret can override with sops.secrets.<name>.sopsFile to point
-    # at a per-host or shared file.
-    # Uncomment after the first secrets file is created:
-    # defaultSopsFile = "${inputs.nixos-secrets}/secrets/shared/secrets.yaml";
+    # The root secrets.yaml is for shared secrets. Per-host secrets
+    # live in secrets/<hostname>/secrets.yaml (override per-secret with
+    # sops.secrets.<name>.sopsFile).
+    defaultSopsFile = "${inputs.nixos-secrets}/secrets.yaml";
 
     # Default format
     defaultSopsFormat = "yaml";
+
+    # Test secret — verifies the full pipeline works end to end.
+    # Available at /run/secrets/test_secret after rebuild.
+    secrets.test_secret = { };
   };
 
   # ── CLI tools for managing secrets ──────────────────────────────────

@@ -84,7 +84,8 @@
     # quantum attacks on age/X25519). Accessed via SSH deploy key
     # (~/.ssh/id_ed25519, registered as a repo deploy key).
     nixos-secrets = {
-      url = "git+ssh://git@github.com/JaideAirblade/nixos-secrets.git?ref=master";
+      url = "git+ssh://git@github.com/JaideAirblade/nixos-secrets.git?ref=main";
+      flake = false;
     };
 
     # Temporary pin of nixpkgs to the open IVPN update PR (kilyanni's
