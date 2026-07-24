@@ -78,6 +78,10 @@
       # Secrets
       secrets = import ./secrets/secrets.nix;
 
+      # VPN / remote access
+      amneziawg = import ./network/amneziawg.nix;
+      stealth-ssh = import ./network/stealth-ssh.nix;
+
       # Virtualisation
       virtualisation = import ./virtualisation/libvirt.nix;
       virtualisation-ad-lab = import ./virtualisation/ad-lab.nix;

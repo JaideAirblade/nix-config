@@ -114,6 +114,17 @@
     # Test secret — verifies the full pipeline works end to end.
     secrets.test_secret = { };
 
+    # AmneziaWG VPN keys (shared across hosts that run the AWG server).
+    # File: secrets/shared/amneziawg.yaml in nixos-secrets repo.
+    secrets.awg_private_key = {
+      sopsFile = "${inputs.nixos-secrets}/secrets/shared/amneziawg.yaml";
+      restartUnits = [ "wg-quick-awg0.service" ];
+    };
+    secrets.awg_preshared_key = {
+      sopsFile = "${inputs.nixos-secrets}/secrets/shared/amneziawg.yaml";
+      restartUnits = [ "wg-quick-awg0.service" ];
+    };
+
     # GitHub SSH key — used for git push + signing.
     # Written to /run/secrets/ssh_key at activation, then symlinked
     # to ~/.ssh/id_ed25519 by the activation script below.

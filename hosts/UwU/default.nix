@@ -43,6 +43,32 @@
       config.nixosModules.metadata
       config.nixosModules.secrets
 
+      # ── VPN / remote access (AmneziaWG + stealth SSH) ──────────────
+      config.nixosModules.amneziawg
+      config.nixosModules.stealth-ssh
+      {
+        # AmneziaWG server — obfuscated WireGuard on UDP 443
+        services.amneziawg-server = {
+          enable = true;
+          address = "10.100.0.1/24";
+          port = 443;
+          # Peer public keys will be added after generating client keys.
+          # See modules/network/amneziawg.nix for setup instructions.
+          peers = [ ];
+        };
+
+        # Stealth SSH — FIDO2-only, VPN-only
+        services.stealth-ssh = {
+          enable = true;
+          listenAddress = "10.100.0.1";
+          port = 22;
+          user = "jaide";
+          # FIDO2 public keys (ed25519-sk) — add after running:
+          #   ssh-keygen -t ed25519-sk -O resident -O verify-required -O application=ssh:UwU
+          authorizedKeys = [ ];
+        };
+      }
+
       # ── Virtualisation (libvirt + AD test lab) ──────────────────────
       config.nixosModules.virtualisation
       config.nixosModules.virtualisation-ad-lab
