@@ -50,5 +50,10 @@
     ]))
     urx             # Extract URLs from OSINT archives (Wayback, CommonCrawl, etc.)
     bitcrook        # OSINT tool — multiple data sources
+
+    # === 6. Geospatial / Map OSINT ===
+    qgis            # Full GIS — view/edit/analyze geospatial data, QuickOSM plugin
+                    # for querying OpenStreetMap data, overlay satellite imagery,
+                    # spatial analysis, measure distances, export layers
   ];
 }
