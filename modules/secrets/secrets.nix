@@ -135,9 +135,7 @@
       ln -sfn /run/secrets/ssh_key /home/jaide/.ssh/id_ed25519
       chown -h jaide:users /home/jaide/.ssh/id_ed25519
       # Write the public key (not secret — needed by ssh-keygen for signing)
-      cat > /home/jaide/.ssh/id_ed25519.pub << 'PUBKEY'
-      ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKozofCo3TsmA85edEMGsysfAkLf1/wWL3cv+DR0Ck04 jaide_nixos
-      PUBKEY
+      echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKozofCo3TsmA85edEMGsysfAkLf1/wWL3cv+DR0Ck04 jaide_nixos" > /home/jaide/.ssh/id_ed25519.pub
       chown jaide:users /home/jaide/.ssh/id_ed25519.pub
       chmod 644 /home/jaide/.ssh/id_ed25519.pub
     fi
