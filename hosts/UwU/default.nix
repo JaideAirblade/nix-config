@@ -43,18 +43,39 @@
       config.nixosModules.metadata
       config.nixosModules.secrets
 
-      # ── VPN / remote access (AmneziaWG + stealth SSH) ──────────────
-      config.nixosModules.amneziawg
+      # ── VPN / remote access (AmneziaWG mesh + stealth SSH) ───────────
+      config.nixosModules.amneziawg-mesh
       config.nixosModules.stealth-ssh
       {
-        # AmneziaWG server — obfuscated WireGuard on UDP 443
-        services.amneziawg-server = {
+        # AmneziaWG full mesh — every host is server + client
+        services.amneziawg-mesh = {
           enable = true;
-          address = "10.100.0.1/24";
+          thisHost = "UwU";
           port = 443;
-          # Peer public keys will be added after generating client keys.
-          # See modules/network/amneziawg.nix for setup instructions.
-          peers = [ ];
+          enableUPnP = true;
+          # TODO: Switch to per-host key after updating sops:
+          #   privateKeySecret = "awg_private_key_UwU";
+          privateKeySecret = "awg_private_key";  # using existing key during migration
+          hosts = {
+            UwU          = {
+              vpnIP = "10.100.0.1";
+              publicKey = "NIYTYZUDk5cIApTIRTn+6W5A/iNzlpYtKF023pmBWms=";
+              # Endpoint auto-discovered via UPnP; set DDNS later if needed
+              endpoint = "";
+            };
+            TSBW-W01800  = {
+              vpnIP = "10.100.0.2";
+              publicKey = "Am3ruSNP1euGL3EHXcBzR5ShKxBiP0TMOirRKwdQwwM=";
+              # Work laptop — roaming, no stable endpoint
+              endpoint = "";
+            };
+            OwO-Family   = {
+              vpnIP = "10.100.0.3";
+              publicKey = "WsL8kw4MZPiD6gw49RDU9ZDTmhEUvRGIJbKqWGJ1qjU=";
+              # Family PC — endpoint set after port forwarding is configured
+              endpoint = "";
+            };
+          };
         };
 
         # Stealth SSH — FIDO2-only, VPN-only
@@ -63,8 +84,6 @@
           listenAddress = "10.100.0.1";
           port = 22;
           user = "jaide";
-          # FIDO2 public keys (ed25519-sk) — add after running:
-          #   ssh-keygen -t ed25519-sk -O resident -O verify-required -O application=ssh:UwU
           authorizedKeys = [ ];
         };
       }

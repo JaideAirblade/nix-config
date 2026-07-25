@@ -41,6 +41,48 @@
       config.nixosModules.metadata
       config.nixosModules.secrets
 
+      # ── VPN / remote access (AmneziaWG mesh + stealth SSH) ───────────
+      config.nixosModules.amneziawg-mesh
+      config.nixosModules.stealth-ssh
+      {
+        # AmneziaWG full mesh — every host is server + client
+        services.amneziawg-mesh = {
+          enable = true;
+          thisHost = "OwO-Family";
+          port = 443;
+          enableUPnP = true;
+          # TODO: Switch to per-host key after updating sops:
+          #   privateKeySecret = "awg_private_key_OwO_Family";
+          privateKeySecret = "awg_private_key";  # using existing key during migration
+          hosts = {
+            UwU          = {
+              vpnIP = "10.100.0.1";
+              publicKey = "NIYTYZUDk5cIApTIRTn+6W5A/iNzlpYtKF023pmBWms=";
+              endpoint = "";
+            };
+            TSBW-W01800  = {
+              vpnIP = "10.100.0.2";
+              publicKey = "Am3ruSNP1euGL3EHXcBzR5ShKxBiP0TMOirRKwdQwwM=";
+              endpoint = "";
+            };
+            OwO-Family   = {
+              vpnIP = "10.100.0.3";
+              publicKey = "WsL8kw4MZPiD6gw49RDU9ZDTmhEUvRGIJbKqWGJ1qjU=";
+              endpoint = "";
+            };
+          };
+        };
+
+        # Stealth SSH — FIDO2-only, VPN-only
+        services.stealth-ssh = {
+          enable = true;
+          listenAddress = "10.100.0.3";
+          port = 22;
+          user = "jaide";
+          authorizedKeys = [ ];
+        };
+      }
+
       # ── Opt-in shared packages ────────────────────────────────────
       config.nixosModules.packages-file-manager
       config.nixosModules.packages-onepassword

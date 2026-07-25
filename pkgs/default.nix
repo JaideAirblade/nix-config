@@ -5,4 +5,5 @@ pkgs: {
   octarine = pkgs.callPackage ./octarine { };
   hytale = pkgs.callPackage ./hytale { };
   net-report = pkgs.callPackage ./net-report { };
+  macrotool-gtk4 = pkgs.callPackage ./macrotool-gtk4 { };
 }

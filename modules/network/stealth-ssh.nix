@@ -80,6 +80,11 @@ in
       enable = true;
       ports = [ cfg.port ];
 
+      # Wait for the VPN interface to come up before starting sshd.
+      # Without this, sshd races wg-quick at boot, fails to bind
+      # 10.100.0.1, and hits systemd's start-limit.
+      startWhenNeeded = false;
+
       settings = {
         # Listen ONLY on the VPN interface — not on 0.0.0.0
         ListenAddress = cfg.listenAddress;
@@ -141,5 +146,20 @@ in
       chown ${cfg.user}:users /home/${cfg.user}/.ssh/authorized_keys
       chmod 600 /home/${cfg.user}/.ssh/authorized_keys
     '';
+
+    # Make sshd wait for the AWG interface to be up before starting.
+    # This prevents the boot race where sshd tries to bind 10.100.0.1
+    # before wg-quick-awg0 has created the interface.
+    systemd.services.sshd = {
+      after = [ "wg-quick-awg0.service" ];
+      wants = [ "wg-quick-awg0.service" ];
+      unitConfig = {
+        StartLimitIntervalSec = 60;
+        StartLimitBurst = 10;
+      };
+      serviceConfig = {
+        RestartSec = 5;
+      };
+    };
   };
 }

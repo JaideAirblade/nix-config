@@ -80,6 +80,7 @@
 
       # VPN / remote access
       amneziawg = import ./network/amneziawg.nix;
+      amneziawg-mesh = import ./network/amneziawg-mesh.nix;
       stealth-ssh = import ./network/stealth-ssh.nix;
 
       # Virtualisation

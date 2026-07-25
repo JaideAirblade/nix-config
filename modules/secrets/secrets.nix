@@ -114,8 +114,11 @@
     # Test secret — verifies the full pipeline works end to end.
     secrets.test_secret = { };
 
-    # AmneziaWG VPN keys (shared across hosts that run the AWG server).
+    # AmneziaWG VPN keys.
     # File: secrets/shared/amneziawg.yaml in nixos-secrets repo.
+    # Currently uses a single shared private key (awg_private_key).
+    # TODO: After adding per-host keys to sops, switch the mesh module
+    # to privateKeySecret = "awg_private_key_<hostname>" per host.
     secrets.awg_private_key = {
       sopsFile = "${inputs.nixos-secrets}/secrets/shared/amneziawg.yaml";
       restartUnits = [ "wg-quick-awg0.service" ];
