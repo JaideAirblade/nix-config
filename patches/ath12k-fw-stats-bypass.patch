@@ -1,0 +1,15 @@
+diff --git a/drivers/net/wireless/ath/ath12k/mac.c b/drivers/net/wireless/ath/ath12k/mac.c
+--- a/drivers/net/wireless/ath/ath12k/mac.c
++++ b/drivers/net/wireless/ath/ath12k/mac.c
+@@ -5357,6 +5357,12 @@ int ath12k_mac_get_fw_stats(struct ath12k *ar,
+ 			    struct ath12k_fw_stats_req_params *param)
+ {
++	/* WCN7850 firmware never responds to stats requests, causing the
++	 * hw_mutex to be held for up to 4 seconds (1+3 HZ completion waits).
++	 * This blocks EAPOL frame TX during GTK rekey, causing WiFi disconnects
++	 * every 10 minutes. Bypass fw_stats entirely until firmware is fixed.
++	 */
++	return -EOPNOTSUPP;
+ 	struct ath12k_base *ab = ar->ab;
+ 	struct ath12k_hw *ah = ath12k_ar_to_ah(ar);
+ 	unsigned long time_left;

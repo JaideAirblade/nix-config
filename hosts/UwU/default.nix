@@ -108,6 +108,7 @@
       { nixpkgs.overlays = [ (import ../../overlays/millennium.nix { millennium-input = inputs.millennium; }) ]; }
       # Patch amneziawg kernel module for Linux 7.x (ipv6_stub removed)
       { nixpkgs.overlays = [ (import ../../overlays/amneziawg-kernel7-fix.nix) ]; }
+      { nixpkgs.overlays = [ (import ../../overlays/python314-fixes.nix) ]; }
     ];
   };
 }

@@ -52,7 +52,9 @@
     bitcrook        # OSINT tool — multiple data sources
 
     # === 6. Geospatial / Map OSINT ===
-    qgis            # Full GIS — view/edit/analyze geospatial data, QuickOSM plugin
+    # qgis            # Full GIS — view/edit/analyze geospatial data, QuickOSM plugin
+                    # TEMPORARILY DISABLED: qscintilla-qt6 fails pythonMetadataCheckPhase
+                    # on Python 3.14. Re-enable once nixpkgs fixes it.
                     # for querying OpenStreetMap data, overlay satellite imagery,
                     # spatial analysis, measure distances, export layers
   ];

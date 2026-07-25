@@ -139,5 +139,10 @@
     # Hytale Launcher — official launcher for Hytale (custom package from pkgs/).
     # Wrapped in buildFHSEnv so the pre-built binary finds its libraries.
     hytale
+
+    # Galaxy Buds Client — unofficial manager for Samsung Galaxy Buds earbuds.
+    # EQ, ANC/ambient, touch actions, battery stats, diagnostics over RFCOMM/SPP.
+    # Confirmed working with Buds4 Pro (PR #689, v5.2+).
+    galaxy-buds-client
   ];
 }

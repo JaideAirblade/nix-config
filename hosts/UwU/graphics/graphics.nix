@@ -13,6 +13,20 @@
   # Latest mainline kernel.
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
+  # ath12k fw_stats bypass: WCN7850 firmware never responds to stats requests,
+  # causing hw_mutex to be held for 4 seconds (completion timeouts). This blocks
+  # EAPOL frame TX during WPA2 GTK rekey → AP sends PREV_AUTH_NOT_VALID →
+  # WiFi disconnects every 10 minutes (FRITZ!Box default rekey interval).
+  # Patch makes ath12k_mac_get_fw_stats() return -EOPNOTSUPP immediately,
+  # before acquiring hw_mutex. Trade-off: wifi stats/txpower via fw_stats
+  # won't work, but the connection stays stable.
+  boot.kernelPatches = [
+    {
+      name = "ath12k-fw-stats-bypass";
+      patch = ../../../patches/ath12k-fw-stats-bypass.patch;
+    }
+  ];
+
   # Enable nvidia-drm modesetting (needed for Wayland).
   boot.kernelParams = [ "nvidia-drm.modeset=1" "nvidia-drm.fbdev=1" ];
 

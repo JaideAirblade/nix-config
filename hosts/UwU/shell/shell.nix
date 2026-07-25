@@ -6,7 +6,10 @@
 
 {
   programs.bash.shellAliases = lib.mkForce {
-    ll = "ls -lAh";
+    ls = "eza";
+    ll = "eza -lAhno";
+    la = "eza -a";
+    lt = "eza --tree --level=2";
     sf = "superfile";
     rebuild = "sudo nixos-rebuild switch --flake /etc/nixos#UwU";
     update = "cd /etc/nixos && nix flake update && sudo nixos-rebuild switch --flake .#UwU";

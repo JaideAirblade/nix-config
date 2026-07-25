@@ -157,18 +157,19 @@ in
         done
 
         # Apply obfuscation parameters
+        # Note: awg set uses lowercase parameter names (jc, jmin, jmax, s1-s4, h1-h4)
         ${pkgs.amneziawg-tools}/bin/awg set awg0 \
-          Jc ${toString obfuscation.Jc} \
-          Jmin ${toString obfuscation.Jmin} \
-          Jmax ${toString obfuscation.Jmax} \
-          S1 ${toString obfuscation.S1} \
-          S2 ${toString obfuscation.S2} \
-          S3 ${toString obfuscation.S3} \
-          S4 ${toString obfuscation.S4} \
-          H1 ${toString obfuscation.H1} \
-          H2 ${toString obfuscation.H2} \
-          H3 ${toString obfuscation.H3} \
-          H4 ${toString obfuscation.H4}
+          jc ${toString obfuscation.Jc} \
+          jmin ${toString obfuscation.Jmin} \
+          jmax ${toString obfuscation.Jmax} \
+          s1 ${toString obfuscation.S1} \
+          s2 ${toString obfuscation.S2} \
+          s3 ${toString obfuscation.S3} \
+          s4 ${toString obfuscation.S4} \
+          h1 ${toString obfuscation.H1} \
+          h2 ${toString obfuscation.H2} \
+          h3 ${toString obfuscation.H3} \
+          h4 ${toString obfuscation.H4}
       '';
       serviceConfig = {
         Type = "oneshot";

@@ -11,7 +11,10 @@
     enable = true;
     completion.enable = true;
     shellAliases = {
-      ll = "ls -lAh";
+      ls = "eza";
+      ll = "eza -lAhno";
+      la = "eza -a";
+      lt = "eza --tree --level=2";
       sf = "superfile";
       # Each host overrides the `rebuild`/`update` aliases with its own
       # flake target via lib.mkForce in hosts/<name>/shell.nix.

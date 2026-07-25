@@ -40,6 +40,7 @@
     ncdu         # disk usage analyzer (TUI) — find what ate your disk
 
     # --- Modern CLI utilities ---
+    eza          # modern ls replacement — used via shell aliases
     bat          # cat with syntax highlighting
     delta        # beautiful git diffs (set as diff pager in ~/.gitconfig)
     dust         # modern du — visual disk usage tree
