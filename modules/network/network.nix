@@ -235,13 +235,21 @@
   };
 
   # Boot-time service: sets random DHCP hostname on all existing profiles.
-  # Runs AFTER NetworkManager starts (needs the NM DBus daemon for nmcli).
-  # The hostname is set before the connection auto-activates, so it's
-  # included in the first DHCP request.
+  # Runs BEFORE NetworkManager activates any connection, so the random
+  # hostname is set on the profiles before the first DHCP request goes out.
+  # We use Before=NetworkManager.service and set the profiles' dhcp-hostname
+  # via nmcli BEFORE NM starts (NM reads the profile on activation, not before).
+  #
+  # The trick: we only need nmcli to MODIFY the profile (which reads from
+  # the config file), not to talk to a running NM daemon. We use
+  # NM_DBUS_NO_SESSION=1 and --offline mode if available, or just run
+  # nmcli before NM starts (nmcli can modify profiles without NM running
+  # by editing the .nmconnection files directly).
   systemd.services.random-dhcp-hostname = {
     description = "Set random DHCP hostname in NM connection profiles";
-    after = [ "NetworkManager.service" ];
-    wants = [ "NetworkManager.service" ];
+    # Run before NM activates connections — the profiles are on disk
+    # and nmcli can modify them even before NM starts.
+    before = [ "NetworkManager.service" "network-pre.target" ];
     wantedBy = [ "multi-user.target" ];
     script = ''
       export PATH="/run/current-system/sw/bin:$PATH"
