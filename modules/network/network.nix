@@ -292,6 +292,36 @@
     '';
   };
 
+  # --- WiFi latency optimization -------------------------------------------
+  # Disable WiFi power saving on all connections. Power saving causes the
+  # radio to sleep between beacons (every 100ms), adding up to 100ms of
+  # wake-up delay to each incoming packet. On a desktop plugged into wall
+  # power, the battery savings are irrelevant — latency matters more.
+  #
+  # We set this two ways for belt-and-suspenders:
+  #   1. NM default config (applies to all current + future connections)
+  #   2. Dispatcher script (enforces it on every connection-up event)
+  environment.etc."NetworkManager/conf.d/40-wifi-powersave-off.conf".text = ''
+    [connection]
+    # 1 = enabled (default), 2 = disabled
+    wifi.powersave = 2
+  '';
+
+  # Dispatcher: force power_save off on every WiFi interface up event.
+  # This catches cases where the NM config default doesn't apply (e.g.
+  # existing connection profiles that already have powersave=1 saved).
+  environment.etc."NetworkManager/dispatcher.d/20-wifi-powersave-off.sh" = {
+    mode = "0755";
+    text = ''
+      #!/bin/sh
+      # Disable WiFi power saving on every connection-up event.
+      # $1 = interface, $2 = action
+      [ "$2" = "up" ] || exit 0
+      # Only act on WiFi interfaces
+      iw dev "$1" set power_save off 2>/dev/null || true
+    '';
+  '';
+
   # --- LLDP neighbor discovery (802.1AB) -----------------------------------
   # lldpd listens for LLDP (Link Layer Discovery Protocol) frames from
   # adjacent switches/routers, letting you see which switch port you're
