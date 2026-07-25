@@ -320,7 +320,7 @@
       # Only act on WiFi interfaces
       iw dev "$1" set power_save off 2>/dev/null || true
     '';
-  '';
+  };
 
   # --- LLDP neighbor discovery (802.1AB) -----------------------------------
   # lldpd listens for LLDP (Link Layer Discovery Protocol) frames from
