@@ -21,6 +21,14 @@
 
   swapDevices = [ ];
 
+  # Backup disk — ext4 "backup" (former Windows drive, wiped 2026-07-26).
+  # nofail: never stall boot if the disk is absent.
+  fileSystems."/mnt/backup" = {
+    device = "/dev/disk/by-uuid/c17fbf1b-1970-4436-9566-a975675b54bb";
+    fsType = "ext4";
+    options = [ "nofail" ];
+  };
+
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
   hardware.cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
 }
