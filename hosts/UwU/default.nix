@@ -92,14 +92,17 @@
       config.nixosModules.virtualisation
       config.nixosModules.virtualisation-ad-lab
 
-      # ── Disko — declarative disk layout ─────────────────────────────
-      # DISABLED: disk was partitioned manually (labels: EFI, root), not by
-      # disko (which expects labels: disk-main-ESP, disk-main-root).
-      # Enable these when reinstalling via nixos-anywhere so disko can
-      # repartition + relabel the disk to match.
-      # inputs.disko.nixosModules.disko
-      # config.nixosModules.disko
-      # (import ./disk-layout.nix)
+      # ── Disko — declarative disk layout (btrfs subvolumes) ──────────
+      # ENABLED on the btrfs-reinstall branch: the live ISO reinstall
+      # partitions the Samsung 990 PRO via disko, so its partlabels
+      # (disk-main-ESP, disk-main-root) will exist and match.
+      # Do NOT cherry-pick this onto master before the reinstall —
+      # switching the current manually-partitioned disk to a disko
+      # generation breaks /boot mounting (partlabel mismatch).
+      inputs.disko.nixosModules.disko
+      config.nixosModules.disko
+      config.nixosModules.disko-btrfs-dedup
+      (import ./disk-layout.nix)
 
       # ── Opt-in shared package modules (UwU wants these) ────────────
       config.nixosModules.packages-file-manager

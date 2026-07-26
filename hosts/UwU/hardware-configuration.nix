@@ -13,21 +13,11 @@
   boot.kernelModules = [ "kvm-amd" ];
   boot.extraModulePackages = [ ];
 
-  # NOTE: disko module is disabled in default.nix because the disk was
-  # partitioned manually (labels: EFI, root) and disko's expected labels
-  # (disk-main-ESP, disk-main-root) don't exist. These UUID entries are
-  # the primary source. When reinstalling via nixos-anywhere, re-enable
-  # disko in default.nix and remove these entries.
-  fileSystems."/" =
-    { device = "/dev/disk/by-uuid/129f8c1b-2bec-4502-9fef-d96e8103be8b";
-      fsType = "xfs";
-    };
-
-  fileSystems."/boot" =
-    { device = "/dev/disk/by-uuid/A767-B462";
-      fsType = "vfat";
-      options = [ "fmask=0077" "dmask=0077" ];
-    };
+  # NOTE (btrfs-reinstall branch): fileSystems entries removed — after the
+  # disko reinstall, filesystems are managed declaratively by disko
+  # (hosts/UwU/disk-layout.nix → modules/disko/single-disk-btrfs.nix).
+  # The old manual UUID entries (xfs root 129f8c1b-…, ESP A767-B462)
+  # only existed for the pre-disko partitioning; see git history on master.
 
   swapDevices = [ ];
 
