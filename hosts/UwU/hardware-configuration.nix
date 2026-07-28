@@ -13,21 +13,13 @@
   boot.kernelModules = [ "kvm-amd" ];
   boot.extraModulePackages = [ ];
 
-  # NOTE (btrfs-reinstall branch): fileSystems entries removed — after the
-  # disko reinstall, filesystems are managed declaratively by disko
-  # (hosts/UwU/disk-layout.nix → modules/disko/single-disk-btrfs.nix).
-  # The old manual UUID entries (xfs root 129f8c1b-…, ESP A767-B462)
-  # only existed for the pre-disko partitioning; see git history on master.
+  # NOTE: fileSystems entries removed — after the disko reinstall,
+  # filesystems are managed declaratively by disko
+  # (hosts/UwU/disk-layout.nix). The old manual UUID entries
+  # (xfs root 129f8c1b-…, ESP A767-B462) only existed for the pre-disko
+  # partitioning; see git history.
 
   swapDevices = [ ];
-
-  # Backup disk — ext4 "backup" (former Windows drive, wiped 2026-07-26).
-  # nofail: never stall boot if the disk is absent.
-  fileSystems."/mnt/backup" = {
-    device = "/dev/disk/by-uuid/c17fbf1b-1970-4436-9566-a975675b54bb";
-    fsType = "ext4";
-    options = [ "nofail" ];
-  };
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
   hardware.cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
