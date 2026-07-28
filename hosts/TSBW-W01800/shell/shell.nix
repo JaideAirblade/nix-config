@@ -3,22 +3,24 @@
 # Overrides the shared shell aliases to target this host's flake attr,
 # and sets the git user.name/email for this machine (JaideAirblade +
 # mail@jaidechan.moe, matching the original work home-manager config).
-{ lib, ... }:
-
+_:
 {
-  programs.bash.shellAliases = lib.mkForce {
-    ll = "ls -lAh";
-    sf = "superfile";
-    rebuild = "sudo nixos-rebuild switch --flake /etc/nixos#TSBW-W01800";
-    update = "cd /etc/nixos && nix flake update && sudo nixos-rebuild switch --flake .#TSBW-W01800";
-    gc-old = "sudo nix-collect-garbage --delete-old";
-  };
+  nixos.hosts."TSBW-W01800" =
+    { lib, ... }:
 
-  # Git config — ported from the work host's home-manager/programs/git.nix.
-  # The user.name/email match "JaideAirblade" / "mail@jaidechan.moe" from the
-  # original work config.
-  programs.git.config.user = {
-    name = lib.mkForce "JaideAirblade";
-    email = lib.mkForce "mail@jaidechan.moe";
-  };
+    {
+      programs.bash.shellAliases = {
+        rebuild = lib.mkForce "sudo nixos-rebuild switch --flake /etc/nixos#TSBW-W01800";
+        update = lib.mkForce "cd /etc/nixos && nix flake update && sudo nixos-rebuild switch --flake .#TSBW-W01800";
+      };
+
+      # Git config — ported from the work host's home-manager/programs/git.nix.
+      # The user.name/email match "JaideAirblade" / "mail@jaidechan.moe" from the
+      # original work config.
+      programs.git.config.user = {
+        name = lib.mkForce "JaideAirblade";
+        email = lib.mkForce "mail@jaidechan.moe";
+      };
+    }
+  ;
 }

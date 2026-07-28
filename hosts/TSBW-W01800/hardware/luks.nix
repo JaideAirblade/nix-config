@@ -27,19 +27,24 @@
 #   After enrolling, at boot the initrd will wait for you to touch
 #   the YubiKey. If no key is present, it falls back to password
 #   prompt after the grace period.
-{ ... }:
-
+_:
 {
-  # Swap LUKS device
-  boot.initrd.luks.devices."luks-2c438202-735c-4692-97b8-d441d81190d5".device =
-    "/dev/disk/by-uuid/2c438202-735c-4692-97b8-d441d81190d5";
+  nixos.hosts."TSBW-W01800" =
+    _:
 
-  # Enable FIDO2 support in the systemd initrd
-  boot.initrd.systemd.fido2.enable = true;
+    {
+      # Swap LUKS device
+      boot.initrd.luks.devices."luks-2c438202-735c-4692-97b8-d441d81190d5".device =
+        "/dev/disk/by-uuid/2c438202-735c-4692-97b8-d441d81190d5";
 
-  # FIDO2 grace period: seconds to wait for a key touch before
-  # falling back to password prompt. 10s is the default but we set
-  # it explicitly for clarity.
-  boot.initrd.luks.devices."luks-96ad6bc7-92ad-4168-881c-903aacb34ca5".fido2.gracePeriod = 10;
-  boot.initrd.luks.devices."luks-2c438202-735c-4692-97b8-d441d81190d5".fido2.gracePeriod = 10;
+      # Enable FIDO2 support in the systemd initrd
+      boot.initrd.systemd.fido2.enable = true;
+
+      # FIDO2 grace period: seconds to wait for a key touch before
+      # falling back to password prompt. 10s is the default but we set
+      # it explicitly for clarity.
+      boot.initrd.luks.devices."luks-96ad6bc7-92ad-4168-881c-903aacb34ca5".fido2.gracePeriod = 10;
+      boot.initrd.luks.devices."luks-2c438202-735c-4692-97b8-d441d81190d5".fido2.gracePeriod = 10;
+    }
+  ;
 }

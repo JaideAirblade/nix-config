@@ -5,9 +5,6 @@
     # Main package source: the unstable channel.
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
-    # Stable channel, available to modules as `config.pkgs-stable`
-    # for pinning individual packages to a stable release when needed.
-    stable-nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
 
     # Mango — Wayland compositor (dwl-based). Provides nixosModules.mango
     # (programs.mango.enable) and hmModules.mango.
@@ -72,7 +69,6 @@
     # flake-parts — module system for flakes (enables the dendritic pattern).
     flake-parts = {
       url = "github:hercules-ci/flake-parts";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # disko — declarative disk partitioning for nixos-anywhere.
@@ -89,30 +85,91 @@
     };
   };
 
-  outputs = inputs@{ self, nixpkgs, stable-nixpkgs, flake-parts, ... }:
+  outputs = inputs@{ self, flake-parts, ... }:
+    let
+      # Import every top-level feature module. Lower-level package/overlay
+      # expressions and generated hardware modules are deliberate exceptions.
+      collectModules = dir:
+        let
+          entries = builtins.readDir dir;
+        in
+        builtins.concatLists (builtins.map
+          (name:
+            let
+              path = dir + "/${name}";
+              type = entries.${name};
+              isNix = builtins.match ".*\\.nix" name != null;
+              excluded =
+                name == "default.nix"
+                || name == "hardware-configuration.nix"
+                || builtins.match ".*\\.overlay\\.nix" name != null;
+            in
+            if type == "directory" then collectModules path
+            else if type == "regular" && isNix && !excluded then [ path ]
+            else [ ])
+          (builtins.attrNames entries));
+
+      featureModules = collectModules ./modules ++ collectModules ./hosts;
+    in
     flake-parts.lib.mkFlake { inherit inputs; } {
-      imports = [
-        # The module collector — declares options.nixosModules (deferredModule)
-        # and imports every shared NixOS module file into it.
-        ./modules/options.nix
-        # Host entry points — each assembles a nixosSystem from config.nixosModules
-        # + host-specific modules imported directly.
+      imports = featureModules ++ [
+        # Host entry points select a few merged roles and generated hardware.
         ./hosts/UwU/default.nix
         ./hosts/TSBW-W01800/default.nix
-        ./hosts/OwO-Family/default.nix
       ];
 
       systems = [ "x86_64-linux" ];
 
-      perSystem = { pkgs, ... }: {
-        # Standalone package outputs — `nix build .#betterbird`, etc.
-        packages = {
-          betterbird = (import stable-nixpkgs { system = "x86_64-linux"; config.allowUnfree = true; }).callPackage ./pkgs/betterbird { };
-          octarine = (import stable-nixpkgs { system = "x86_64-linux"; config.allowUnfree = true; }).callPackage ./pkgs/octarine { };
-          hytale = (import stable-nixpkgs { system = "x86_64-linux"; config.allowUnfree = true; }).callPackage ./pkgs/hytale { };
-          net-report = (import stable-nixpkgs { system = "x86_64-linux"; config.allowUnfree = true; }).callPackage ./pkgs/net-report { };
+      perSystem = { pkgs, system, ... }:
+        let
+          packagePkgs = import inputs.nixpkgs {
+            inherit system;
+            config.allowUnfree = true;
+          };
+        in
+        {
+          formatter = pkgs.nixpkgs-fmt;
+
+          checks = {
+            formatting = pkgs.runCommand "nix-formatting-check"
+              {
+                nativeBuildInputs = [ pkgs.nixpkgs-fmt ];
+              } ''
+              nixpkgs-fmt --check ${self}
+              touch $out
+            '';
+
+            dead-code = pkgs.runCommand "deadnix-check"
+              {
+                nativeBuildInputs = [ pkgs.deadnix ];
+              } ''
+              deadnix --fail ${self}
+              touch $out
+            '';
+
+            static-analysis = pkgs.runCommand "statix-check"
+              {
+                nativeBuildInputs = [ pkgs.statix ];
+              } ''
+              statix check --config ${self} ${self}
+              touch $out
+            '';
+
+            shell = pkgs.runCommand "shellcheck"
+              {
+                nativeBuildInputs = [ pkgs.findutils pkgs.shellcheck ];
+              } ''
+              find ${self} -type f -name '*.sh' -print0 \
+                | xargs -0 --no-run-if-empty shellcheck --severity=warning
+              touch $out
+            '';
+          };
+
+          # The overlay and standalone outputs use the same nixpkgs revision.
+          packages = (import ./pkgs packagePkgs) // {
+            nixos-anywhere = inputs.nixos-anywhere.packages.${system}.default;
+          };
         };
-      };
 
       flake = {
         # Custom packages overlay — exposes pkgs.betterbird, pkgs.octarine, etc.

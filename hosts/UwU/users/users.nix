@@ -8,11 +8,16 @@
 # NOTE: Do NOT use lib.mkForce on extraGroups — it would override the
 # merge and drop the input/uinput groups added by macrotool.nix, breaking
 # evdev input capture and uinput injection.
-{ lib, ... }:
-
+_:
 {
-  users.users."jaide" = {
-    description = lib.mkForce "Jaide";
-    extraGroups = [ "networkmanager" "wheel" "wireshark" "_lldpd" ];
-  };
+  nixos.hosts."UwU" =
+    { lib, ... }:
+
+    {
+      users.users."jaide" = {
+        description = lib.mkForce "Jaide";
+        extraGroups = [ "networkmanager" "wheel" "wireshark" "_lldpd" ];
+      };
+    }
+  ;
 }

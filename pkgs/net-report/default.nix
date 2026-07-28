@@ -1,7 +1,33 @@
-{ lib, stdenv, makeWrapper, bash, iproute2, iputils, ethtool, lldpd
-, networkmanager, nftables, bind, systemd, curl, mtr, traceroute
-, bridge-utils, util-linux, wirelesstools, coreutils, gnused, gawk
-, procps, conntrack-tools, getent, iw, aircrack-ng, tcpdump, libcap, gnugrep }:
+{ lib
+, stdenv
+, makeWrapper
+, bash
+, iproute2
+, iputils
+, ethtool
+, lldpd
+, networkmanager
+, nftables
+, bind
+, systemd
+, curl
+, mtr
+, traceroute
+, bridge-utils
+, util-linux
+, wirelesstools
+, coreutils
+, gnused
+, gawk
+, procps
+, conntrack-tools
+, getent
+, iw
+, aircrack-ng
+, tcpdump
+, libcap
+, gnugrep
+}:
 
 stdenv.mkDerivation {
   pname = "net-report";

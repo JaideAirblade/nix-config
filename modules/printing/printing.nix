@@ -12,16 +12,21 @@
 # To print: just print normally — the socket activates CUPS automatically.
 # To manage printers:   lpadmin -p <name> -E -v <uri> -m <model>
 # Or visit:            http://localhost:631  (after socket activation)
-{ pkgs, ... }:
-
+_:
 {
-  services.printing = {
-    enable = true;
-    browsed.enable = false;  # No cups-browsed — no network printer auto-discovery
-    startWhenNeeded = true;  # Socket activation — CUPS starts on-demand
-  };
+  nixos.modules.common =
+    { pkgs, ... }:
 
-  environment.systemPackages = with pkgs; [
-    cups  # provides lpadmin, lpinfo, lpstat — manage printers manually
-  ];
+    {
+      services.printing = {
+        enable = true;
+        browsed.enable = false; # No cups-browsed — no network printer auto-discovery
+        startWhenNeeded = true; # Socket activation — CUPS starts on-demand
+      };
+
+      environment.systemPackages = with pkgs; [
+        cups # provides lpadmin, lpinfo, lpstat — manage printers manually
+      ];
+    }
+  ;
 }

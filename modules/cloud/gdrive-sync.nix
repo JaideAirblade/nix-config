@@ -23,34 +23,48 @@
 #   7. Finish and test with: rclone ls gdrive:
 #
 # First run after setup (initializes bisync state, pulls remote -> local):
-#   rclone bisync --resync --verbose ~/Documents/Life gdrive:
+#   touch ~/Documents/Life/RCLONE_TEST
+#   rclone touch gdrive:RCLONE_TEST
+#   rclone bisync --resync --check-access --max-delete 25 --verbose ~/Documents/Life gdrive:
 # The timer starts on boot (5min delay) and runs every 5min after.
 # Manual sync: rclone bisync --verbose ~/Documents/Life gdrive:
-{ pkgs, ... }:
-
+_:
 {
-  environment.systemPackages = with pkgs; [
-    rclone
-  ];
+  # Single-writer personal sync: do not run independent bisync databases on
+  # work or family machines against the same remote root.
+  nixos.modules.personal =
+    { pkgs, ... }:
 
-  # systemd user services for rclone Google Drive sync
-  systemd.user.services.rclone-gdrive-sync = {
-    description = "Rclone Google Drive sync";
-    serviceConfig = {
-      Type = "oneshot";
-      # Bidirectionally sync ~/Documents/Life with the vault root on Drive.
-      # bisync keeps a listing state in ~/.cache/rclone/bisync; both sides
-      # are reconciled on every run (deletions propagate both ways).
-      ExecStart = "${pkgs.rclone}/bin/rclone bisync --verbose --transfers 4 %h/Documents/Life gdrive:";
-    };
-  };
+    {
+      environment.systemPackages = with pkgs; [
+        rclone
+      ];
 
-  systemd.user.timers.rclone-gdrive-sync = {
-    description = "Timer for Rclone Google Drive sync";
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnBootSec = "5min";
-      OnUnitActiveSec = "5min";
-    };
-  };
+      # systemd user services for rclone Google Drive sync
+      systemd.user.services.rclone-gdrive-sync = {
+        description = "Rclone Google Drive sync";
+        serviceConfig = {
+          Type = "oneshot";
+          # Bidirectionally sync ~/Documents/Life with the vault root on Drive.
+          # bisync keeps a listing state in ~/.cache/rclone/bisync; both sides
+          # are reconciled on every run (deletions propagate both ways).
+          ExecStartPre = [
+            "${pkgs.coreutils}/bin/mkdir -p %h/Documents/Life"
+            "${pkgs.coreutils}/bin/touch %h/Documents/Life/RCLONE_TEST"
+            "${pkgs.rclone}/bin/rclone touch gdrive:RCLONE_TEST"
+          ];
+          ExecStart = "${pkgs.rclone}/bin/rclone bisync --check-access --max-delete 25 --conflict-resolve newer --conflict-loser num --verbose --transfers 4 %h/Documents/Life gdrive:";
+        };
+      };
+
+      systemd.user.timers.rclone-gdrive-sync = {
+        description = "Timer for Rclone Google Drive sync";
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnBootSec = "5min";
+          OnUnitActiveSec = "5min";
+        };
+      };
+    }
+  ;
 }

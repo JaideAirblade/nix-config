@@ -7,12 +7,17 @@
 # via the macrotool/devices modules). Both hosts add `wireshark` for
 # packet capture without sudo. Hosts set extraGroups via lib.mkForce
 # or append via the module-system merge.
-{ lib, ... }:
-
+_:
 {
-  users.users."jaide" = {
-    isNormalUser = true;
-    description = lib.mkDefault "Jaide";
-    extraGroups = lib.mkDefault [ "networkmanager" "wheel" ];
-  };
+  nixos.modules.common =
+    { lib, ... }:
+
+    {
+      users.users."jaide" = {
+        isNormalUser = true;
+        description = lib.mkDefault "Jaide";
+        extraGroups = lib.mkDefault [ "networkmanager" "wheel" ];
+      };
+    }
+  ;
 }

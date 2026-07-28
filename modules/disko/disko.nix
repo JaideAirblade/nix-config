@@ -17,19 +17,24 @@
 #
 # To deploy to a fresh machine:
 #   nix run github:nix-community/nixos-anywhere -- --flake .#UwU --target-host root@<ip>
-{ lib, ... }:
-
+_:
 {
-  options.disko = {
-    device = lib.mkOption {
-      type = lib.types.str;
-      default = "";
-      description = "Block device path for the main disk (e.g. /dev/nvme1n1).";
-    };
-  };
+  nixos.modules.disk =
+    { lib, ... }:
 
-  config = {
-    # The actual disk layout is defined per-host in hosts/<name>/disk-layout.nix
-    # This module just provides the option + the disko import.
-  };
+    {
+      options.disko = {
+        device = lib.mkOption {
+          type = lib.types.str;
+          default = "";
+          description = "Block device path for the main disk (e.g. /dev/nvme1n1).";
+        };
+      };
+
+      config = {
+        # The actual disk layout is defined per-host in hosts/<name>/disk-layout.nix
+        # This module just provides the option + the disko import.
+      };
+    }
+  ;
 }

@@ -26,53 +26,58 @@
 #   so DMS can't pick up a system-wide dark-mode hint. Enabling dconf
 #   lets the user run `gsettings set org.freedesktop.appearance
 #   color-scheme 1` (prefer-dark) once and have DMS honour it.
-{ pkgs, ... }:
-
+_:
 {
-  # dconf daemon + gsettings backend so xdg-desktop-portal can read the
-  # user's color-scheme preference (org.freedesktop.appearance).
-  programs.dconf.enable = true;
+  nixos.modules.common =
+    { pkgs, ... }:
 
-  environment.systemPackages = with pkgs; [
-    adw-gtk3
-    qogir-theme
-    qogir-icon-theme
-    kdePackages.qt6ct
+    {
+      # dconf daemon + gsettings backend so xdg-desktop-portal can read the
+      # user's color-scheme preference (org.freedesktop.appearance).
+      programs.dconf.enable = true;
 
-    # Extra icon themes the user can pick from (set via gtk-icon-theme-name
-    # in ~/.config/gtk-3.0/settings.ini, or the DE's appearance settings).
-    # These install side-by-side with qogir-icon-theme; nothing forces them
-    # active — the user chooses in their own dotfiles.
-    fluent-icon-theme
-    papirus-icon-theme
-    vimix-icon-theme    # Material Design icon theme (carried over from work config)
+      environment.systemPackages = with pkgs; [
+        adw-gtk3
+        qogir-theme
+        qogir-icon-theme
+        kdePackages.qt6ct
 
-    # Cursor theme. Same deal — installed but not forced; the user points
-    # gtk-cursor-theme-name (or the compositor's cursor setting) at it.
-    bibata-cursors
-  ];
+        # Extra icon themes the user can pick from (set via gtk-icon-theme-name
+        # in ~/.config/gtk-3.0/settings.ini, or the DE's appearance settings).
+        # These install side-by-side with qogir-icon-theme; nothing forces them
+        # active — the user chooses in their own dotfiles.
+        fluent-icon-theme
+        papirus-icon-theme
+        vimix-icon-theme # Material Design icon theme (carried over from work config)
 
-  # Tell Qt6 apps to use the qt6ct platform theme plugin so they honour
-  # the user's qt6ct.conf. (Qt5 apps read the same var and use qt5ct if
-  # installed; we don't force-install qt5ct here — add libsForQt5.qt5ct
-  # if a Qt5 app needs it.)
-  environment.variables.QT_QPA_PLATFORMTHEME = "qt6ct";
+        # Cursor theme. Same deal — installed but not forced; the user points
+        # gtk-cursor-theme-name (or the compositor's cursor setting) at it.
+        bibata-cursors
+      ];
 
-  # Nix-wrapped Qt apps (prismlauncher, etc.) get QT_PLUGIN_PATH set to
-  # ONLY their own Qt dependency plugin dirs by wrap-qt6-apps-hook. That
-  # list does NOT include qt6ct (it's a systemPackage, not a buildInput
-  # of every Qt app), so the qt6ct platform theme plugin is invisible to
-  # them and QT_QPA_PLATFORMTHEME=qt6ct silently falls back to the default
-  # style. Adding qt6ct's plugin dir here makes it discoverable by every
-  # Qt app — wrapped or not — because the wrapper uses --prefix (it
-  # prepends its own paths but preserves the existing value at the end,
-  # where Qt still searches it).
-  environment.variables.QT_PLUGIN_PATH = "${pkgs.kdePackages.qt6ct}/lib/qt-6/plugins";
+      # Tell Qt6 apps to use the qt6ct platform theme plugin so they honour
+      # the user's qt6ct.conf. (Qt5 apps read the same var and use qt5ct if
+      # installed; we don't force-install qt5ct here — add libsForQt5.qt5ct
+      # if a Qt5 app needs it.)
+      environment.variables.QT_QPA_PLATFORMTHEME = "qt6ct";
 
-  # Electron/Chromium apps (Discord+Equicord, Heroic, 1Password-GUI, ...)
-  # default to XWayland on a Wayland-only session. With OZONE_WL they run
-  # native Wayland — better HiDPI scaling, sane screen-share, and fewer
-  # XWayland edge cases. Set session-wide so it covers graphical-session
-  # user services and interactive shells alike.
-  environment.sessionVariables.NIXOS_OZONE_WL = "1";
+      # Nix-wrapped Qt apps (prismlauncher, etc.) get QT_PLUGIN_PATH set to
+      # ONLY their own Qt dependency plugin dirs by wrap-qt6-apps-hook. That
+      # list does NOT include qt6ct (it's a systemPackage, not a buildInput
+      # of every Qt app), so the qt6ct platform theme plugin is invisible to
+      # them and QT_QPA_PLATFORMTHEME=qt6ct silently falls back to the default
+      # style. Adding qt6ct's plugin dir here makes it discoverable by every
+      # Qt app — wrapped or not — because the wrapper uses --prefix (it
+      # prepends its own paths but preserves the existing value at the end,
+      # where Qt still searches it).
+      environment.variables.QT_PLUGIN_PATH = "${pkgs.kdePackages.qt6ct}/lib/qt-6/plugins";
+
+      # Electron/Chromium apps (Discord+Equicord, Heroic, 1Password-GUI, ...)
+      # default to XWayland on a Wayland-only session. With OZONE_WL they run
+      # native Wayland — better HiDPI scaling, sane screen-share, and fewer
+      # XWayland edge cases. Set session-wide so it covers graphical-session
+      # user services and interactive shells alike.
+      environment.sessionVariables.NIXOS_OZONE_WL = "1";
+    }
+  ;
 }

@@ -16,55 +16,60 @@
 # but now uses the default "mango" with niri as a secondary option,
 # and pulls in DankCalendar). UwU uses the defaults (mango, calendar
 # events via khal).
-{ inputs, lib, pkgs, ... }:
-
+{ inputs, ... }:
 {
-  imports = [
-    inputs.dms.nixosModules.dank-material-shell
-    inputs.dank-greeter.nixosModules.default
-  ];
+  nixos.modules.common =
+    { lib, pkgs, ... }:
 
-  # DMS ships its own polkit authentication agent (enabled by default;
-  # setting DMS_DISABLE_POLKIT=1 would disable it). We explicitly enable
-  # the polkit daemon here so the agent has something to talk to. No other
-  # polkit agent (polkit_gnome, polkit_kde, ...) is enabled on this system,
-  # so there is no conflict — DMS is the sole agent.
-  security.polkit.enable = true;
+    {
+      imports = [
+        inputs.dms.nixosModules.dank-material-shell
+        inputs.dank-greeter.nixosModules.default
+      ];
 
-  # gsettings schemas — DMS's Theme Sync plugin runs `gsettings get/set`
-  # to apply GTK theme + icon theme settings. On NixOS the compiled
-  # gsettings schemas live in per-package paths that glib's setup-hook
-  # adds to XDG_DATA_DIRS — but only for login shells, not for systemd
-  # user services. Without these paths, gsettings returns '' for every
-  # key and the theme sync reports "gsettings gtk-theme stays ''".
-  # Prepend the schema paths to the session environment so DMS (and any
-  # other systemd user service) can find them.
-  environment.sessionVariables.XDG_DATA_DIRS = lib.mkBefore [
-    "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}"
-    "${pkgs.gtk4}/share/gsettings-schemas/${pkgs.gtk4.name}"
-  ];
+      # DMS ships its own polkit authentication agent (enabled by default;
+      # setting DMS_DISABLE_POLKIT=1 would disable it). We explicitly enable
+      # the polkit daemon here so the agent has something to talk to. No other
+      # polkit agent (polkit_gnome, polkit_kde, ...) is enabled on this system,
+      # so there is no conflict — DMS is the sole agent.
+      security.polkit.enable = true;
 
-  programs.dank-material-shell = {
-    enable = true;
-    systemd.enable = true;
+      # gsettings schemas — DMS's Theme Sync plugin runs `gsettings get/set`
+      # to apply GTK theme + icon theme settings. On NixOS the compiled
+      # gsettings schemas live in per-package paths that glib's setup-hook
+      # adds to XDG_DATA_DIRS — but only for login shells, not for systemd
+      # user services. Without these paths, gsettings returns '' for every
+      # key and the theme sync reports "gsettings gtk-theme stays ''".
+      # Prepend the schema paths to the session environment so DMS (and any
+      # other systemd user service) can find them.
+      environment.sessionVariables.XDG_DATA_DIRS = lib.mkBefore [
+        "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}"
+        "${pkgs.gtk4}/share/gsettings-schemas/${pkgs.gtk4.name}"
+      ];
 
-    # Optional feature toggles (all default true; spell them out so we
-    # notice when the upstream defaults change). mkDefault so a host can
-    # flip one without re-listing the rest.
-    enableSystemMonitoring = lib.mkDefault true;
-    enableVPN = lib.mkDefault true;
-    enableDynamicTheming = lib.mkDefault true;
-    enableAudioWavelength = lib.mkDefault true;
-    enableCalendarEvents = lib.mkDefault true;
-  };
+      programs.dank-material-shell = {
+        enable = true;
+        systemd.enable = true;
 
-  # DankGreeter — the greeter is now configured via programs.dms-greeter
-  # (from the dank-greeter flake), not programs.dank-material-shell.greeter.
-  programs.dms-greeter = {
-    enable = true;
-    # Default compositor. TSBW-W01800 overrides this to "niri".
-    compositor.name = lib.mkDefault "mango";
-    # Sync the greeter's DMS theme with jaide's user theme.
-    configHome = "/home/jaide";
-  };
+        # Optional feature toggles (all default true; spell them out so we
+        # notice when the upstream defaults change). mkDefault so a host can
+        # flip one without re-listing the rest.
+        enableSystemMonitoring = lib.mkDefault true;
+        enableVPN = lib.mkDefault true;
+        enableDynamicTheming = lib.mkDefault true;
+        enableAudioWavelength = lib.mkDefault true;
+        enableCalendarEvents = lib.mkDefault true;
+      };
+
+      # DankGreeter — the greeter is now configured via programs.dms-greeter
+      # (from the dank-greeter flake), not programs.dank-material-shell.greeter.
+      programs.dms-greeter = {
+        enable = true;
+        # Default compositor. TSBW-W01800 overrides this to "niri".
+        compositor.name = lib.mkDefault "mango";
+        # Sync the greeter's DMS theme with jaide's user theme.
+        configHome = "/home/jaide";
+      };
+    }
+  ;
 }

@@ -8,42 +8,43 @@
 #
 # The launcher is a pre-built binary that expects an FHS layout, so we
 # wrap it in buildFHSEnv with the libraries it needs at runtime.
-{
-  lib,
-  stdenv,
-  fetchurl,
-  unzip,
-  buildFHSEnv,
-  makeWrapper,
-  copyDesktopItems,
-  makeDesktopItem,
-  gtk3,
-  nss,
-  libsecret,
-  libsoup_3,
-  gdk-pixbuf,
-  glib,
-  glib-networking,
-  webkitgtk_4_1,
-  xdg-utils,
-  openssl,
-  SDL2,
-  libX11,
-  libXcursor,
-  libXext,
-  libXi,
-  libXinerama,
-  libXrandr,
-  libXxf86vm,
-  wayland,
-  libxkbcommon,
-  libdecor,
-  alsa-lib,
-  libpulseaudio,
-  hicolor-icon-theme,
-  adwaita-icon-theme,
-  gst_all_1,
-}: let
+{ lib
+, stdenv
+, fetchurl
+, unzip
+, buildFHSEnv
+, makeWrapper
+, copyDesktopItems
+, makeDesktopItem
+, gtk3
+, nss
+, libsecret
+, libsoup_3
+, gdk-pixbuf
+, glib
+, glib-networking
+, webkitgtk_4_1
+, xdg-utils
+, openssl
+, SDL2
+, libX11
+, libXcursor
+, libXext
+, libXi
+, libXinerama
+, libXrandr
+, libXxf86vm
+, wayland
+, libxkbcommon
+, libdecor
+, alsa-lib
+, libpulseaudio
+, hicolor-icon-theme
+, adwaita-icon-theme
+, gst_all_1
+,
+}:
+let
   version = "2026.07.07-325d709";
   pname = "hytale-launcher";
 
@@ -95,83 +96,83 @@
     };
   };
 in
-  buildFHSEnv {
-    name = pname;
-    inherit version;
+buildFHSEnv {
+  name = pname;
+  inherit version;
 
-    targetPkgs = pkgs: (with pkgs; [
-      unwrapped
-      gtk3
-      nss
-      libsecret
-      libsoup_3
-      gdk-pixbuf
-      glib
-      glib-networking
-      webkitgtk_4_1
-      xdg-utils
-      mesa
-      libglvnd
-      libdrm
-      icu
-      openssl
-      SDL2
-      libX11
-      libXcursor
-      libXrandr
-      libXext
-      libXi
-      libXinerama
-      libXxf86vm
-      wayland
-      libxkbcommon
-      libdecor
-      alsa-lib
-      libpulseaudio
-      hicolor-icon-theme
-      adwaita-icon-theme
+  targetPkgs = pkgs: (with pkgs; [
+    unwrapped
+    gtk3
+    nss
+    libsecret
+    libsoup_3
+    gdk-pixbuf
+    glib
+    glib-networking
+    webkitgtk_4_1
+    xdg-utils
+    mesa
+    libglvnd
+    libdrm
+    icu
+    openssl
+    SDL2
+    libX11
+    libXcursor
+    libXrandr
+    libXext
+    libXi
+    libXinerama
+    libXxf86vm
+    wayland
+    libxkbcommon
+    libdecor
+    alsa-lib
+    libpulseaudio
+    hicolor-icon-theme
+    adwaita-icon-theme
+    gst_all_1.gst-plugins-base
+    gst_all_1.gst-plugins-good
+    gst_all_1.gst-plugins-bad
+    gst_all_1.gst-plugins-ugly
+    gst_all_1.gst-libav
+  ]);
+
+  # TMPDIR — the launcher downloads patches to TMPDIR then rename()s
+  # them into ~/.local/share/Hytale/install. bwrap's auto-mounts make
+  # /tmp and /home separate mounts, so rename() across them fails with
+  # EXDEV. Setting TMPDIR inside the Hytale data dir keeps both source
+  # and destination under the same mount. The launcher creates
+  # ~/.local/share/Hytale on first run, so the dir exists by the time
+  # it checks disk space.
+  #
+  # WEBKIT_DISABLE_DMABUF_RENDERER=1 — WebKitGTK's DMA-BUF renderer
+  # crashes on wlroots-based compositors (Mango). Same fix as Octarine.
+  #
+  # GST_PLUGIN_PATH — WebKitGTK uses GStreamer for image/media decoding.
+  # Without gst-plugins-good, images/patch notes render as broken icons.
+  #
+  # GIO_EXTRA_MODULES — glib-networking TLS so WebKitGTK loads HTTPS.
+  profile = ''
+    export TMPDIR=$HOME/.local/share/Hytale
+    export WEBKIT_DISABLE_DMABUF_RENDERER=1
+    export __NV_DISABLE_EXPLICIT_SYNC=1
+    export GST_PLUGIN_PATH=${lib.makeSearchPathOutput "lib/gstreamer-1.0" "lib/gstreamer-1.0" [
       gst_all_1.gst-plugins-base
       gst_all_1.gst-plugins-good
       gst_all_1.gst-plugins-bad
       gst_all_1.gst-plugins-ugly
       gst_all_1.gst-libav
-    ]);
+    ]}
+    export GIO_EXTRA_MODULES=${glib-networking}/lib/gio/modules
+  '';
 
-    # TMPDIR — the launcher downloads patches to TMPDIR then rename()s
-    # them into ~/.local/share/Hytale/install. bwrap's auto-mounts make
-    # /tmp and /home separate mounts, so rename() across them fails with
-    # EXDEV. Setting TMPDIR inside the Hytale data dir keeps both source
-    # and destination under the same mount. The launcher creates
-    # ~/.local/share/Hytale on first run, so the dir exists by the time
-    # it checks disk space.
-    #
-    # WEBKIT_DISABLE_DMABUF_RENDERER=1 — WebKitGTK's DMA-BUF renderer
-    # crashes on wlroots-based compositors (Mango). Same fix as Octarine.
-    #
-    # GST_PLUGIN_PATH — WebKitGTK uses GStreamer for image/media decoding.
-    # Without gst-plugins-good, images/patch notes render as broken icons.
-    #
-    # GIO_EXTRA_MODULES — glib-networking TLS so WebKitGTK loads HTTPS.
-    profile = ''
-      export TMPDIR=$HOME/.local/share/Hytale
-      export WEBKIT_DISABLE_DMABUF_RENDERER=1
-      export __NV_DISABLE_EXPLICIT_SYNC=1
-      export GST_PLUGIN_PATH=${lib.makeSearchPathOutput "lib/gstreamer-1.0" "lib/gstreamer-1.0" [
-        gst_all_1.gst-plugins-base
-        gst_all_1.gst-plugins-good
-        gst_all_1.gst-plugins-bad
-        gst_all_1.gst-plugins-ugly
-        gst_all_1.gst-libav
-      ]}
-      export GIO_EXTRA_MODULES=${glib-networking}/lib/gio/modules
-    '';
+  runScript = "hytale-launcher";
 
-    runScript = "hytale-launcher";
+  extraInstallCommands = ''
+    mkdir -p "$out/share/applications"
+    ln -s "${unwrapped}/share/applications/hytale-launcher.desktop" "$out/share/applications/"
+  '';
 
-    extraInstallCommands = ''
-      mkdir -p "$out/share/applications"
-      ln -s "${unwrapped}/share/applications/hytale-launcher.desktop" "$out/share/applications/"
-    '';
-
-    inherit (unwrapped) meta;
-  }
+  inherit (unwrapped) meta;
+}

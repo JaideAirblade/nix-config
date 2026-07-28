@@ -7,67 +7,72 @@
 #
 # Per-user tools are intentionally NOT managed here — the user owns their
 # dotfiles and per-user installs (no home-manager).
-{ pkgs, ... }:
-
+_:
 {
-  environment.systemPackages = with pkgs; [
-    vim   # editor of last resort
-    wget
-    curl
-    git   # flakes pulls deps via git; also useful as a user tool
-    gh    # GitHub CLI — `gh auth login`, `gh pr create`, etc.
-    just  # command runner for the Justfile (see ~/nixos/Justfile)
-    ripgrep
-    fd    # modern find — ripgrep's sibling for filenames
-    jq
-    fzf
-    file
-    which
-    tree
-    btop     # better htop
-    nix-output-monitor # `nom` — richer `nix` output
+  nixos.modules.common =
+    { pkgs, ... }:
 
-    # Terminals — every host wants a terminal installed system-wide.
-    ghostty
+    {
+      environment.systemPackages = with pkgs; [
+        vim # editor of last resort
+        wget
+        curl
+        git # flakes pulls deps via git; also useful as a user tool
+        gh # GitHub CLI — `gh auth login`, `gh pr create`, etc.
+        just # command runner for the Justfile (see ~/nixos/Justfile)
+        ripgrep
+        fd # modern find — ripgrep's sibling for filenames
+        jq
+        fzf
+        file
+        which
+        tree
+        btop # better htop
+        nix-output-monitor # `nom` — richer `nix` output
 
-    # --- System inspection & debugging ---
-    pciutils     # lspci — inspect GPU/PCIe bus (complements usbutils)
-    usbutils     # lsusb — identify USB devices from CLI
-    lm_sensors   # `sensors` — CPU/GPU/mobo temperatures
-    lsof         # what process has this file/port open?
-    strace       # system call tracing — debugging Wine/Electron/etc
-    dmidecode    # hardware inventory — motherboard, RAM slots, BIOS version
-    ncdu         # disk usage analyzer (TUI) — find what ate your disk
+        # Terminals — every host wants a terminal installed system-wide.
+        ghostty
 
-    # --- Modern CLI utilities ---
-    eza          # modern ls replacement — used via shell aliases
-    bat          # cat with syntax highlighting
-    delta        # beautiful git diffs (set as diff pager in ~/.gitconfig)
-    dust         # modern du — visual disk usage tree
-    procs        # modern ps — cleaner process listing
-    bottom       # btm — system monitor (alternative to btop)
-    xh           # HTTPie alternative — nicer than curl for API testing
+        # --- System inspection & debugging ---
+        pciutils # lspci — inspect GPU/PCIe bus (complements usbutils)
+        usbutils # lsusb — identify USB devices from CLI
+        lm_sensors # `sensors` — CPU/GPU/mobo temperatures
+        lsof # what process has this file/port open?
+        strace # system call tracing — debugging Wine/Electron/etc
+        dmidecode # hardware inventory — motherboard, RAM slots, BIOS version
+        ncdu # disk usage analyzer (TUI) — find what ate your disk
 
-    # --- Python ---
-    python3      # base Python interpreter — not bundled inside tool wrappers
+        # --- Modern CLI utilities ---
+        eza # modern ls replacement — used via shell aliases
+        bat # cat with syntax highlighting
+        delta # beautiful git diffs (set as diff pager in ~/.gitconfig)
+        dust # modern du — visual disk usage tree
+        procs # modern ps — cleaner process listing
+        bottom # btm — system monitor (alternative to btop)
+        xh # HTTPie alternative — nicer than curl for API testing
 
-    # --- Crypto & keys ---
-    gnupg        # GnuPG — key management (complements YubiKey/age setup)
+        # --- Python ---
+        python3 # base Python interpreter — not bundled inside tool wrappers
 
-    # --- OCR ---
-    tesseract    # OCR engine — extract text from images/scans
+        # --- Crypto & keys ---
+        gnupg # GnuPG — key management (complements YubiKey/age setup)
 
-    # --- Media download ---
-    gallery-dl   # download images from galleries — complements yt-dlp
+        # --- OCR ---
+        tesseract # OCR engine — extract text from images/scans
 
-    # --- Dev workflow ---
-    direnv       # per-directory env vars — load nix shells, set vars per project
-  ];
+        # --- Media download ---
+        gallery-dl # download images from galleries — complements yt-dlp
 
-  programs.firefox.enable = true;
+        # --- Dev workflow ---
+        direnv # per-directory env vars — load nix shells, set vars per project
+      ];
 
-  # NOTE: Previously used `gh auth git-credential` as a git credential helper
-  # for HTTPS GitHub access. Now switched to SSH — the SSH key is deployed
-  # via sops-nix (modules/secrets/secrets.nix) and git is configured to use
-  # git@github.com: instead of https://github.com/.
+      programs.firefox.enable = true;
+
+      # NOTE: Previously used `gh auth git-credential` as a git credential helper
+      # for HTTPS GitHub access. Now switched to SSH — the SSH key is deployed
+      # via sops-nix (modules/secrets/secrets.nix) and git is configured to use
+      # git@github.com: instead of https://github.com/.
+    }
+  ;
 }

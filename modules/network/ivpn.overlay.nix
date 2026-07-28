@@ -7,10 +7,10 @@
 # Remove this file and the nixpkgs-ivpn flake input once the PR lands in
 # nixos-unstable (flake.lock will pick it up via `just up`).
 { inputs }:
-final: prev: {
+final: _prev: {
   inherit (inputs.nixpkgs-ivpn.legacyPackages.${final.stdenv.hostPlatform.system})
     ivpn
     ivpn-service
     ivpn-ui
-  ;
+    ;
 }

@@ -10,11 +10,16 @@
 # Auto-unlock: greetd (run by DankGreeter) is the login PAM service here,
 # so we enable the gnome-keyring PAM module on greetd. On a correct login
 # the keyring unlocks with the login password — no separate prompt.
-{ ... }:
-
+_:
 {
-  services.gnome.gnome-keyring.enable = true;
+  nixos.modules.common =
+    _:
 
-  # Unlock the keyring at login via greetd's PAM stack.
-  security.pam.services.greetd.enableGnomeKeyring = true;
+    {
+      services.gnome.gnome-keyring.enable = true;
+
+      # Unlock the keyring at login via greetd's PAM stack.
+      security.pam.services.greetd.enableGnomeKeyring = true;
+    }
+  ;
 }

@@ -2,7 +2,7 @@
 #   just provision hostname=OwO-Family ip=<ip>
 # nixos-anywhere --generate-hardware-config nixos-generate-config will
 # overwrite this file with the actual hardware config from the target.
-{ config, lib, pkgs, modulesPath, ... }:
+{ lib, modulesPath, ... }:
 
 {
   imports = [ (modulesPath + "/installer/scan/not-detected.nix") ];

@@ -1,13 +1,17 @@
 # Mango compositor.
 #
-# Mango is a Wayland compositor based on dwl. We enable it via its
-# NixOS module from the flake. Login is handled by DankGreeter (see
+# Mango is a Wayland compositor based on dwl. Its NixOS module now ships in
+# nixpkgs, so importing the module from the Mango flake would declare the
+# `programs.mango` options a second time. Login is handled by DankGreeter (see
 # ../dms/default.nix), which lists mango as a supported compositor and
 # runs it under greetd.
-{ inputs, ... }:
-
+{ ... }:
 {
-  imports = [ inputs.mangowm.nixosModules.mango ];
+  nixos.modules.common =
+    { ... }:
 
-  programs.mango.enable = true;
+    {
+      programs.mango.enable = true;
+    }
+  ;
 }

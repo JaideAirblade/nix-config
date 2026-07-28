@@ -11,4 +11,8 @@
 {
   # Expose custom packages from pkgs/ as part of pkgs
   additions = final: _prev: import ../pkgs final;
+
+  # Temporary compatibility fixes for Python packages used by OSINT and
+  # Windows administration tools. Applied explicitly by the relevant hosts.
+  python-package-fixes = import ./python-package-fixes.nix;
 }

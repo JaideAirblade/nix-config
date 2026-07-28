@@ -14,70 +14,75 @@
 # the Steam Deck "game mode" experience). wineWowPackages.waylandFull is the
 # bleeding-edge Wine build with native Wayland support — set DISPLAY unset
 # in the wine prefix to actually use it.
-{ pkgs, ... }:
-
+_:
 {
-  # --- Steam + Proton -------------------------------------------------------
-  # programs.steam handles the FHS sandbox, 32-bit deps, proton download,
-  # and the steam-devices udev rules. Firewall ports are opt-in (we don't
-  # open them by default — enable per-use if you use Remote Play / local
-  # transfers).
-  programs.steam = {
-    enable = true;
-    # Use Millennium-wrapped Steam (injects Millennium's .so for theme/skin
-    # loading). The overlay from inputs.millennium provides pkgs.millennium-steam.
-    package = pkgs.millennium-steam;
-    gamescopeSession.enable = true; # adds the "gamescope + steam" session
-    remotePlay.openFirewall = false;
-    dedicatedServer.openFirewall = false;
-    localNetworkGameTransfers.openFirewall = false;
-  };
+  nixos.hosts."UwU" =
+    { pkgs, ... }:
 
-  # --- gamescope -----------------------------------------------------------
-  # Valve's micro-compositor. capSysNice lets it grab RT scheduling so the
-  # game frame pacing is stable even under load.
-  programs.gamescope = {
-    enable = true;
-    capSysNice = true;
-  };
+    {
+      # --- Steam + Proton -------------------------------------------------------
+      # programs.steam handles the FHS sandbox, 32-bit deps, proton download,
+      # and the steam-devices udev rules. Firewall ports are opt-in (we don't
+      # open them by default — enable per-use if you use Remote Play / local
+      # transfers).
+      programs.steam = {
+        enable = true;
+        # Use Millennium-wrapped Steam (injects Millennium's .so for theme/skin
+        # loading). The overlay from inputs.millennium provides pkgs.millennium-steam.
+        package = pkgs.millennium-steam;
+        gamescopeSession.enable = true; # adds the "gamescope + steam" session
+        remotePlay.openFirewall = false;
+        dedicatedServer.openFirewall = false;
+        localNetworkGameTransfers.openFirewall = false;
+      };
 
-  # --- Feral GameMode ------------------------------------------------------
-  # Temporary CPU governor/nice/IO priority bumps while a game runs. Picked
-  # up automatically by Steam and Heroic when `gamemoderun` is on the launch
-  # command.
-  programs.gamemode.enable = true;
+      # --- gamescope -----------------------------------------------------------
+      # Valve's micro-compositor. capSysNice lets it grab RT scheduling so the
+      # game frame pacing is stable even under load.
+      programs.gamescope = {
+        enable = true;
+        capSysNice = true;
+      };
 
-  # --- Tools / launchers ---------------------------------------------------
-  environment.systemPackages = with pkgs; [
-    mangohud   # performance overlay (FPS, frametime, CPU/GPU temp) — set MANGOHUD=1
-    vkbasalt   # post-processing chain (CAS sharpening, SMAA, etc.) — set VKBASALT=1
-    heroic     # Heroic Games Launcher: Epic / GOG / Amazon / SCE games
-    itch       # itch.io desktop client — indie game store + launcher
+      # --- Feral GameMode ------------------------------------------------------
+      # Temporary CPU governor/nice/IO priority bumps while a game runs. Picked
+      # up automatically by Steam and Heroic when `gamemoderun` is on the launch
+      # command.
+      programs.gamemode.enable = true;
 
-    # Wine — wineWow64Packages.waylandFull is the WoW64 build with native
-    # Wayland support (unstable, but the most capable). If a game misbehaves,
-    # `wineWow64Packages.staging` is a safer fallback.
-    wineWow64Packages.waylandFull
-    winetricks
+      # --- Tools / launchers ---------------------------------------------------
+      environment.systemPackages = with pkgs; [
+        mangohud # performance overlay (FPS, frametime, CPU/GPU temp) — set MANGOHUD=1
+        vkbasalt # post-processing chain (CAS sharpening, SMAA, etc.) — set VKBASALT=1
+        heroic # Heroic Games Launcher: Epic / GOG / Amazon / SCE games
+        itch # itch.io desktop client — indie game store + launcher
 
-    # steam-run: an FHS bubble for running arbitrary Linux game installers /
-    # binaries that assume /lib, /usr/lib, etc. Not needed for Steam itself.
-    steam-run
+        # Wine — wineWow64Packages.waylandFull is the WoW64 build with native
+        # Wayland support (unstable, but the most capable). If a game misbehaves,
+        # `wineWow64Packages.staging` is a safer fallback.
+        wineWow64Packages.waylandFull
+        winetricks
 
-    # ProtonPlus: GUI manager for Wine/Proton compatibility tool versions
-    # (GE-Proton, Wine-GE, etc.) — installs them into Steam's compatibilitytools.d
-    protonplus
+        # steam-run: an FHS bubble for running arbitrary Linux game installers /
+        # binaries that assume /lib, /usr/lib, etc. Not needed for Steam itself.
+        steam-run
 
-    # Prism Launcher — open-source Minecraft launcher with multi-instance /
-    # mod management. Qt-based; runs Java Edition instances with per-instance
-    # mods, resource packs, and Java versions.
-    prismlauncher
+        # ProtonPlus: GUI manager for Wine/Proton compatibility tool versions
+        # (GE-Proton, Wine-GE, etc.) — installs them into Steam's compatibilitytools.d
+        protonplus
 
-    # --- Native Electron for Electron-based Steam games (FeeBay, etc.) ---
-    # Run Windows Electron games natively on Linux by extracting app.asar
-    # from the Windows install and launching with the Linux electron binary.
-    # On NVIDIA + MangoWM, Electron's native Wayland backend flickers badly
-    # (MangoWM issue #1181) — launch with --ozone-platform=x11 to force XWayland.
-    electron
-  ];
+        # Prism Launcher — open-source Minecraft launcher with multi-instance /
+        # mod management. Qt-based; runs Java Edition instances with per-instance
+        # mods, resource packs, and Java versions.
+        prismlauncher
+
+        # --- Native Electron for Electron-based Steam games (FeeBay, etc.) ---
+        # Run Windows Electron games natively on Linux by extracting app.asar
+        # from the Windows install and launching with the Linux electron binary.
+        # On NVIDIA + MangoWM, Electron's native Wayland backend flickers badly
+        # (MangoWM issue #1181) — launch with --ozone-platform=x11 to force XWayland.
+        electron
+      ];
+    }
+  ;
 }

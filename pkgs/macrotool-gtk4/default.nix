@@ -5,33 +5,33 @@
 # by fetching + vendoring crates from the Cargo.lock).
 #
 # To rebuild after changes:
-#   cd ~/Projects/Projects/Macrotool-gtk4 && git add -A && git commit && git push
+#   cd ~/Projects/Macrotool-gtk4 && git add -A && git commit && git push
 #   # Update rev + cargoHash below, then:
 #   cd ~/nixos && sudo nixos-rebuild switch --flake .#UwU
-{
-  lib,
-  rustPlatform,
-  fetchFromGitHub,
-  pkg-config,
-  wrapGAppsHook4,
-  gtk4,
-  gtk4-layer-shell,
-  glib,
-  libX11,
+{ lib
+, rustPlatform
+, fetchFromGitHub
+, pkg-config
+, wrapGAppsHook4
+, gtk4
+, gtk4-layer-shell
+, glib
+, libX11
+,
 }:
 
-rustPlatform.buildRustPackage (finalAttrs: {
+rustPlatform.buildRustPackage (_finalAttrs: {
   pname = "macrotool-gtk4";
   version = "0.2.0";
 
   src = fetchFromGitHub {
     owner = "JaideAirblade";
     repo = "macrotool-gtk4";
-    rev = "6d26b0190e235cd953404d9ca28f607570707cbd";
-    hash = "sha256:01pwi3b0f2mb2lsjr53nyzr37v6rmql3rklwc4jld34gljjlzbbc";
+    rev = "dddaf836416571ccfa5c25e788248eda963e0fe2";
+    hash = "sha256:1mfaajn7qjaiy3754658h0k7a3iy5cs4nxav6drv0n2adbajwlqg";
   };
 
-  cargoHash = "sha256-dphyAIXVULIr+d6rxFV1FFoavaFDCnVYGRuE+O6m3lI=";
+  cargoHash = "sha256-cDSE+EidwMhuQl+B6brHeo3/LsKuVd+TOi+cZyOnnRk=";
 
   nativeBuildInputs = [
     pkg-config

@@ -14,48 +14,53 @@
 #   3. Domain/infrastructure recon — subdomain enum, DNS, certificates
 #   4. Frameworks — multi-tool OSINT platforms
 #   5. Specialized — GitHub OSINT, Google OSINT, device search
-{ pkgs, ... }:
-
+_:
 {
-  environment.systemPackages = with pkgs; [
-    # === 1. People search — username & email enumeration ===
-    sherlock        # Search 300+ sites for a username
-    maigret         # Aggressive username enumeration + PDF reports (300+ sites)
-    holehe          # Check if an email is registered on 120+ sites
-    socialscan      # Check email/username availability across platforms
-    user-scanner    # Username scanner across platforms
+  nixos.modules.personal =
+    { pkgs, ... }:
 
-    # === 2. Breach & credential lookup ===
-    h8mail          # Email OSINT & password breach hunting
+    {
+      environment.systemPackages = with pkgs; [
+        # === 1. People search — username & email enumeration ===
+        sherlock # Search 300+ sites for a username
+        maigret # Aggressive username enumeration + PDF reports (300+ sites)
+        holehe # Check if an email is registered on 120+ sites
+        socialscan # Check email/username availability across platforms
+        user-scanner # Username scanner across platforms
 
-    # === 3. Domain/infrastructure recon ===
-    theharvester    # Harvest emails, subdomains, names from public sources
-    dnsrecon        # DNS reconnaissance — enumerate records, zonewalk, brute
-    subfinder       # Passive subdomain discovery from multiple sources
-    amass           # Attack surface mapping — subdomain enum + ASN mapping
-    dnsx            # DNS toolkit — resolve, brute-force, reverse lookup
-    asn             # ASN/IP range lookup — who owns what IP space
+        # === 2. Breach & credential lookup ===
+        h8mail # Email OSINT & password breach hunting
 
-    # === 4. Frameworks ===
-    recon-ng        # Full-featured web recon framework (modular, like Metasploit for OSINT)
-    sn0int          # Semi-automatic OSINT framework & package manager
-    # bbot           # Automated recon/scanning framework — broken dep in nixpkgs (cloudcheck)
-    metabigor       # OSINT without API keys — IP, ASN, domain recon
+        # === 3. Domain/infrastructure recon ===
+        theharvester # Harvest emails, subdomains, names from public sources
+        dnsrecon # DNS reconnaissance — enumerate records, zonewalk, brute
+        subfinder # Passive subdomain discovery from multiple sources
+        amass # Attack surface mapping — subdomain enum + ASN mapping
+        dnsx # DNS toolkit — resolve, brute-force, reverse lookup
+        asn # ASN/IP range lookup — who owns what IP space
 
-    # === 5. Specialized ===
-    octosuite       # GitHub OSINT framework — enumerate orgs, repos, users
-    ghunt           # Google OSINT — investigate Google accounts from email/ID
-    (python3.withPackages (ps: with ps; [
-      shodan        # Shodan CLI — search internet-connected devices, cameras, servers
-    ]))
-    urx             # Extract URLs from OSINT archives (Wayback, CommonCrawl, etc.)
-    bitcrook        # OSINT tool — multiple data sources
+        # === 4. Frameworks ===
+        recon-ng # Full-featured web recon framework (modular, like Metasploit for OSINT)
+        sn0int # Semi-automatic OSINT framework & package manager
+        # bbot           # Automated recon/scanning framework — broken dep in nixpkgs (cloudcheck)
+        metabigor # OSINT without API keys — IP, ASN, domain recon
 
-    # === 6. Geospatial / Map OSINT ===
-    # qgis            # Full GIS — view/edit/analyze geospatial data, QuickOSM plugin
-                    # TEMPORARILY DISABLED: qscintilla-qt6 fails pythonMetadataCheckPhase
-                    # on Python 3.14. Re-enable once nixpkgs fixes it.
-                    # for querying OpenStreetMap data, overlay satellite imagery,
-                    # spatial analysis, measure distances, export layers
-  ];
+        # === 5. Specialized ===
+        octosuite # GitHub OSINT framework — enumerate orgs, repos, users
+        ghunt # Google OSINT — investigate Google accounts from email/ID
+        (python3.withPackages (ps: with ps; [
+          shodan # Shodan CLI — search internet-connected devices, cameras, servers
+        ]))
+        urx # Extract URLs from OSINT archives (Wayback, CommonCrawl, etc.)
+        bitcrook # OSINT tool — multiple data sources
+
+        # === 6. Geospatial / Map OSINT ===
+        # qgis            # Full GIS — view/edit/analyze geospatial data, QuickOSM plugin
+        # TEMPORARILY DISABLED: qscintilla-qt6 fails pythonMetadataCheckPhase
+        # on Python 3.14. Re-enable once nixpkgs fixes it.
+        # for querying OpenStreetMap data, overlay satellite imagery,
+        # spatial analysis, measure distances, export layers
+      ];
+    }
+  ;
 }

@@ -135,13 +135,13 @@ done
 # Disable colors if: --no-color, NO_COLOR env var, JSON mode, or not a TTY
 if [[ "$USE_COLOR" == "no" ]] || [[ -n "${NO_COLOR:-}" ]] || [[ "$JSON" == "yes" ]] || [[ ! -t 1 ]]; then
     R='' B='' DIM='' CY='' GR='' YE='' MG='' BL='' RD='' BR='' BOLD=''
-    OK='✓' FAIL='✗' WARN='⚠' INFO='ℹ'
+    OK='✓' FAIL='✗'
 else
     R='\033[0m'    B='\033[1m'   DIM='\033[2m'
     CY='\033[36m'  GR='\033[32m'  YE='\033[33m'
     MG='\033[35m'  BL='\033[34m'  RD='\033[31m'  BR='\033[90m'
     BOLD='\033[1m'
-    OK='✓' FAIL='✗' WARN='⚠' INFO='ℹ'
+    OK='✓' FAIL='✗'
 fi
 
 # ---------------------------------------------------------------------------
@@ -326,7 +326,8 @@ section_summary() {
 
     # Print the card
     echo -e "${B}${MG}╔═══════════════════════════════════════════════════════════╗${R}"
-    local card_line="Network Status Report — $(date '+%Y-%m-%d %H:%M:%S')"
+    local card_line
+    card_line="Network Status Report — $(date '+%Y-%m-%d %H:%M:%S')"
     local pad_len=$((60 - ${#card_line}))
     [[ $pad_len -lt 0 ]] && pad_len=0
     echo -e "${B}${MG}║${R} ${BOLD}${card_line}${R}$(printf '%*s' "$pad_len" '') ${B}${MG}║${R}"
@@ -417,7 +418,7 @@ section_connectivity() {
     fi
 
     # Test 3: DNS resolution test
-    local dns_ok dns_ip
+    local dns_ip
     dns_ip=$(dig +short +time=3 +tries=1 A example.com 2>/dev/null | head -1 || echo "")
     if [[ -n "$dns_ip" ]]; then
         color_check yes "DNS resolves example.com → $dns_ip"
@@ -965,12 +966,7 @@ section_routes() {
     echo -e "  ${B}IPv4 Routes (main):${R}"
     printf "  %-20s %-15s %-12s %-8s %-8s %s\n" "DESTINATION" "GATEWAY" "INTERFACE" "METRIC" "SOURCE" "PROTO"
     printf "  %-20s %-15s %-12s %-8s %-8s %s\n" "----------" "-------" "---------" "------" "------" "-----"
-    ip route show 2>/dev/null | while read -r dest via gw dev iface metric src source proto rest; do
-        # This is a simplification — ip route output is complex
-        # Use awk for more robust parsing
-        :
-    done
-    # Actually just use awk to parse ip route output into a table
+    # Parse ip route output into a table.
     ip route show 2>/dev/null | awk '{
         dest=$1; gw="-"; iface="-"; metric="-"; src="-"; proto="-"
         for(i=2;i<=NF;i++) {
@@ -1359,7 +1355,7 @@ section_vpn() {
     # IVPN
     if command -v ivpn &>/dev/null; then
         echo -e "  ${B}IVPN:${R}"
-        local ivpn_state ivpn_firewall
+        local ivpn_state
         ivpn_state=$(ivpn status 2>/dev/null | head -1 | awk -F: '{gsub(/^ +| +$/,"",$2); print $2}' || echo "Unknown")
         echo -e "    State:     $(color_status "$ivpn_state")"
         ivpn status 2>/dev/null | tail -n +2 | while read -r line; do
@@ -1607,7 +1603,7 @@ section_public() {
 
     # Whois/ASN info (quick)
     if [[ "$pub4" != "(failed)" ]] && command -v dig &>/dev/null; then
-        local rdns asn
+        local rdns
         rdns=$(dig +short +time=3 +tries=1 -x "$pub4" 2>/dev/null | head -1 || echo "")
         if [[ -n "$rdns" ]]; then
             echo -e "  ${B}rDNS:${R}       $rdns"
@@ -1631,7 +1627,7 @@ section_public() {
 section_host-identity() {
     header "HOST IDENTITY"
 
-    local static_host transient_host pretty_host fqdn hostnamectl_out
+    local static_host transient_host pretty_host fqdn
     static_host=$(hostnamectl 2>/dev/null | grep -oP 'Static hostname: \K.*' || echo "?")
     transient_host=$(hostnamectl 2>/dev/null | grep -oP 'Transient hostname: \K.*' || echo "(none)")
     pretty_host=$(hostnamectl 2>/dev/null | grep -oP 'Pretty hostname: \K.*' || echo "(none)")
@@ -1639,7 +1635,7 @@ section_host-identity() {
 
     # DHCP hostname broadcast (from NM connection profiles)
     # Only show ethernet and wifi connections — lo, wgivpn, etc. don't use DHCP
-    local dhcp_host dhcp_hosts=""
+    local dhcp_hosts=""
     # nmcli -g UUID,NAME,TYPE returns "UUID:NAME:TYPE" (colon-separated)
     while IFS=: read -r uuid name conn_type; do
         [[ -z "$uuid" ]] && continue
@@ -1829,7 +1825,7 @@ section_switch-info() {
                 echo -e "    ${GR}TR-064 available${R} at http://$mip:49000/tr64desc.xml"
 
                 # Extract device info
-                local friendly mfr model serial fw_ver
+                local friendly mfr model serial
                 friendly=$(echo "$tr64_desc" | grep -oP '<friendlyName>\K[^<]*' | head -1 || true)
                 mfr=$(echo "$tr64_desc" | grep -oP '<manufacturer>\K[^<]*' | head -1 || true)
                 model=$(echo "$tr64_desc" | grep -oP '<modelName>\K[^<]*' | head -1 || true)
@@ -1858,7 +1854,7 @@ section_switch-info() {
                     | grep -oP '<NewExternalIPAddress>\K[^<]*' | head -1 || true)
 
                 # Get link info
-                local link_type link_status
+                local link_type
                 link_type=$( (curl -sk --max-time 3 -H 'Content-Type: text/xml; charset="utf-8"' \
                     -H 'SOAPAction: urn:dslforum-org:service:WANCommonInterfaceConfig:1#GetCommonLinkProperties' \
                     -d '<?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body><u:GetCommonLinkProperties xmlns:u="urn:dslforum-org:service:WANCommonInterfaceConfig:1"></u:GetCommonLinkProperties></s:Body></s:Envelope>' \

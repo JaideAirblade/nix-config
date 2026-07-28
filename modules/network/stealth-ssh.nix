@@ -38,128 +38,139 @@
 # The key stub on the client is NOT secret — the actual private key
 # never leaves the YubiKey. If the client is compromised, the attacker
 # can't use the stub without the YubiKey.
-{ config, lib, pkgs, ... }:
-
-let
-  cfg = config.services.stealth-ssh;
-in
+_:
 {
-  options.services.stealth-ssh = {
-    enable = lib.mkEnableOption "Stealth SSH server (FIDO2-only, VPN-only)";
+  nixos.modules.remoteAccess =
+    { config, lib, ... }:
 
-    listenAddress = lib.mkOption {
-      type = lib.types.str;
-      default = "10.100.0.1";
-      description = "Address to listen on (should be the VPN interface).";
-    };
+    let
+      cfg = config.services.stealth-ssh;
+    in
+    {
+      options.services.stealth-ssh = {
+        listenAddress = lib.mkOption {
+          type = lib.types.str;
+          default = "10.100.0.1";
+          description = "Address to listen on (should be the VPN interface).";
+        };
 
-    port = lib.mkOption {
-      type = lib.types.port;
-      default = 22;
-      description = "SSH port.";
-    };
+        port = lib.mkOption {
+          type = lib.types.port;
+          default = 22;
+          description = "SSH port.";
+        };
 
-    user = lib.mkOption {
-      type = lib.types.str;
-      default = "jaide";
-      description = "User allowed to SSH in.";
-    };
+        user = lib.mkOption {
+          type = lib.types.str;
+          default = "jaide";
+          description = "User allowed to SSH in.";
+        };
 
-    # FIDO2 public keys — add your ed25519-sk / ecdsa-sk public keys here.
-    # These are PUBLIC keys (safe to be in the Nix store).
-    # Generate with: ssh-keygen -t ed25519-sk -O resident -O verify-required
-    authorizedKeys = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = [ ];
-      description = "FIDO2 SSH public keys (ed25519-sk / ecdsa-sk).";
-    };
-  };
-
-  config = lib.mkIf cfg.enable {
-    services.openssh = {
-      enable = true;
-      ports = [ cfg.port ];
-
-      # Wait for the VPN interface to come up before starting sshd.
-      # Without this, sshd races wg-quick at boot, fails to bind
-      # 10.100.0.1, and hits systemd's start-limit.
-      startWhenNeeded = false;
-
-      settings = {
-        # Listen ONLY on the VPN interface — not on 0.0.0.0
-        ListenAddress = cfg.listenAddress;
-
-        # Hardened security settings
-        PermitRootLogin = "no";
-        PasswordAuthentication = false;
-        KbdInteractiveAuthentication = false;
-        PermitEmptyPasswords = false;
-
-        # ONLY allow public key auth with FIDO2 security keys
-        PubkeyAuthentication = true;
-        AuthenticationMethods = "publickey";
-
-        # Require FIDO2 touch + PIN verification
-        SecurityKeyProvider = "internal";
-
-        # Timeout for YubiKey touch — 30 seconds should be enough
-        LoginGraceTime = 30;
-
-        # Don't allow agent forwarding (prevents key hijacking via forwarded agent)
-        AllowAgentForwarding = false;
-
-        # Allow X11 forwarding (useful for remote GUI apps)
-        X11Forwarding = true;
-
-        # Strict modes for key file permissions
-        StrictModes = true;
+        # FIDO2 public keys — add your ed25519-sk / ecdsa-sk public keys here.
+        # These are PUBLIC keys (safe to be in the Nix store).
+        # Generate with: ssh-keygen -t ed25519-sk -O resident -O verify-required
+        authorizedKeys = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [ ];
+          description = "FIDO2 SSH public keys (ed25519-sk / ecdsa-sk).";
+        };
       };
 
-      # Authorized keys for the user — FIDO2 keys only
-      # We use a sops-managed file if available, or inline keys.
-      # Use PubkeyAuthOptions to require touch + verify (FIDO2 only)
-      # and restrict PubkeyAcceptedAlgorithms to security key types only.
-      # OpenSSH 10.4 uses sk-ssh-ed25519@openssh.com / sk-ecdsa-sha2-nistp256@openssh.com
-      settings.PubkeyAuthOptions = "touch-required verify-required";
+      config = {
+        assertions = [
+          {
+            assertion = cfg.authorizedKeys != [ ];
+            message = "stealth-ssh cannot be enabled without at least one FIDO2 authorized key";
+          }
+        ];
 
-      extraConfig = ''
-        # ONLY accept FIDO2 security key types (sk-* algorithms)
-        # Regular ed25519/rsa keys are rejected even if in authorized_keys
-        # Comma-separated per sshd_config syntax.
-        PubkeyAcceptedAlgorithms sk-ssh-ed25519@openssh.com,sk-ecdsa-sha2-nistp256@openssh.com,webauthn-sk-ecdsa-sha2-nistp256@openssh.com
-      '';
-    };
+        networking.firewall.interfaces.awg0.allowedTCPPorts = [ cfg.port ];
 
-    # Deploy authorized keys for the user
-    # FIDO2 keys only — regular SSH keys are rejected by PubkeyAcceptedAlgorithms
-    system.activationScripts.stealth-ssh-keys = lib.stringAfter [ "users" ] ''
-      mkdir -p /home/${cfg.user}/.ssh
-      chmod 700 /home/${cfg.user}/.ssh
-      touch /home/${cfg.user}/.ssh/authorized_keys
-      chown ${cfg.user}:users /home/${cfg.user}/.ssh/authorized_keys
-      chmod 600 /home/${cfg.user}/.ssh/authorized_keys
+        services.openssh = {
+          enable = true;
+          ports = [ cfg.port ];
 
-      # Write FIDO2 keys only (clear + rewrite to stay declarative)
-      cat > /home/${cfg.user}/.ssh/authorized_keys <<'EOF'
-      ${lib.concatStringsSep "\n" cfg.authorizedKeys}
-      EOF
-      chown ${cfg.user}:users /home/${cfg.user}/.ssh/authorized_keys
-      chmod 600 /home/${cfg.user}/.ssh/authorized_keys
-    '';
+          # Wait for the VPN interface to come up before starting sshd.
+          # Without this, sshd races wg-quick at boot, fails to bind
+          # 10.100.0.1, and hits systemd's start-limit.
+          startWhenNeeded = false;
 
-    # Make sshd wait for the AWG interface to be up before starting.
-    # This prevents the boot race where sshd tries to bind 10.100.0.1
-    # before wg-quick-awg0 has created the interface.
-    systemd.services.sshd = {
-      after = [ "wg-quick-awg0.service" ];
-      wants = [ "wg-quick-awg0.service" ];
-      unitConfig = {
-        StartLimitIntervalSec = 60;
-        StartLimitBurst = 10;
+          settings = {
+            # Listen ONLY on the VPN interface — not on 0.0.0.0
+            ListenAddress = cfg.listenAddress;
+
+            # Hardened security settings
+            PermitRootLogin = "no";
+            PasswordAuthentication = false;
+            KbdInteractiveAuthentication = false;
+            PermitEmptyPasswords = false;
+
+            # ONLY allow public key auth with FIDO2 security keys
+            PubkeyAuthentication = true;
+            AuthenticationMethods = "publickey";
+
+            # Require FIDO2 touch + PIN verification
+            SecurityKeyProvider = "internal";
+
+            # Timeout for YubiKey touch — 30 seconds should be enough
+            LoginGraceTime = 30;
+
+            # Don't allow agent forwarding (prevents key hijacking via forwarded agent)
+            AllowAgentForwarding = false;
+
+            # Allow X11 forwarding (useful for remote GUI apps)
+            X11Forwarding = true;
+
+            # Strict modes for key file permissions
+            StrictModes = true;
+          };
+
+          # Authorized keys for the user — FIDO2 keys only
+          # We use a sops-managed file if available, or inline keys.
+          # Use PubkeyAuthOptions to require touch + verify (FIDO2 only)
+          # and restrict PubkeyAcceptedAlgorithms to security key types only.
+          # OpenSSH 10.4 uses sk-ssh-ed25519@openssh.com / sk-ecdsa-sha2-nistp256@openssh.com
+          settings.PubkeyAuthOptions = "touch-required verify-required";
+
+          extraConfig = ''
+            # ONLY accept FIDO2 security key types (sk-* algorithms)
+            # Regular ed25519/rsa keys are rejected even if in authorized_keys
+            # Comma-separated per sshd_config syntax.
+            PubkeyAcceptedAlgorithms sk-ssh-ed25519@openssh.com,sk-ecdsa-sha2-nistp256@openssh.com,webauthn-sk-ecdsa-sha2-nistp256@openssh.com
+          '';
+        };
+
+        # Deploy authorized keys for the user
+        # FIDO2 keys only — regular SSH keys are rejected by PubkeyAcceptedAlgorithms
+        system.activationScripts.stealth-ssh-keys = lib.stringAfter [ "users" ] ''
+          install -d -m 0700 -o ${cfg.user} -g users /home/${cfg.user}/.ssh
+          touch /home/${cfg.user}/.ssh/authorized_keys
+          chown ${cfg.user}:users /home/${cfg.user}/.ssh/authorized_keys
+          chmod 600 /home/${cfg.user}/.ssh/authorized_keys
+
+          # Write FIDO2 keys only (clear + rewrite to stay declarative)
+          cat > /home/${cfg.user}/.ssh/authorized_keys <<'EOF'
+          ${lib.concatStringsSep "\n" cfg.authorizedKeys}
+          EOF
+          chown ${cfg.user}:users /home/${cfg.user}/.ssh/authorized_keys
+          chmod 600 /home/${cfg.user}/.ssh/authorized_keys
+        '';
+
+        # Make sshd wait for the AWG interface to be up before starting.
+        # This prevents the boot race where sshd tries to bind 10.100.0.1
+        # before wg-quick-awg0 has created the interface.
+        systemd.services.sshd = {
+          after = [ "wg-quick-awg0.service" ];
+          wants = [ "wg-quick-awg0.service" ];
+          unitConfig = {
+            StartLimitIntervalSec = 60;
+            StartLimitBurst = 10;
+          };
+          serviceConfig = {
+            RestartSec = 5;
+          };
+        };
       };
-      serviceConfig = {
-        RestartSec = 5;
-      };
-    };
-  };
+    }
+  ;
 }

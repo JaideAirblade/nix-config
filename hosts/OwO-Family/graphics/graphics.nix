@@ -4,24 +4,29 @@
 #
 # This is the same structure as UwU's graphics.nix but with the legacy
 # driver and no 32-bit gaming support (no Steam/Proton on this host).
-{ pkgs, config, ... }:
-
+_:
 {
-  # Legacy NVIDIA driver for Kepler GPUs (GTX 600/700 series)
-  services.xserver.videoDrivers = [ "nvidia" ];
+  nixos.hosts."OwO-Family" =
+    { config, ... }:
 
-  hardware.graphics = {
-    enable = true;
-  };
+    {
+      # Legacy NVIDIA driver for Kepler GPUs (GTX 600/700 series)
+      services.xserver.videoDrivers = [ "nvidia" ];
 
-  # Use the legacy 535 driver branch (last to support Kepler)
-  hardware.nvidia = {
-    modesetting.enable = true;
-    open = false;  # Kepler doesn't support open kernel modules
-    package = config.boot.kernelPackages.nvidiaPackages.legacy_535;
-  };
+      hardware.graphics = {
+        enable = true;
+      };
 
-  # Load NVIDIA kernel module
-  boot.kernelModules = [ "nvidia" ];
-  boot.extraModulePackages = [ config.boot.kernelPackages.nvidiaPackages.legacy_535.out ];
+      # Use the legacy 535 driver branch (last to support Kepler)
+      hardware.nvidia = {
+        modesetting.enable = true;
+        open = false; # Kepler doesn't support open kernel modules
+        package = config.boot.kernelPackages.nvidiaPackages.legacy_535;
+      };
+
+      # Load NVIDIA kernel module
+      boot.kernelModules = [ "nvidia" ];
+      boot.extraModulePackages = [ config.boot.kernelPackages.nvidiaPackages.legacy_535.out ];
+    }
+  ;
 }

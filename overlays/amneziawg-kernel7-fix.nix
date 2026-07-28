@@ -12,7 +12,7 @@
 _final: prev:
 let
   patchAmneziawg = pkg:
-    pkg.overrideAttrs (old: {
+    pkg.overrideAttrs (_old: {
       patches = [ ];
       postPatch = ''
         # socket.h: add forward declarations for kernel 7.x
@@ -30,10 +30,10 @@ let
     });
 in
 {
-  linuxPackages = prev.linuxPackages.extend (kpFinal: kpPrev: {
+  linuxPackages = prev.linuxPackages.extend (_kpFinal: kpPrev: {
     amneziawg = patchAmneziawg kpPrev.amneziawg;
   });
-  linuxPackages_latest = prev.linuxPackages_latest.extend (kpFinal: kpPrev: {
+  linuxPackages_latest = prev.linuxPackages_latest.extend (_kpFinal: kpPrev: {
     amneziawg = patchAmneziawg kpPrev.amneziawg;
   });
 }

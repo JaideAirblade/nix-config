@@ -1,20 +1,25 @@
 # Host-specific packages for OwO-Family.
 # Same base as UwU's packages.nix but without gaming apps (Discord, Seanime,
 # Chromium, Geary, Hytale, etc.) — this is a family PC, not Jaide's desktop.
-{ pkgs, lib, ... }:
-
+_:
 {
-  environment.systemPackages = with pkgs; [
-    # Basic USB tooling
-    usbutils
+  nixos.hosts."OwO-Family" =
+    { pkgs, ... }:
 
-    # Firefox — web browser
-    firefox
+    {
+      environment.systemPackages = with pkgs; [
+        # Basic USB tooling
+        usbutils
 
-    # Readest — ebook reader (Jaide's library syncs)
-    readest
+        # Firefox — web browser
+        firefox
 
-    # Octarine — notes (custom package from overlay)
-    octarine
-  ];
+        # Readest — ebook reader (Jaide's library syncs)
+        readest
+
+        # Octarine — notes (custom package from overlay)
+        octarine
+      ];
+    }
+  ;
 }

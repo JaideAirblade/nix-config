@@ -36,29 +36,34 @@
 #     cifsacl,mode=0770,file_mode=0770,dir_mode=0770
 #
 # The `cifsacl` option maps NTFS ACLs to POSIX ACLs so getfacl/setfacl work.
-{ pkgs, ... }:
-
+_:
 {
-  environment.systemPackages = with pkgs; [
-    # --- SMB/CIFS core ---
-    samba            # smbclient, rpcclient, net, nmblookup, smbcacls
-    cifs-utils       # mount.cifs, cifs.idmap — mount SMB shares with ACL support
+  nixos.hosts."TSBW-W01800" =
+    { pkgs, ... }:
 
-    # --- ACL inspection & manipulation ---
-    acl              # getfacl, setfacl — view/set POSIX ACLs on mounted CIFS shares
+    {
+      environment.systemPackages = with pkgs; [
+        # --- SMB/CIFS core ---
+        samba # smbclient, rpcclient, net, nmblookup, smbcacls
+        cifs-utils # mount.cifs, cifs.idmap — mount SMB shares with ACL support
 
-    # --- File copy with permission preservation ---
-    rsync            # -aX preserves permissions + extended attributes (NTFS ACLs)
-    pv               # progress bars for large copies (pv < file > /mnt/share/file)
+        # --- ACL inspection & manipulation ---
+        acl # getfacl, setfacl — view/set POSIX ACLs on mounted CIFS shares
 
-    # --- PowerShell Core ---
-    powershell       # pwsh — run .ps1 scripts, WinRM sessions, AD cmdlets
+        # --- File copy with permission preservation ---
+        rsync # -aX preserves permissions + extended attributes (NTFS ACLs)
+        pv # progress bars for large copies (pv < file > /mnt/share/file)
 
-    # --- AD / Windows admin ---
-    evil-winrm       # WinRM shell for Windows servers (Ruby-based)
-    (python312.withPackages (ps: with ps; [
-      impacket       # Python AD toolkit: psexec.py, wmiexec.py, secretsdump.py
-    ]))
-    netexec          # Network execution — enumerate shares/users/sessions at scale
-  ];
+        # --- PowerShell Core ---
+        powershell # pwsh — run .ps1 scripts, WinRM sessions, AD cmdlets
+
+        # --- AD / Windows admin ---
+        evil-winrm # WinRM shell for Windows servers (Ruby-based)
+        (python312.withPackages (ps: with ps; [
+          impacket # Python AD toolkit: psexec.py, wmiexec.py, secretsdump.py
+        ]))
+        netexec # Network execution — enumerate shares/users/sessions at scale
+      ];
+    }
+  ;
 }

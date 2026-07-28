@@ -1,112 +1,70 @@
 # nix-config
 
-Jaide's NixOS flake configuration, structured following [ryan4yin's NixOS & Flakes Book](https://github.com/ryan4yin/nixos-and-flakes-book).
+Jaide's multi-host NixOS flake, structured around the current
+[Dendritic Pattern](https://github.com/mightyiam/dendritic).
 
-## Structure
+## Architecture
 
-```
-.
-├── flake.nix              # Entry point — inputs, outputs, nixosConfigurations
-├── flake.lock             # Pinned dependency versions (reproducibility)
-├── Justfile               # Command shortcuts (`just deploy`, `just up`, etc.)
-├── modules/               # Shared, host-agnostic NixOS modules
-│   ├── default.nix        # Import-only — aggregates all submodules
-│   ├── boot/              # systemd-boot, zram, fstrim, gc, kernel
-│   ├── nix/               # Flakes, unfree, editor, nix-channel disable
-│   ├── network/           # NetworkManager, IVPN (+ pinned IVPN overlay)
-│   ├── firewall/          # nftables stealth firewall (default-deny incoming)
-│   ├── security/          # USBGuard (USB device whitelist)
-│   ├── locale/            # Timezone (Europe/Berlin), locale (en_US + de_DE)
-│   ├── users/             # User account (jaide) — no home-manager
-│   ├── audio/             # PipeWire + WirePlumber (device profile pinning)
-│   ├── printing/          # CUPS (socket-activated, no auto-discovery)
-│   ├── packages/          # Base CLI tools + opt-in subfolders
-│   │   ├── packages.nix   # Universal: vim, git, ripgrep, jq, fzf, ghostty...
-│   │   ├── file-manager/  # Nautilus + gvfs + udisks2
-│   │   ├── media/         # mpv (with scripts), yt-dlp, ffmpeg
-│   │   ├── onepassword/   # 1Password GUI + CLI + polkit
-│   │   └── network-tools/ # Wireshark, nmap, tcpdump, tshark, etc.
-│   ├── shell/             # Bash, git defaults, starship
-│   ├── bluetooth/         # Bluez (no blueman — DMS has its own widget)
-│   ├── theming/           # GTK/Qt themes, qt6ct, OZONE_WL
-│   ├── fonts/             # Noto (CJK + emoji), Nerd Font, fontconfig
-│   ├── firmware/          # fwupd (LVFS firmware updates)
-│   ├── keyring/           # GNOME Keyring (auto-unlock via greetd PAM)
-│   ├── wm/                # Shared compositor modules
-│   │   ├── mango/         # MangoWM (dwl-based Wayland compositor)
-│   │   └── dms/           # DankMaterialShell (bar/launcher/lock) + greeter
-│   ├── ai/                # Hermes Agent + Mnemosyne memory provider
-│   └── cloud/             # rclone Google Drive sync (systemd user timer)
-├── overlays/
-│   └── default.nix        # Exposes pkgs.betterbird, pkgs.octarine, pkgs.hytale
-├── pkgs/                  # Custom packages (via callPackage)
-│   ├── default.nix        # Aggregator
-│   ├── betterbird/        # Thunderbird fork (pre-built binary)
-│   ├── octarine/          # Markdown note-taking app (Tauri)
-│   └── hytale/            # Hytale game launcher (FHS-wrapped binary)
-└── hosts/                 # Per-host configuration
-    ├── UwU/               # Personal laptop (AMD + NVIDIA RTX 3080)
-    │   ├── default.nix    # Imports shared modules + host-specific
-    │   ├── hardware-configuration.nix  # Auto-generated (sacred)
-    │   ├── state.nix      # system.stateVersion
-    │   ├── graphics/      # NVIDIA proprietary driver, latest kernel
-    │   ├── gaming/        # Steam, Proton, Heroic, Wine, MangoHud, gamescope
-    │   ├── macrotool/     # Tauri macro app runtime deps + udev rules
-    │   ├── devices/       # YubiKey + Scyrox keyboard/mouse udev rules
-    │   ├── packages/      # UwU-only GUI apps (Discord+Equicord, Seanime...)
-    │   ├── network/       # Hostname
-    │   ├── shell/         # Rebuild alias targets .#UwU, git identity
-    │   └── users/         # Host-specific groups (wireshark, input, uinput)
-    └── TSBW-W01800/       # Work laptop (AMD, LUKS, Thunderbolt, YubiKey)
-        ├── default.nix    # Imports shared modules + host-specific
-        ├── hardware-configuration.nix  # Auto-generated (sacred)
-        ├── state.nix      # system.stateVersion
-        ├── hardware/      # LUKS + FIDO2 unlock, Thunderbolt initrd auth, AMD graphics
-        ├── security/      # YubiKey PAM (greetd, login, sudo)
-        ├── boot/          # systemd initrd (for FIDO2 + Thunderbolt)
-        ├── network/       # Hostname + dnsproxy (DoH + internal DNS routing)
-        ├── services/      # Printing, scanning, Steam, upower, gvfs
-        ├── desktop/       # mango (primary) + niri (secondary), DMS overrides
-        ├── packages/      # Work tools, games, browsers, disk recovery, archives
-        ├── users/         # Host-specific groups + kate
-        └── shell/         # Rebuild alias targets .#TSBW-W01800, git identity
-```
+`flake.nix` recursively imports every Nix feature below `modules/` and
+`hosts/`. Each feature is a top-level flake-parts module that contributes to a
+merged lower-level module:
 
-## Conventions
+- `nixos.modules.common` — shared system and desktop configuration.
+- `nixos.modules.fileManager`, `personal`, `virtualisation`, `adLab`, `disk`
+  — opt-in roles selected by a host entry point.
+- `nixos.modules.remoteAccess` — fail-closed AWG/SSH role; not selected until
+  per-host keys, reachable endpoints, and FIDO2 authorized keys exist.
+- `nixos.hosts.<name>` — all feature contributions specific to one machine.
 
-- **No home-manager** — user dotfiles stay writable. Programs that rewrite their own configs (git, bash, starship, ...) are configured at the system level via `/etc` and the user overrides per-user.
-- **`default.nix` is import-only** — every module folder has a `default.nix` that only does `imports = [ ./<name>.nix ];`. All actual config lives in the sibling `<name>.nix`.
-- **`lib.mkDefault` in shared modules, `lib.mkForce` in host overrides** — the base module sets a default (priority 1000), the host overrides it (priority 50). Direct assignments are priority 100 (between the two).
-- **`specialArgs = { inherit inputs pkgs-stable; }`** — all flake inputs and the pre-created stable nixpkgs instance are available to every submodule.
-- **`hardware-configuration.nix` is sacred** — never delete, only `mv`. Contains disk UUIDs.
+The storage options in `modules/options.nix` use `deferredModule`, so separate
+top-level files merge naturally. Feature files capture flake inputs lexically;
+the NixOS evaluations do not receive `specialArgs` or the complete input set.
+
+Intentional lower-level exceptions are excluded from recursive importing:
+
+- host `default.nix` entry points;
+- generated `hardware-configuration.nix` files;
+- `callPackage` expressions under `pkgs/`;
+- overlay expressions under `overlays/` and `*.overlay.nix` helpers.
 
 ## Hosts
 
-| Host | Hardware | Compositor | Use case |
-|------|----------|------------|----------|
-| UwU | AMD CPU, NVIDIA RTX 3080, 32GB RAM | MangoWM | Personal — gaming, media, dev |
-| TSBW-W01800 | AMD APU, 16GB RAM, LUKS + Thunderbolt dock | mango (primary) + niri (secondary) | Work — YubiKey login, printing, remote desktop |
+| Host | Hardware | Roles | Use case |
+|------|----------|-------|----------|
+| UwU | AMD CPU, NVIDIA RTX 3080, 32GB RAM | common, personal, disk, virtualisation | Personal desktop — gaming, media, development |
+| TSBW-W01800 | AMD APU, LUKS, Thunderbolt dock | common | Work laptop — YubiKey login, printing, recovery tools |
+| OwO-Family | Family desktop | common, file manager, virtualisation | Preserved but not exported; provisioning waits for a verified disk by-id |
+
+## Safety and permissions
+
+- User-owned dotfiles remain writable; there is no home-manager deployment.
+- `jaide` is never added to the `root` group. Network diagnostics use a
+  dedicated `net-report` group and group-restricted capability wrappers.
+- The NixOS nftables firewall remains enabled so service `openFirewall`
+  declarations and interface-specific rules compose correctly.
+- Remote access is disabled until complete cryptographic and reachability
+  settings are available. The role asserts per-host keys, bootstrap endpoints,
+  and non-empty SSH authorized keys when enabled.
+- Destructive Disko layouts use verified `/dev/disk/by-id/...` paths only.
 
 ## Usage
 
 ```bash
-# Deploy to current host (auto-detected)
-just deploy
+# Run formatter, static analysis, ShellCheck, and host evaluations
+nix flake check
 
-# Deploy to specific host
+# Check review regressions explicitly
+tests/review-regressions.sh
+
+# Deploy to the current host, or select a host explicitly
+just deploy
 just deploy host=UwU
 
-# Update flake inputs
+# Update pinned inputs
 just up
 
-# Debug deploy with full trace
+# Evaluate with a full trace
 just debug
-
-# Rollback to last commit
-git checkout HEAD^1 && just deploy
-
-# Nix REPL with flake in scope
-just repl
 ```
 
 ## USBGuard — USB Device Whitelist

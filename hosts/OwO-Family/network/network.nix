@@ -1,9 +1,14 @@
 # Network config for OwO-Family.
-{ ... }:
-
+_:
 {
-  networking = {
-    hostName = "OwO-Family";
-    networkmanager.enable = true;
-  };
+  nixos.hosts."OwO-Family" =
+    _:
+
+    {
+      networking = {
+        hostName = "OwO-Family";
+        networkmanager.enable = true;
+      };
+    }
+  ;
 }

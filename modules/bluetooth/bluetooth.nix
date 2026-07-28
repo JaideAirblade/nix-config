@@ -4,11 +4,16 @@
 # because DankMaterialShell ships its own bluetooth widget that talks
 # to bluez directly via its Services layer. Adding blueman would duplicate
 # that and conflict.
-{ ... }:
-
+_:
 {
-  hardware.bluetooth = {
-    enable = true;
-    powerOnBoot = true;
-  };
+  nixos.modules.common =
+    _:
+
+    {
+      hardware.bluetooth = {
+        enable = true;
+        powerOnBoot = true;
+      };
+    }
+  ;
 }

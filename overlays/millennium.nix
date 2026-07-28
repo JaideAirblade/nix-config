@@ -10,7 +10,8 @@
 # the flake pins.
 { millennium-input }:
 
-final: _prev: let
+final: _prev:
+let
   # Import the Millennium package Nix expressions from the flake source.
   # millennium-input is the flake output, and its source tree lives at
   # the flake's outPath under packages/nix/.
@@ -26,7 +27,7 @@ final: _prev: let
   };
 
   # Our pkgsi686Linux with minizip-ng tests disabled (sandbox test failures).
-  pkgsi686LinuxFixed = final.pkgsi686Linux.extend (iFinal: iPrev: {
+  pkgsi686LinuxFixed = final.pkgsi686Linux.extend (_iFinal: iPrev: {
     minizip-ng = iPrev.minizip-ng.overrideAttrs {
       doCheck = false;
     };
@@ -43,6 +44,7 @@ final: _prev: let
   millennium-steam = final.callPackage "${srcStr}/steam.nix" {
     inherit millennium;
   };
-in {
+in
+{
   inherit millennium-steam;
 }

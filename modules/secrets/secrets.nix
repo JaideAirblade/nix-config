@@ -74,129 +74,126 @@
 #
 #   To use a YubiKey identity with sops, the plugin is auto-discovered if
 #   age-plugin-yubikey is in PATH and the identity is in the YubiKey.
-{ pkgs, inputs, lib, ... }:
-
+{ inputs, ... }:
 {
-  # Import the sops-nix NixOS module
-  imports = [
-    inputs.sops-nix.nixosModules.sops
-  ];
+  nixos.modules.common =
+    { pkgs, lib, ... }:
 
-  # ── Smart card daemon (pcscd) ───────────────────────────────────────
-  # Required for age-plugin-yubikey to talk to the YubiKey's PIV applet.
-  # Also needed by yubikey-manager (ykman) for PIV operations.
-  services.pcscd.enable = true;
+    {
+      # Import the sops-nix NixOS module
+      imports = [
+        inputs.sops-nix.nixosModules.sops
+      ];
 
-  # ── sops-nix configuration ──────────────────────────────────────────
-  sops = {
-    # Use age (not GPG) for encryption
-    age = {
-      # The host's age key — auto-generated on first activation
-      keyFile = "/var/lib/sops-nix/key.txt";
-      # Generate the key automatically if it doesn't exist yet
-      generateKey = true;
-      # Include age-plugin-yubikey in the age plugin path so the system
-      # can use YubiKey identities for decryption if needed
-      plugins = [ pkgs.age-plugin-yubikey ];
-    };
+      # ── Smart card daemon (pcscd) ───────────────────────────────────────
+      # Required for age-plugin-yubikey to talk to the YubiKey's PIV applet.
+      # Also needed by yubikey-manager (ykman) for PIV operations.
+      services.pcscd.enable = true;
 
-    # Default secrets file — points to the nixos-secrets flake input.
-    # The root secrets.yaml is for shared secrets. Per-host secrets
-    # live in secrets/<hostname>/secrets.yaml (override per-secret with
-    # sops.secrets.<name>.sopsFile).
-    defaultSopsFile = "${inputs.nixos-secrets}/secrets.yaml";
+      # ── sops-nix configuration ──────────────────────────────────────────
+      sops = {
+        # Use age (not GPG) for encryption
+        age = {
+          # The host's age key — auto-generated on first activation
+          keyFile = "/var/lib/sops-nix/key.txt";
+          # Generate the key automatically if it doesn't exist yet
+          generateKey = true;
+          # Include age-plugin-yubikey in the age plugin path so the system
+          # can use YubiKey identities for decryption if needed
+          plugins = [ pkgs.age-plugin-yubikey ];
+        };
 
-    # Default format
-    defaultSopsFormat = "yaml";
+        # Default secrets file — points to the nixos-secrets flake input.
+        # The root secrets.yaml is for shared secrets. Per-host secrets
+        # live in secrets/<hostname>/secrets.yaml (override per-secret with
+        # sops.secrets.<name>.sopsFile).
+        defaultSopsFile = "${inputs.nixos-secrets}/secrets.yaml";
 
-    # ── Secrets ──────────────────────────────────────────────────────
+        # Default format
+        defaultSopsFormat = "yaml";
 
-    # Test secret — verifies the full pipeline works end to end.
-    secrets.test_secret = { };
+        # ── Secrets ──────────────────────────────────────────────────────
 
-    # AmneziaWG VPN keys.
-    # File: secrets/shared/amneziawg.yaml in nixos-secrets repo.
-    # Currently uses a single shared private key (awg_private_key).
-    # TODO: After adding per-host keys to sops, switch the mesh module
-    # to privateKeySecret = "awg_private_key_<hostname>" per host.
-    secrets.awg_private_key = {
-      sopsFile = "${inputs.nixos-secrets}/secrets/shared/amneziawg.yaml";
-      restartUnits = [ "wg-quick-awg0.service" ];
-    };
-    secrets.awg_preshared_key = {
-      sopsFile = "${inputs.nixos-secrets}/secrets/shared/amneziawg.yaml";
-      restartUnits = [ "wg-quick-awg0.service" ];
-    };
+        # Test secret — verifies the full pipeline works end to end.
+        secrets.test_secret = { };
 
-    # GitHub SSH key — used for git push + signing.
-    # Written to /run/secrets/ssh_key at activation, then symlinked
-    # to ~/.ssh/id_ed25519 by the activation script below.
-    secrets.ssh_key = {
-      owner = "jaide";
-      group = "users";
-      mode = "0600";
-    };
-  };
+        # Shared AmneziaWG PSK. Host private keys must be distinct and are added
+        # only when the remote-access role is configured with real endpoints.
+        secrets.awg_preshared_key = {
+          sopsFile = "${inputs.nixos-secrets}/secrets/shared/amneziawg.yaml";
+          restartUnits = [ "wg-quick-awg0.service" ];
+        };
 
-  # ── Deploy SSH key from sops to ~/.ssh/ ──────────────────────────────
-  # sops-nix writes secrets to /run/secrets/ (owned by root, tmpfs).
-  # We symlink the SSH private key into jaide's ~/.ssh/ so git can use it.
-  # The public key is NOT secret — written directly in the activation script.
-  system.activationScripts.deploy-ssh-key = lib.stringAfter [ "setupSecrets" "users" ] ''
-    if [ -f /run/secrets/ssh_key ]; then
-      mkdir -p /home/jaide/.ssh
-      chmod 700 /home/jaide/.ssh
-      ln -sfn /run/secrets/ssh_key /home/jaide/.ssh/id_ed25519
-      chown -h jaide:users /home/jaide/.ssh/id_ed25519
-      # Write the public key (not secret — needed by ssh-keygen for signing)
-      echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKozofCo3TsmA85edEMGsysfAkLf1/wWL3cv+DR0Ck04 jaide_nixos" > /home/jaide/.ssh/id_ed25519.pub
-      chown jaide:users /home/jaide/.ssh/id_ed25519.pub
-      chmod 644 /home/jaide/.ssh/id_ed25519.pub
-    fi
-  '';
+        # GitHub SSH key — used for git push + signing.
+        # Written to /run/secrets/ssh_key at activation, then symlinked
+        # to ~/.ssh/id_ed25519 by the activation script below.
+        secrets.ssh_key = {
+          owner = "jaide";
+          group = "users";
+          mode = "0600";
+        };
+      };
 
-  # ── SSH config + known_hosts (not secret, in regular config) ───────
-  # Declarative SSH config for GitHub. The private key comes from sops.
-  environment.etc."ssh/ssh_known_hosts".text = ''
-    github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
-    github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg=
-    github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SJMy/BCZfxd1nWzAOxSDPgVsmerOBYfNqltV9/hWCqBywINIR+5dIg6JTJ72pcEpEjcYgXkE2YEFXV1JHnsKgbLWNlhScqb2UmyRkQyytRLtL+38TGxkxCflmO+5Z8CSSNY7GidjMIZ7Q4zMjA2n1nGrlTDkzwDCsw+wqFPGQA179cnfGWOWRVruj16z6XyvxvjJwbz0wQZ75XK5tKSb7FNyeIEs4TT4jk+S4dhPeAUC5y+bDYirYgM4GC7uEnztnZyaVWQ7B381AK4Qdrwt51ZqExKbQpTUNn+EjqoTwvqNj4kqx5QUCI0ThS/YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk=
-  '';
+      # ── Deploy SSH key from sops to ~/.ssh/ ──────────────────────────────
+      # sops-nix writes secrets to /run/secrets/ (owned by root, tmpfs).
+      # We symlink the SSH private key into jaide's ~/.ssh/ so git can use it.
+      # The public key is NOT secret — written directly in the activation script.
+      system.activationScripts.deploy-ssh-key = lib.stringAfter [ "setupSecrets" "users" ] ''
+        if [ -f /run/secrets/ssh_key ]; then
+          install -d -m 0700 -o jaide -g users /home/jaide/.ssh
+          ln -sfn /run/secrets/ssh_key /home/jaide/.ssh/id_ed25519
+          chown -h jaide:users /home/jaide/.ssh/id_ed25519
+          # Write the public key (not secret — needed by ssh-keygen for signing)
+          echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKozofCo3TsmA85edEMGsysfAkLf1/wWL3cv+DR0Ck04 jaide_nixos" > /home/jaide/.ssh/id_ed25519.pub
+          chown jaide:users /home/jaide/.ssh/id_ed25519.pub
+          chmod 644 /home/jaide/.ssh/id_ed25519.pub
+        fi
+      '';
 
-  # ── Git config: SSH for GitHub + signing ────────────────────────────
-  # Switch from HTTPS (gh credential helper) to SSH for GitHub.
-  # The private key comes from sops (deployed to ~/.ssh/id_ed25519 above).
-  # Signing is done with the same SSH key.
-  programs.git.config = {
-    gpg.format = "ssh";
-    commit.gpgsign = true;
-    user.signingkey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKozofCo3TsmA85edEMGsysfAkLf1/wWL3cv+DR0Ck04";
-    # Use SSH instead of HTTPS for GitHub
-    url."git@github.com:".insteadOf = "https://github.com/";
-    # Allow git to verify SSH signatures locally
-    gpg.ssh.allowedSignersFile = "/etc/git/allowed_signers";
-  };
+      # ── SSH config + known_hosts (not secret, in regular config) ───────
+      # Declarative SSH config for GitHub. The private key comes from sops.
+      environment.etc."ssh/ssh_known_hosts".text = ''
+        github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
+        github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg=
+        github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SJMy/BCZfxd1nWzAOxSDPgVsmerOBYfNqltV9/hWCqBywINIR+5dIg6JTJ72pcEpEjcYgXkE2YEFXV1JHnsKgbLWNlhScqb2UmyRkQyytRLtL+38TGxkxCflmO+5Z8CSSNY7GidjMIZ7Q4zMjA2n1nGrlTDkzwDCsw+wqFPGQA179cnfGWOWRVruj16z6XyvxvjJwbz0wQZ75XK5tKSb7FNyeIEs4TT4jk+S4dhPeAUC5y+bDYirYgM4GC7uEnztnZyaVWQ7B381AK4Qdrwt51ZqExKbQpTUNn+EjqoTwvqNj4kqx5QUCI0ThS/YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk=
+      '';
 
-  # Allowed signers file — maps email → SSH public key for signature verification.
-  # Not secret — public key + email.
-  environment.etc."git/allowed_signers".text = ''
-    mail@jaidechan.moe ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKozofCo3TsmA85edEMGsysfAkLf1/wWL3cv+DR0Ck04 jaide_nixos
-  '';
+      # ── Git config: SSH for GitHub + signing ────────────────────────────
+      # Switch from HTTPS (gh credential helper) to SSH for GitHub.
+      # The private key comes from sops (deployed to ~/.ssh/id_ed25519 above).
+      # Signing is done with the same SSH key.
+      programs.git.config = {
+        gpg.format = "ssh";
+        commit.gpgsign = true;
+        user.signingkey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKozofCo3TsmA85edEMGsysfAkLf1/wWL3cv+DR0Ck04";
+        # Use SSH instead of HTTPS for GitHub
+        url."git@github.com:".insteadOf = "https://github.com/";
+        # Allow git to verify SSH signatures locally
+        gpg.ssh.allowedSignersFile = "/etc/git/allowed_signers";
+      };
 
-  # ── CLI tools for managing secrets ──────────────────────────────────
-  environment.systemPackages = [
-    pkgs.sops                 # SOPS CLI — encrypt/edit/decrypt secrets
-    pkgs.age                  # age CLI — key generation, manual encrypt/decrypt
-    pkgs.age-plugin-yubikey  # YubiKey-backed age identities
-    pkgs.yubikey-manager     # ykman CLI — PIV/OTP/FIDO management
-  ];
+      # Allowed signers file — maps email → SSH public key for signature verification.
+      # Not secret — public key + email.
+      environment.etc."git/allowed_signers".text = ''
+        mail@jaidechan.moe ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKozofCo3TsmA85edEMGsysfAkLf1/wWL3cv+DR0Ck04 jaide_nixos
+      '';
 
-  # ── YubiKey age identity for sops ───────────────────────────────────
-  # sops needs to know where to find age identities for decrypting/editing
-  # secrets as a regular user (no sudo). This file contains the YubiKey
-  # plugin identity strings — one per line, one for each YubiKey.
-  # The actual private keys live on the YubiKeys (never on disk).
-  # When sops tries to decrypt, age-plugin-yubikey is invoked, prompts for
-  # PIN + touch, and does the crypto on the YubiKey.
-  environment.sessionVariables.SOPS_AGE_KEY_FILE = "/home/jaide/.config/sops/age/keys.txt";
+      # ── CLI tools for managing secrets ──────────────────────────────────
+      environment.systemPackages = [
+        pkgs.sops # SOPS CLI — encrypt/edit/decrypt secrets
+        pkgs.age # age CLI — key generation, manual encrypt/decrypt
+        pkgs.age-plugin-yubikey # YubiKey-backed age identities
+        pkgs.yubikey-manager # ykman CLI — PIV/OTP/FIDO management
+      ];
+
+      # ── YubiKey age identity for sops ───────────────────────────────────
+      # sops needs to know where to find age identities for decrypting/editing
+      # secrets as a regular user (no sudo). This file contains the YubiKey
+      # plugin identity strings — one per line, one for each YubiKey.
+      # The actual private keys live on the YubiKeys (never on disk).
+      # When sops tries to decrypt, age-plugin-yubikey is invoked, prompts for
+      # PIN + touch, and does the crypto on the YubiKey.
+      environment.sessionVariables.SOPS_AGE_KEY_FILE = "/home/jaide/.config/sops/age/keys.txt";
+    }
+  ;
 }

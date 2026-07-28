@@ -4,8 +4,13 @@
 # ship firmware updates through LVFS. Without fwupd running, none of those
 # updates land. `fwupdmgr get-updates` / `fwupdmgr update` are the user-facing
 # commands; a system service keeps the LVFS metadata fresh automatically.
-{ ... }:
-
+_:
 {
-  services.fwupd.enable = true;
+  nixos.modules.common =
+    _:
+
+    {
+      services.fwupd.enable = true;
+    }
+  ;
 }

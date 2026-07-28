@@ -1,14 +1,14 @@
 # Betterbird — pre-built binary from upstream (not in nixpkgs, removed due to insufficient maintainers)
 # https://www.betterbird.eu/downloads/
 # Based on community derivation by nokihe on NixOS Discourse
-{
-  lib,
-  stdenv,
-  fetchurl,
-  autoPatchelfHook,
-  patchelfUnstable,
-  wrapGAppsHook3,
-  alsa-lib,
+{ lib
+, stdenv
+, fetchurl
+, autoPatchelfHook
+, patchelfUnstable
+, wrapGAppsHook3
+, alsa-lib
+,
 }:
 
 stdenv.mkDerivation (finalAttrs: {
@@ -31,7 +31,7 @@ stdenv.mkDerivation (finalAttrs: {
   ];
 
   # Thunderbird uses "relrhack" to manually process relocations from a fixed offset
-  patchelfFlags = ["--no-clobber-old-sections"];
+  patchelfFlags = [ "--no-clobber-old-sections" ];
 
   strictDeps = true;
 
@@ -96,9 +96,9 @@ stdenv.mkDerivation (finalAttrs: {
     description = "Betterbird is a fine-tuned version of Mozilla Thunderbird, Thunderbird on steroids, if you will.";
     homepage = "https://www.betterbird.eu";
     mainProgram = "betterbird";
-    sourceProvenance = with lib.sourceTypes; [binaryNativeCode];
+    sourceProvenance = with lib.sourceTypes; [ binaryNativeCode ];
     license = lib.licenses.mpl20;
-    maintainers = with lib.maintainers; [];
-    platforms = ["x86_64-linux"];
+    maintainers = with lib.maintainers; [ ];
+    platforms = [ "x86_64-linux" ];
   };
 })

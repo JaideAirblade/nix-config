@@ -18,13 +18,18 @@
 # user the right to use system-auth unlock. SSH-key management and git
 # commit signing via 1Password are per-user concerns and are intentionally
 # NOT configured here — the user owns ~/.ssh/config and ~/.gitconfig.
-{ ... }:
-
+_:
 {
-  programs._1password.enable = true;
+  nixos.modules.common =
+    _:
 
-  programs._1password-gui = {
-    enable = true;
-    polkitPolicyOwners = [ "jaide" ];
-  };
+    {
+      programs._1password.enable = true;
+
+      programs._1password-gui = {
+        enable = true;
+        polkitPolicyOwners = [ "jaide" ];
+      };
+    }
+  ;
 }

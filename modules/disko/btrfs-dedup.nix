@@ -10,41 +10,58 @@
 #
 # Only applies to btrfs filesystems — on XFS/ext4 it's a no-op
 # (duperemove will just skip or error, which we suppress).
-{ pkgs, lib, ... }:
-
+_:
 {
-  environment.systemPackages = [ pkgs.duperemove ];
+  nixos.modules.disk =
+    { pkgs, ... }:
 
-  # Weekly deduplication — runs Sunday 4am, low priority
-  systemd.services.btrfs-dedup = {
-    description = "btrfs deduplication via duperemove";
-    serviceConfig = {
-      Type = "oneshot";
-      # Run duperemove on the key subvolumes. --dedupe=yes actually
-      # submits extents for dedup (not just a dry run).
-      # -r = recursive, --hashfile = cache hashes between runs (faster)
-      ExecStart = pkgs.writeShellScript "btrfs-dedup" ''
-        set -e
-        for dir in / /nix /home /var; do
-          if mountpoint -q "$dir" && ${pkgs.util-linux}/bin/findmnt -n -o FSTYPE "$dir" 2>/dev/null | grep -q btrfs; then
-            echo "Deduplicating $dir..."
-            ${pkgs.duperemove}/bin/duperemove -dr --dedupe=yes "$dir" 2>&1 || true
-          fi
-        done
-      '';
-      # Low priority — don't compete with real work
-      IOSchedulingClass = "idle";
-      Nice = 19;
-    };
-  };
+    {
+      environment.systemPackages = [ pkgs.duperemove ];
 
-  systemd.timers.btrfs-dedup = {
-    description = "Weekly btrfs deduplication";
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnCalendar = "Sun 04:00";
-      Persistent = true;  # run if missed (e.g. machine was off)
-      RandomizedDelaySec = "30m";  # spread out to avoid spikes
-    };
-  };
+      # Weekly deduplication — runs Sunday 4am, low priority
+      systemd.services.btrfs-dedup = {
+        description = "btrfs deduplication via duperemove";
+        serviceConfig = {
+          Type = "oneshot";
+          StateDirectory = "duperemove";
+          # Run duperemove on the key subvolumes. --dedupe=yes actually
+          # submits extents for dedup (not just a dry run).
+          # -r = recursive, --hashfile = cache hashes between runs (faster)
+          ExecStart = pkgs.writeShellScript "btrfs-dedup" ''
+            set -euo pipefail
+            targets=()
+            if ${pkgs.util-linux}/bin/findmnt -n -o FSTYPE / | grep -qx btrfs; then
+              # A recursive root scan already traverses mounted subvolumes.
+              targets=(/)
+            else
+              for dir in /nix /home /var; do
+                if ${pkgs.util-linux}/bin/mountpoint -q "$dir" && ${pkgs.util-linux}/bin/findmnt -n -o FSTYPE "$dir" | grep -qx btrfs; then
+                  targets+=("$dir")
+                fi
+              done
+            fi
+
+            if [ "''${#targets[@]}" -gt 0 ]; then
+              echo "Deduplicating: ''${targets[*]}"
+              ${pkgs.duperemove}/bin/duperemove -dr --dedupe=yes \
+                --hashfile=/var/lib/duperemove/hashes.db "''${targets[@]}"
+            fi
+          '';
+          # Low priority — don't compete with real work
+          IOSchedulingClass = "idle";
+          Nice = 19;
+        };
+      };
+
+      systemd.timers.btrfs-dedup = {
+        description = "Weekly btrfs deduplication";
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = "Sun 04:00";
+          Persistent = true; # run if missed (e.g. machine was off)
+          RandomizedDelaySec = "30m"; # spread out to avoid spikes
+        };
+      };
+    }
+  ;
 }

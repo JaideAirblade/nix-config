@@ -1,0 +1,4 @@
+# NixOS option paths are intentionally assigned where each feature is
+# documented. Flattening every repeated namespace makes large modules harder
+# to scan and would rewrite generated hardware configuration files.
+disabled = ["repeated_keys"]

@@ -8,29 +8,32 @@
 # Runtime libraries needed (from ldd):
 #   libstdc++, libssl/libcrypto, gtk3, gdk-pixbuf, cairo, glib,
 #   webkitgtk_4_1, libsoup_3, libayatana-appindicator
-{
-  lib,
-  stdenv,
-  fetchurl,
-  autoPatchelfHook,
-  zstd,
-  wrapGAppsHook3,
-  # Runtime dependencies
-  webkitgtk_4_1,
-  gtk3,
-  glib,
-  glib-networking,  # TLS/SSL for GLib networking — without this, WebKitGTK
-                    # can't load HTTPS resources and Tauri apps stay stuck
-                    # on the loading screen with blank content.
-  libsoup_3,
-  libayatana-appindicator,
-  openssl,
-  gcc-unwrapped,  # provides libstdc++.so.6
-  desktop-file-utils,  # Tauri setup hook spawns update-desktop-database
+{ lib
+, stdenv
+, fetchurl
+, autoPatchelfHook
+, zstd
+, wrapGAppsHook3
+, # Runtime dependencies
+  webkitgtk_4_1
+, gtk3
+, glib
+, glib-networking
+, # TLS/SSL for GLib networking — without this, WebKitGTK
+  # can't load HTTPS resources and Tauri apps stay stuck
+  # on the loading screen with blank content.
+  libsoup_3
+, libayatana-appindicator
+, openssl
+, gcc-unwrapped
+, # provides libstdc++.so.6
+  desktop-file-utils
+, # Tauri setup hook spawns update-desktop-database
   # GStreamer plugins — WebKitGTK uses GStreamer for image/media decoding.
   # Without gst-plugins-good, images don't render (broken image icon).
   # All GStreamer plugins are under gst_all_1 in nixpkgs.
-  gst_all_1,
+  gst_all_1
+,
 }:
 
 stdenv.mkDerivation (finalAttrs: {
@@ -52,12 +55,12 @@ stdenv.mkDerivation (finalAttrs: {
     webkitgtk_4_1
     gtk3
     glib
-    glib-networking  # TLS/SSL support — WebKitGTK needs this to load resources
+    glib-networking # TLS/SSL support — WebKitGTK needs this to load resources
     libsoup_3
     libayatana-appindicator
     openssl
-    gcc-unwrapped  # libstdc++.so.6
-    desktop-file-utils  # update-desktop-database at runtime
+    gcc-unwrapped # libstdc++.so.6
+    desktop-file-utils # update-desktop-database at runtime
     # GStreamer plugins — WebKitGTK needs these for image/media decoding.
     gst_all_1.gst-plugins-base
     gst_all_1.gst-plugins-good
@@ -123,9 +126,9 @@ stdenv.mkDerivation (finalAttrs: {
     description = "Private, markdown-based note-taking app with a focus on speed, simplicity and data ownership";
     homepage = "https://octarine.app";
     mainProgram = "octarine";
-    sourceProvenance = with lib.sourceTypes; [binaryNativeCode];
+    sourceProvenance = with lib.sourceTypes; [ binaryNativeCode ];
     license = lib.licenses.unfree;
-    maintainers = with lib.maintainers; [];
-    platforms = ["x86_64-linux"];
+    maintainers = with lib.maintainers; [ ];
+    platforms = [ "x86_64-linux" ];
   };
 })

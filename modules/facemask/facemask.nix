@@ -15,40 +15,46 @@
 # BROWSER NOTE: Firefox has a known bug where it cannot detect v4l2loopback
 # virtual cameras (Red Hat bug #2412269). Use Chromium for any web-based
 # camera flow (age verification, etc.).
-{ config, lib, pkgs, ... }:
-
+_:
 {
-  # v4l2loopback kernel module — creates virtual video device(s).
-  # exclusive_caps=1 makes the device advertise capabilities only when a
-  # producer is actively writing, which helps some picky apps detect it.
-  boot.extraModulePackages = [
-    config.boot.kernelPackages.v4l2loopback
-  ];
+  # UwU-only virtual-camera stack; avoid loading v4l2loopback on every host.
+  nixos.modules.personal =
+    { config, lib, pkgs, ... }:
 
-  # Load at boot. We want the virtual camera ready at all times.
-  boot.kernelModules = [ "v4l2loopback" ];
+    {
+      # v4l2loopback kernel module — creates virtual video device(s).
+      # exclusive_caps=1 makes the device advertise capabilities only when a
+      # producer is actively writing, which helps some picky apps detect it.
+      boot.extraModulePackages = [
+        config.boot.kernelPackages.v4l2loopback
+      ];
 
-  # Module parameters:
-  #   video_nr=10  — claim /dev/video10 specifically (avoids clashing with
-  #                  real webcams which usually get /dev/video0..4)
-  #   exclusive_caps=1 — only advertise V4L2_CAP_STREAMING when a writer is
-  #                      attached (helps Chromium detect it as a real camera)
-  #   card_label="DeepLiveCam" — shows up in apps as this name
-  boot.extraModprobeConfig = ''
-    options v4l2loopback video_nr=10 exclusive_caps=1 card_label="DeepLiveCam"
-  '';
+      # Load at boot. We want the virtual camera ready at all times.
+      boot.kernelModules = [ "v4l2loopback" ];
 
-  # System-level packages that the face swap tools depend on but are
-  # useful to have globally too.
-  environment.systemPackages = with pkgs; [
-    v4l-utils   # v4l2-ctl — inspect/control virtual and real cameras
-    python311   # Deep-Live-Cam (works with 3.11+; 3.10 is EOL in nixpkgs-unstable)
-  ];
+      # Module parameters:
+      #   video_nr=10  — claim /dev/video10 specifically (avoids clashing with
+      #                  real webcams which usually get /dev/video0..4)
+      #   exclusive_caps=1 — only advertise V4L2_CAP_STREAMING when a writer is
+      #                      attached (helps Chromium detect it as a real camera)
+      #   card_label="DeepLiveCam" — shows up in apps as this name
+      boot.extraModprobeConfig = ''
+        options v4l2loopback video_nr=10 exclusive_caps=1 card_label="DeepLiveCam"
+      '';
 
-  # NixOS defaults extraOutputsToInstall to ["man" "info" "doc"], which
-  # forces building python311's doc output. That fails on current
-  # nixpkgs-unstable due to a docutils 0.22.4 regression (nixpkgs #499166).
-  # Dropping "doc" from the extra outputs skips the broken derivation.
-  # Restore to ["man" "info" "doc"] once nixpkgs #499166 is fixed.
-  environment.extraOutputsToInstall = lib.mkForce [ "man" "info" ];
+      # System-level packages that the face swap tools depend on but are
+      # useful to have globally too.
+      environment.systemPackages = with pkgs; [
+        v4l-utils # v4l2-ctl — inspect/control virtual and real cameras
+        python311 # Deep-Live-Cam (works with 3.11+; 3.10 is EOL in nixpkgs-unstable)
+      ];
+
+      # NixOS defaults extraOutputsToInstall to ["man" "info" "doc"], which
+      # forces building python311's doc output. That fails on current
+      # nixpkgs-unstable due to a docutils 0.22.4 regression (nixpkgs #499166).
+      # Dropping "doc" from the extra outputs skips the broken derivation.
+      # Restore to ["man" "info" "doc"] once nixpkgs #499166 is fixed.
+      environment.extraOutputsToInstall = lib.mkForce [ "man" "info" ];
+    }
+  ;
 }

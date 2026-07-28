@@ -10,27 +10,32 @@
 #      out to for pixel-picker screenshots and pixel-trigger color checks.
 #   4. Ships a udev rule that makes /dev/uinput group-owned by `uinput` with
 #      mode 0660.
-{ pkgs, lib, config, ... }:
-
+_:
 {
-  # --- Group membership --------------------------------------------------------
-  users.users."jaide".extraGroups = [ "input" "uinput" ];
-  users.groups."uinput" = {};
+  nixos.hosts."UwU" =
+    { pkgs, ... }:
 
-  # --- udev rule for /dev/uinput ----------------------------------------------
-  services.udev.extraRules = ''
-    KERNEL=="uinput", GROUP="uinput", MODE="0660"
-  '';
+    {
+      # --- Group membership --------------------------------------------------------
+      users.users."jaide".extraGroups = [ "input" "uinput" ];
+      users.groups."uinput" = { };
 
-  # --- Package + runtime deps --------------------------------------------------
-  environment.systemPackages = with pkgs; [
-    # The app itself (binary + .desktop file)
-    macrotool-gtk4
+      # --- udev rule for /dev/uinput ----------------------------------------------
+      services.udev.extraRules = ''
+        KERNEL=="uinput", GROUP="uinput", MODE="0660"
+      '';
 
-    # Screen capture — the app shells out to `grim` for pixel picker + pixel
-    # trigger screenshots. On wlroots compositors (Mango) this is the native
-    # path.
-    grim
-    slurp
-  ];
+      # --- Package + runtime deps --------------------------------------------------
+      environment.systemPackages = with pkgs; [
+        # The app itself (binary + .desktop file)
+        macrotool-gtk4
+
+        # Screen capture — the app shells out to `grim` for pixel picker + pixel
+        # trigger screenshots. On wlroots compositors (Mango) this is the native
+        # path.
+        grim
+        slurp
+      ];
+    }
+  ;
 }
