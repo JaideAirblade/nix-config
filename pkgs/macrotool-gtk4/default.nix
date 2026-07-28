@@ -27,8 +27,8 @@ rustPlatform.buildRustPackage (_finalAttrs: {
   src = fetchFromGitHub {
     owner = "JaideAirblade";
     repo = "macrotool-gtk4";
-    rev = "1083532a956c36725c320176219ce14f97513ac4";
-    hash = "sha256:1mxdg0a8970iny0kw3vf65f2vjvbq83y0ll0j4azxadrnd65ck6v";
+    rev = "213c139ec268a0109ca9b13f2cbd923dcc150287";
+    hash = "sha256:13fadflnqv36f9hgbn7v1dliip6pfnlg6spclr610d3n46dscj0j";
   };
 
   cargoHash = "sha256-cDSE+EidwMhuQl+B6brHeo3/LsKuVd+TOi+cZyOnnRk=";
