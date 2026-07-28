@@ -53,6 +53,7 @@ _:
       # --- Tools / launchers ---------------------------------------------------
       environment.systemPackages = with pkgs; [
         mangohud # performance overlay (FPS, frametime, CPU/GPU temp) — set MANGOHUD=1
+        mangojuice # GUI editor for MangoHud's appearance, layout, and metrics
         vkbasalt # post-processing chain (CAS sharpening, SMAA, etc.) — set VKBASALT=1
         heroic # Heroic Games Launcher: Epic / GOG / Amazon / SCE games
         itch # itch.io desktop client — indie game store + launcher
