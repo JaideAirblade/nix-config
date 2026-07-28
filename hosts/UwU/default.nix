@@ -93,12 +93,8 @@
       config.nixosModules.virtualisation-ad-lab
 
       # ── Disko — declarative disk layout (btrfs subvolumes) ──────────
-      # ENABLED on the btrfs-reinstall branch: the live ISO reinstall
-      # partitions the Samsung 990 PRO via disko, so its partlabels
-      # (disk-main-ESP, disk-main-root) will exist and match.
-      # Do NOT cherry-pick this onto master before the reinstall —
-      # switching the current manually-partitioned disk to a disko
-      # generation breaks /boot mounting (partlabel mismatch).
+      # The Samsung 990 PRO was partitioned by disko via nixos-anywhere
+      # (btrfs subvolumes: @, @/nix, @/home, @/var, @/snapshots).
       inputs.disko.nixosModules.disko
       config.nixosModules.disko
       config.nixosModules.disko-btrfs-dedup
