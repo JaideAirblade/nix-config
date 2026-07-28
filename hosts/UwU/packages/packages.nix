@@ -2,7 +2,7 @@
 #
 # Imports the shared packages subfolders (file-manager, onepassword,
 # network-tools, media) that UwU wants, and adds UwU-only GUI apps that
-# the work host doesn't need (Discord+Equicord, Seanime, Geary, Chromium
+# the work host doesn't need (Equibop, Seanime, Geary, Chromium
 # for WebHID, etc.).
 _:
 {
@@ -32,27 +32,27 @@ _:
           startupNotify = true;
         }))
 
-        # Discord — force XWayland via desktop entry override.
+        # Equibop — force XWayland via desktop entry override.
         # NIXOS_OZONE_WL=1 (set globally in theming.nix) makes Electron apps
-        # try native Wayland. On NVIDIA + MangoWM, Discord flickers badly in
+        # try native Wayland. On NVIDIA + MangoWM, Equibop flickers badly in
         # native Wayland mode (libEGL dri2 screen failures + compositor
         # re-allocation on every frame). XWayland is stable. hiPrio shadows
         # the upstream .desktop file.
         (lib.hiPrio (makeDesktopItem {
-          name = "discord";
-          desktopName = "Discord";
+          name = "equibop";
+          desktopName = "Equibop";
           genericName = "Internet Messenger";
-          comment = "Discord — with Equicord client mod";
-          icon = "discord";
+          comment = "Discord client with Equicord preinstalled";
+          icon = "equibop";
           categories = [ "Network" "InstantMessaging" ];
-          exec = "discord --ozone-platform=x11";
+          exec = "equibop --ozone-platform=x11";
           startupNotify = true;
           mimeTypes = [ "x-scheme-handler/discord" ];
         }))
 
-        # Discord with Equicord (client mod — plugins, custom CSS, etc.)
-        # withEquicord patches the stock Discord client via the equicord package.
-        (discord.override { withEquicord = true; })
+        # Equibop — Discord desktop client with Equicord preinstalled.
+        # It is based on Vesktop and has native Linux improvements.
+        equibop
 
         # Readest — modern ebook reader.
         readest
