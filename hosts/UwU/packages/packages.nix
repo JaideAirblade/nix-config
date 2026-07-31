@@ -90,6 +90,10 @@ _:
         }))
         pear-desktop
 
+        # Helium — private Chromium-based browser. Keep this declaration in
+        # the flake so rebuilds cannot silently drop the browser or its profile.
+        helium-bin
+
         # NymVPN's Flatpak splash window triggers the GNOME 49 Glycin SVG
         # loader crash on this host. The main window works with --nosplash.
         (lib.hiPrio (makeDesktopItem {
