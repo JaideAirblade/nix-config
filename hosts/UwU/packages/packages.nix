@@ -14,6 +14,14 @@ _:
       # osint, media) are imported by the host entry point (default.nix)
       # via config.nixosModules.packages-* — not via imports here.
 
+      # DMS searches the system Flatpak export before /run/current-system in
+      # XDG_DATA_DIRS. Shadow the stock NymVPN entry in XDG_DATA_HOME so the
+      # launcher resolves our no-splash entry instead of the crashing one.
+      systemd.user.tmpfiles.rules = [
+        "d %h/.local/share/applications 0755 - - -"
+        "L+ %h/.local/share/applications/net.nymtech.NymVPN.desktop - - - - /run/current-system/sw/share/applications/net.nymtech.NymVPN.desktop"
+      ];
+
       environment.systemPackages = with pkgs; [
         # IVPN UI desktop entry override — force X11 + --disable-gpu.
         # The stock ivpn-ui wrapper honours NIXOS_OZONE_WL=1 (set globally in
@@ -98,8 +106,15 @@ _:
         # the flake so rebuilds cannot silently drop the browser or its profile.
         helium-bin
 
-        # NymVPN's Flatpak splash window triggers the GNOME 49 Glycin SVG
-        # loader crash on this host. The main window works with --nosplash.
+        # NymVPN GUI workarounds (GNOME 49 Flatpak runtime):
+        # 1. --nosplash avoids the splash window, which historically
+        #    triggered the glycin SVG loader crash.
+        # 2. REQUIRED: ~/.var/app/net.nymtech.NymVPN/config/gtk-3.0/settings.ini
+        #    pins gtk-icon-theme-name=Adwaita. With the host Papirus theme
+        #    (a /nix/store symlink farm exposed via /run/host/share/icons),
+        #    gdk-pixbuf 2.44's sandboxed glycin loader dies on the
+        #    image-missing.svg fallback and GTK aborts the whole app before
+        #    the window appears. (Verified 2026-07-31.)
         (lib.hiPrio (makeDesktopItem {
           name = "net.nymtech.NymVPN";
           desktopName = "NymVPN";
@@ -243,6 +258,11 @@ _:
         '';
       };
 
+      # Nym creates and configures its TUN interfaces itself. If NetworkManager
+      # adopts them as external profiles, it rebuilds the links and removes
+      # Nym's table-333 routes shortly after they are installed.
+      networking.networkmanager.unmanaged = [ "interface-name:tun*" ];
+
       # NymVPN's daemon expects these networking tools in its isolated
       # systemd PATH on NixOS.
       systemd.services.nym-vpnd = {
@@ -250,6 +270,7 @@ _:
         wants = [ "network-online.target" ];
         after = [ "network-online.target" "NetworkManager.service" ];
         wantedBy = [ "multi-user.target" ];
+
         path = [
           pkgs.iproute2
           pkgs.iptables

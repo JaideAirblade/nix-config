@@ -34,12 +34,13 @@ stdenvNoCC.mkDerivation rec {
 
   installPhase = ''
     install -Dm755 nym-vpnd "$out/bin/nym-vpnd"
+    install -Dm755 nym-vpnc "$out/bin/nym-vpnc"
     install -Dm755 nym-exclude "$out/bin/nym-exclude"
     install -Dm755 nym-socks5-proxy "$out/bin/nym-socks5-proxy"
   '';
 
   meta = {
-    description = "NymVPN daemon and supporting core tools";
+    description = "NymVPN daemon, command-line client, and supporting core tools";
     homepage = "https://github.com/nymtech/nym-vpn-client";
     changelog = "https://github.com/nymtech/nym-vpn-client/releases/tag/nym-vpn-v${version}";
     license = lib.licenses.gpl3Only;

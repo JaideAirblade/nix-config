@@ -28,6 +28,18 @@ _:
         "/var/lib/flatpak/exports/share"
       ];
 
+      # Sober needs direct access to input devices. Apply the per-user Flatpak
+      # override idempotently at login instead of relying on mutable manual state.
+      systemd.user.services.sober-flatpak-input-override = {
+        description = "Grant Sober access to input devices";
+        wantedBy = [ "default.target" ];
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = "${pkgs.flatpak}/bin/flatpak override --user --device=input org.vinegarhq.Sober";
+          RemainAfterExit = true;
+        };
+      };
+
       # Network operations must not run during NixOS activation: activation
       # has no network guarantee and must not mutate unrelated user apps.
       systemd.services.flatpak-management = {

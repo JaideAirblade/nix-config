@@ -3,15 +3,13 @@
 # - adw-gtk3: GTK3 port of libadwaita, so GTK3 apps match the libadwaita
 #   look used by GTK4/DMS. The user picks `adw-gtk3` or `adw-gtk3-dark`
 #   via their own gsettings/gtk config (kept writable — no home-manager).
-# - qogir-theme + qogir-icon-theme: the GTK widget theme + icon theme the
-#   user's ~/.config/gtk-3.0/settings.ini references (gtk-icon-theme-name=Qogir,
-#   gtk-cursor-theme-name=Qogir). These must land in
-#   /run/current-system/sw/share/{themes,icons} for GTK to find them;
-#   otherwise apps silently fall back to defaults. The icon package also
-#   ships the Qogir cursor theme (cursors live under icons/ in nixpkgs).
-#   (The widget theme switched to adw-gtk3-dark because DMS's matugen
-#   CSS overrides libadwaita variable names — Qogir's hardcoded light
-#   styling was bleeding through in dark mode.)
+# - qogir-icon-theme: the icon/cursor theme the user's
+#   ~/.config/gtk-3.0/settings.ini may reference (gtk-icon-theme-name=Qogir,
+#   gtk-cursor-theme-name=Qogir). It must land in
+#   /run/current-system/sw/share/icons for GTK to find it; otherwise apps
+#   silently fall back to defaults. The widget theme is adw-gtk3-dark because
+#   DMS's matugen CSS overrides libadwaita variable names; the old Qogir GTK2
+#   widget theme was removed from nixpkgs with its unmaintained GTK2 engine.
 # - kdePackages.qt6ct: Qt6 Configuration Tool. We use the vanilla nixpkgs
 #   build (no KDE-patches variant exists in nixpkgs; see
 #   https://github.com/NixOS/nixpkgs/issues/489021 for the KDE-app theming
@@ -38,7 +36,6 @@ _:
 
       environment.systemPackages = with pkgs; [
         adw-gtk3
-        qogir-theme
         qogir-icon-theme
         kdePackages.qt6ct
 
