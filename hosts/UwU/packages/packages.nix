@@ -220,6 +220,29 @@ _:
         };
       };
 
+      # /home is a separate Btrfs subvolume, so provision its Snapper
+      # .snapshots subvolume before the timeline/cleanup services run.
+      # This is idempotent and never replaces an existing snapshot tree.
+      systemd.services.snapper-home-subvolume = {
+        description = "Provision the /home Snapper subvolume";
+        wantedBy = [ "local-fs.target" ];
+        requires = [ "home.mount" ];
+        after = [ "home.mount" ];
+        before = [ "snapper-timeline.service" "snapper-cleanup.service" ];
+        path = [ pkgs.btrfs-progs pkgs.coreutils ];
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+        };
+        script = ''
+          if [ ! -e /home/.snapshots ]; then
+            btrfs subvolume create /home/.snapshots
+          fi
+          chown root:root /home/.snapshots
+          chmod 755 /home/.snapshots
+        '';
+      };
+
       # NymVPN's daemon expects these networking tools in its isolated
       # systemd PATH on NixOS.
       systemd.services.nym-vpnd = {
