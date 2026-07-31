@@ -2,7 +2,7 @@
 #
 # Imports the shared packages subfolders (file-manager, onepassword,
 # network-tools, media) that UwU wants, and adds UwU-only GUI apps that
-# the work host doesn't need (Equibop, Seanime, Geary, Chromium
+# the work host doesn't need (Legcord, Seanime, Geary, Chromium
 # for WebHID, etc.).
 _:
 {
@@ -32,29 +32,29 @@ _:
           startupNotify = true;
         }))
 
-        # Equibop — force XWayland via desktop entry override.
+        # Legcord — force XWayland via desktop entry override.
         # NIXOS_OZONE_WL=1 (set globally in theming.nix) makes Electron apps
-        # try native Wayland. On NVIDIA + MangoWM, Equibop flickers badly in
+        # try native Wayland. On NVIDIA + MangoWM, Legcord flickers badly in
         # native Wayland mode (libEGL dri2 screen failures + compositor
         # re-allocation on every frame). XWayland is stable. hiPrio shadows
         # the upstream .desktop file.
         (lib.hiPrio (makeDesktopItem {
-          name = "equibop";
-          desktopName = "Equibop";
+          name = "legcord";
+          desktopName = "Legcord";
           genericName = "Internet Messenger";
-          comment = "Discord client with Equicord preinstalled";
-          icon = "equibop";
+          comment = "Lightweight, alternative desktop client for Discord";
+          icon = "legcord";
           categories = [ "Network" "InstantMessaging" ];
-          exec = "equibop --ozone-platform=x11";
+          exec = "legcord --ozone-platform=x11 %U";
           startupNotify = true;
           mimeTypes = [ "x-scheme-handler/discord" ];
         }))
 
-        # Equibop — Discord desktop client with Equicord preinstalled.
-        # It is based on Vesktop and has native Linux improvements.
-        equibop
+        # Legcord 1.3.0 — packaged from the upstream AppImage until nixpkgs
+        # catches up (the pinned nixpkgs package is currently 1.2.4).
+        legcord
 
-        # Orbolay — native Discord voice overlay. Keep it alongside Equibop;
+        # Orbolay — native Discord voice overlay. Keep it alongside Legcord;
         # it is a separate overlay utility, not a Discord client replacement.
         orbolay
 

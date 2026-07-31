@@ -5,6 +5,7 @@ pkgs: {
   octarine = pkgs.callPackage ./octarine { };
   hytale = pkgs.callPackage ./hytale { };
   helium-bin = pkgs.callPackage ./helium-bin { };
+  legcord = pkgs.callPackage ./legcord { };
   orbolay = pkgs.callPackage ./orbolay { };
   net-report = pkgs.callPackage ./net-report { };
   nym-vpnd = pkgs.callPackage ./nym-vpnd { };
