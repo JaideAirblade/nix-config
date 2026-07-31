@@ -474,6 +474,15 @@ _:
       # --- Matugen config -----------------------------------------------------
       # Placed at ~/.config/matugen/config.toml so manual `matugen image`
       # runs also regenerate the Steam theme colors.
+      #
+      # The Pear template is the full Catppuccin Mocha selector structure
+      # with DMS palette tokens substituted (kept as a tracked repo file so
+      # the integration survives refactors; see the [templates.pear-catppuccin]
+      # block below). Pear imports the rendered output at
+      # ~/.config/pear-desktop/dms-theme.css; keeping the Catppuccin
+      # structure preserves its delayed artwork/preview rendering.
+      pearTemplate = ./pear-catppuccin-dms.css;
+
       matugenConfig = pkgs.writeText "config.toml" ''
         [config]
 
@@ -481,6 +490,10 @@ _:
         input_path = '~/.config/matugen/templates/millennium-material.css'
         output_path = '~/.local/share/Steam/millennium/themes/Material-Theme/css/main/colors/matugen.css'
         post_hook = '${syncScript}/bin/sync-millennium-theme'
+
+        [templates.pear-catppuccin]
+        input_path = '~/.config/matugen/templates/pear-catppuccin-dms.css'
+        output_path = '~/.config/pear-desktop/dms-theme.css'
       '';
     in
     {
@@ -501,6 +514,7 @@ _:
           ${pkgs.coreutils}/bin/mkdir -p "$HOME/.config/matugen/templates"
           ${pkgs.coreutils}/bin/ln -sf "${matugenConfig}" "$HOME/.config/matugen/config.toml"
           ${pkgs.coreutils}/bin/ln -sf "${matugenTemplate}" "$HOME/.config/matugen/templates/millennium-material.css"
+          ${pkgs.coreutils}/bin/ln -sf "${pearTemplate}" "$HOME/.config/matugen/templates/pear-catppuccin-dms.css"
         '';
         script = "${syncScript}/bin/sync-millennium-theme";
       };
