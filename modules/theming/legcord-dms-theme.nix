@@ -210,6 +210,21 @@ _:
           --background-surface-high: {surface_high};
           --background-surface-higher: {surface_highest};
         }}
+
+        /* Discord added container-type:inline-size to .sidebarList__5e434
+         * (around 2026-07-30). The sidebar is now the nearest query container
+         * for its descendants, which shadows midnight's @container body
+         * style(--small-user-panel: on) block for the user panel inside it.
+         * These ungated duplicates of that block restore the docking; placed
+         * last so they win the cascade on equal specificity. */
+        .panels__5e434 {{
+          right: 0;
+          left: unset;
+          width: calc(var(--custom-guild-sidebar-width) - var(--custom-guild-list-width));
+        }}
+        .guilds__5e434 {{
+          margin-bottom: 0;
+        }}
         """
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
