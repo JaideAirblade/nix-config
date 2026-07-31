@@ -46,6 +46,8 @@ _:
             desiredFlathubApps = [
               "org.vinegarhq.Sober"
               "app.twintaillauncher.ttl"
+              # NymVPN GUI client; the nym-vpnd daemon is packaged in Nix.
+              "net.nymtech.NymVPN"
             ];
             desiredApps = builtins.concatStringsSep " " desiredFlathubApps;
           in

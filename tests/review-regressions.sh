@@ -80,7 +80,7 @@ if "root" in groups:
     raise SystemExit("FAIL: jaide must not be added to the root group")
 PY
 
-for wrapper in net-report-iw net-report-tcpdump net-report-aireplay; do
+for wrapper in net-report-ip net-report-iw net-report-tcpdump net-report-aireplay; do
   group=$(nix eval --raw ".#nixosConfigurations.UwU.config.security.wrappers.$wrapper.group")
   assert_eq net-report "$group" "$wrapper group"
 done

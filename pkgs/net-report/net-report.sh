@@ -49,7 +49,13 @@ SECTIONS=(
     interfaces
     ethtool
     wifi
-    wifi-scan
+    # wifi-scan — disabled: ath12k (WCN7850 WiFi 7) can inject deauth frames but
+    # cannot capture other devices' frames in monitor mode on 5GHz, so the
+    # deauth+probe-sniff approach finds nothing. The code is kept for when a
+    # compatible WiFi adapter (e.g. ath9k/rt2800) is available. To re-enable:
+    # uncomment this line and ensure the net-report-{ip,iw,tcpdump,aireplay}
+    # capability wrappers are deployed (already in modules/network/network.nix).
+    # wifi-scan
     routes
     dns
     neighbors
@@ -116,7 +122,12 @@ EOF
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --json)        JSON=yes; shift ;;
-        --section)    SECTION="$2"; shift 2 ;;
+        --section)    if [[ $# -lt 2 ]]; then
+                            echo "Error: --section requires a section name" >&2
+                            echo "Use --list-sections to see available sections" >&2
+                            exit 1
+                       fi
+                       SECTION="$2"; shift 2 ;;
         --verbose)    VERBOSE=yes; shift ;;
         --no-trace)   TRACE=no; shift ;;
         --no-public)  PUBLIC=no; shift ;;
@@ -714,13 +725,17 @@ section_wifi-scan() {
     # Check if we have the needed capabilities (cap_net_admin + cap_net_raw)
     # These can be granted via security.wrappers in NixOS config, or via setcap
     # Check for wrapper binaries first (NixOS security.wrappers puts them in /run/wrappers/bin)
-    local IW_BIN TCPDUMP_BIN AIREPLAY_BIN
+    local IW_BIN TCPDUMP_BIN AIREPLAY_BIN IP_BIN
     local has_admin=no has_raw=no
     if [[ -x /run/wrappers/bin/net-report-iw ]]; then
         IW_BIN=/run/wrappers/bin/net-report-iw
-        has_admin=yes; has_raw=yes
     else
         IW_BIN=$(command -v iw 2>/dev/null || true)
+    fi
+    if [[ -x /run/wrappers/bin/net-report-ip ]]; then
+        IP_BIN=/run/wrappers/bin/net-report-ip
+    else
+        IP_BIN=$(command -v ip 2>/dev/null || true)
     fi
     if [[ -x /run/wrappers/bin/net-report-tcpdump ]]; then
         TCPDUMP_BIN=/run/wrappers/bin/net-report-tcpdump
@@ -733,14 +748,17 @@ section_wifi-scan() {
         AIREPLAY_BIN=$(command -v aireplay-ng 2>/dev/null || true)
     fi
 
-    # Also check via capsh or root
-    if [[ "$has_admin" != "yes" ]]; then
-        if command -v capsh &>/dev/null; then
-            capsh --print 2>/dev/null | grep -q cap_net_admin && has_admin=yes
-            capsh --print 2>/dev/null | grep -q cap_net_raw && has_raw=yes
-        elif [[ "$(id -u)" -eq 0 ]]; then
-            has_admin=yes; has_raw=yes
-        fi
+    # The monitor netdev needs privileged `iw` for creation and privileged `ip`
+    # for IFF_UP. Merely finding the binaries is not enough: the old code used
+    # an unprivileged ip, hid its EPERM error, and then tried to capture on a
+    # DOWN interface.
+    if [[ "$(id -u)" -eq 0 ]]; then
+        has_admin=yes; has_raw=yes
+    elif [[ "$IW_BIN" == /run/wrappers/bin/net-report-iw \
+        && "$IP_BIN" == /run/wrappers/bin/net-report-ip \
+        && "$TCPDUMP_BIN" == /run/wrappers/bin/net-report-tcpdump \
+        && "$AIREPLAY_BIN" == /run/wrappers/bin/net-report-aireplay ]]; then
+        has_admin=yes; has_raw=yes
     fi
 
     if [[ "$has_admin" != "yes" || "$has_raw" != "yes" ]]; then
@@ -751,7 +769,7 @@ section_wifi-scan() {
         echo ""
         echo -e "  ${B}Option 2:${R} Rebuild with security.wrappers (already in network.nix)"
         echo -e "    ${DIM}sudo nixos-rebuild switch --flake .#UwU${R}"
-        echo -e "    ${DIM}Then the wrappers appear at /run/wrappers/bin/net-report-*${R}"
+        echo -e "    ${DIM}Then the ip/iw/tcpdump/aireplay wrappers appear at /run/wrappers/bin/net-report-*${R}"
         echo ""
         echo -e "  ${B}Option 3:${R} Set capabilities on the tools directly"
         echo -e "    ${DIM}sudo setcap cap_net_admin,cap_net_raw+eip \$(which iw)${R}"
@@ -763,6 +781,10 @@ section_wifi-scan() {
     # Need tools
     if [[ -z "$IW_BIN" ]]; then
         echo -e "  ${RD}iw not found${R} — add pkgs.iw to environment.systemPackages"
+        return
+    fi
+    if [[ -z "$IP_BIN" ]]; then
+        echo -e "  ${RD}ip not found${R} — add pkgs.iproute2 to the package"
         return
     fi
     if [[ -z "$AIREPLAY_BIN" ]]; then
@@ -817,136 +839,239 @@ section_wifi-scan() {
     # Clean up any existing monitor interface
     "$IW_BIN" dev "$mon_iface" del 2>/dev/null || true
 
-    # Create monitor interface
-    if ! "$IW_BIN" dev "$wifi_iface" interface add "$mon_iface" type monitor 2>/dev/null; then
+    # Create monitor interface on the same phy as the connected station. The
+    # station already owns the radio channel, so trying to set the channel on
+    # the monitor netdev returns EBUSY; it will follow the phy's active channel.
+    local create_err
+    if ! create_err=$("$IW_BIN" phy "$wifi_phy" interface add "$mon_iface" type monitor 2>&1); then
         echo -e "  ${RD}Failed to create monitor interface${R}"
-        # Show just "iw" instead of the full Nix store path
+        [[ -n "$create_err" ]] && echo "$create_err" | sed 's/^/    /'
         local iw_short="iw"
         [[ "$IW_BIN" == /run/wrappers/bin/net-report-iw ]] && iw_short="net-report-iw"
         echo -e "  ${DIM}Try: ${iw_short} phy ${wifi_phy} interface add ${mon_iface} type monitor${R}"
         return
     fi
 
-    # Set channel and bring up
-    if [[ -n "$ap_channel" ]]; then
-        "$IW_BIN" dev "$mon_iface" set channel "$ap_channel" 2>/dev/null || true
+    # A monitor-type interface can still be administratively DOWN. This was the
+    # original false-success bug: ordinary `ip` returned EPERM and stderr was
+    # discarded, so tcpdump and aireplay never had a usable interface.
+    local ip_up_err
+    if ! ip_up_err=$("$IP_BIN" link set "$mon_iface" up 2>&1); then
+        echo -e "  ${RD}Failed to bring monitor interface UP${R}"
+        [[ -n "$ip_up_err" ]] && echo "$ip_up_err" | sed 's/^/    /'
+        "$IW_BIN" dev "$mon_iface" del 2>/dev/null || true
+        return
     fi
-    ip link set "$mon_iface" up 2>/dev/null || true
 
-    # Verify monitor mode is active
-    local mon_type
-    mon_type=$( ("$IW_BIN" dev "$mon_iface" info 2>/dev/null || true) | grep -oP 'type \K\S+' || true)
+    # Verify both monitor type and administrative UP state.
+    local mon_type mon_link mon_info mon_channel
+    mon_info=$( ("$IW_BIN" dev "$mon_iface" info 2>/dev/null || true) )
+    mon_type=$(echo "$mon_info" | grep -oP 'type \K\S+' || true)
+    mon_channel=$(echo "$mon_info" | grep -oP 'channel \K\d+' || true)
+    mon_link=$(ip -o link show dev "$mon_iface" 2>/dev/null || true)
     if [[ "$mon_type" != "monitor" ]]; then
         echo -e "  ${RD}Monitor mode not active (type=${mon_type:-?})${R}"
         "$IW_BIN" dev "$mon_iface" del 2>/dev/null || true
         return
     fi
+    if [[ ! "$mon_link" =~ \<[^\>]*UP[^\>]*\> ]]; then
+        echo -e "  ${RD}Monitor interface failed to come UP${R}"
+        echo -e "  ${DIM}${mon_link:-no link state available}${R}"
+        "$IW_BIN" dev "$mon_iface" del 2>/dev/null || true
+        return
+    fi
 
-    echo -e "  ${GR}Monitor mode active on ${mon_iface} (channel ${ap_channel:-?})${R}"
+    echo -e "  ${GR}Monitor mode active and UP on ${mon_iface} (channel ${mon_channel:-${ap_channel:-?}})${R}"
+    if [[ -n "$ap_channel" && -n "$mon_channel" && "$mon_channel" != "$ap_channel" ]]; then
+        echo -e "  ${YE}Warning: monitor is on channel ${mon_channel}, AP is on ${ap_channel}${R}"
+    fi
     echo ""
 
-    # Capture probe requests in background while sending deauth
+    # --- PMF (802.11w) check --------------------------------------------------
+    # WPA3 and WPA2/WPA3 mixed-mode networks use Protected Management Frames.
+    # Deauthentication frames are management frames; if PMF is active, clients
+    # will simply IGNORE forged deauth frames — the attack is a no-op. This is
+    # the most common reason "nothing happened" on modern networks.
+    local pmf_status="unknown"
+    if [[ -n "$ap_essid" ]]; then
+        local conn_name
+        conn_name=$( (nmcli -t -f NAME,DEVICE connection show --active 2>/dev/null || true) \
+            | grep ":${wifi_iface}$" | cut -d: -f1 || true)
+        if [[ -n "$conn_name" ]]; then
+            local pmf_val
+            pmf_val=$( (nmcli -g 802-11-wireless-security.pmf connection show "$conn_name" 2>/dev/null || true) )
+            pmf_val="${pmf_val// /}"
+            case "$pmf_val" in
+                1|required)   pmf_status="required" ;;
+                2|optional)   pmf_status="optional" ;;
+                0|disabled)   pmf_status="disabled" ;;
+                *)            pmf_status="unknown (${pmf_val:-empty})" ;;
+            esac
+        fi
+    fi
+    echo -e "  ${B}PMF (802.11w):${R} ${pmf_status}"
+    if [[ "$pmf_status" == "required" || "$pmf_status" == "optional" ]]; then
+        echo -e "  ${YE}Warning: PMF is active — deauth frames will be IGNORED by PMF-capable clients${R}"
+        echo -e "  ${DIM}Modern phones (WPA3) discard forged deauths; this scan may find nothing.${R}"
+    fi
+    echo ""
+
+    # --- Capture + deauth ----------------------------------------------------
     local tmpdir
     tmpdir=$(mktemp -d)
     local capture_file="${tmpdir}/probes.pcap"
+    local tcpdump_log="${tmpdir}/tcpdump.log"
+    local aireplay_log="${tmpdir}/aireplay.log"
 
     echo -e "  ${DIM}Capturing probe requests (10 second window)...${R}"
 
-    # Start tcpdump in background — capture probe requests (type subtype 4 = probe req)
-    # Probe request = subtype 0x04 in management frame (type 0x00)
-    # Filter: wlan type m subtype probe-req
-    ("$TCPDUMP_BIN" -i "$mon_iface" -e -nn -l 'type m subtype probe-req' -w "$capture_file" 2>/dev/null) &
+    # Start tcpdump in background — capture ALL management frames (not just
+    # probe-req) so we can see beacons, probe responses, and deauth replies.
+    # Filtering to probe-req only at capture time would miss diagnostics.
+    ("$TCPDUMP_BIN" -i "$mon_iface" -e -nn -l -w "$capture_file" 2>"$tcpdump_log") &
     local tcpdump_pid=$!
 
-    # Give tcpdump a moment to start
+    # Give tcpdump a moment to start and verify it's alive
     sleep 1
+    if ! kill -0 "$tcpdump_pid" 2>/dev/null; then
+        echo -e "  ${RD}tcpdump failed to start${R}"
+        [[ -s "$tcpdump_log" ]] && sed 's/^/    /' "$tcpdump_log"
+        "$IW_BIN" dev "$mon_iface" del 2>/dev/null || true
+        rm -rf "$tmpdir"
+        return
+    fi
+    echo -e "  ${GR}tcpdump capturing on ${mon_iface}${R}"
 
-    # Send deauth frames (5 deauth bursts, 0.5s apart)
+    # Send deauth frames — capture output + exit code instead of discarding.
+    # --ignore-negative-one: ath12k monitor mode reports channel -1 to aireplay
+    # (the phy is channel-locked by the managed station, but the monitor netdev
+    # doesn't report it). Without this flag, aireplay refuses to send.
+    # -D: disable AP detection — aireplay normally waits for a beacon frame to
+    # confirm the BSSID is reachable, but ath12k monitor mode doesn't pass
+    # beacons through to userspace on 5GHz. Without -D, it waits 10s and then
+    # says "No such BSSID available." See aircrack-ng issue #2103.
     echo -e "  ${DIM}Sending deauth frames to ${ap_bssid}...${R}"
-    "$AIREPLAY_BIN" --deauth 5 -a "$ap_bssid" "$mon_iface" >/dev/null 2>&1 || true
+    local aireplay_out aireplay_rc
+    aireplay_out=$("$AIREPLAY_BIN" --deauth 5 --ignore-negative-one -D -a "$ap_bssid" "$mon_iface" 2>&1 || true)
+    aireplay_rc=$?
+
+    # Show aireplay result (was silently discarded before — the #1 reason the
+    # user never saw why deauth didn't work)
+    if [[ $aireplay_rc -ne 0 ]]; then
+        echo -e "  ${RD}aireplay-ng exited with code ${aireplay_rc}${R}"
+    fi
+    echo "$aireplay_out" | sed 's/^/    /' | head -15
 
     # Wait for probes to come in (devices re-probe within 1-3 seconds of deauth)
     sleep 8
 
-    # Stop tcpdump
-    kill "$tcpdump_pid" 2>/dev/null || true
+    # Stop tcpdump (SIGINT for clean pcap close, then ensure dead)
+    kill -INT "$tcpdump_pid" 2>/dev/null || true
     wait "$tcpdump_pid" 2>/dev/null || true
+    sleep 0.5
+    kill "$tcpdump_pid" 2>/dev/null || true
 
-    # Parse captured probe requests
+    # --- Parse captured frames ------------------------------------------------
+    echo ""
+    echo -e "  ${B}Capture analysis:${R}"
+
+    local total_frames
+    total_frames=$( ("$TCPDUMP_BIN" -r "$capture_file" -nn 2>/dev/null || true) | wc -l)
+    echo -e "  Total frames captured: ${total_frames}"
+
+    local probe_count
+    probe_count=$( ("$TCPDUMP_BIN" -r "$capture_file" -nn 'type m subtype probe-req' 2>/dev/null || true) | wc -l)
+    echo -e "  Probe requests: ${probe_count}"
+
     echo ""
     echo -e "  ${B}Discovered WiFi devices:${R}"
     echo ""
-    printf "  %-20s %-25s %-10s %-12s %s\n" "MAC ADDRESS" "PROBED SSID" "SIGNAL" "VENDOR" "CHANNEL"
-    printf "  %-20s %-25s %-10s %-12s %s\n" "-----------" "-----------" "------" "------" "-------"
+    printf "  %-20s %-25s %-10s %-14s %s\n" "MAC ADDRESS" "PROBED SSID" "SIGNAL" "OUI PREFIX" "CHANNEL"
+    printf "  %-20s %-25s %-10s %-14s %s\n" "-----------" "-----------" "------" "----------" "-------"
 
     local device_count=0
-    # Parse the pcap with tcpdump -r and extract: src MAC, SSID from probe req, signal
-    # tcpdump -e shows: src MAC in "SA:" field, signal in antenna/radiotap headers
-    ("$TCPDUMP_BIN" -r "$capture_file" -e -nn 2>/dev/null || true) | \
-    awk '{
-        mac="-"; ssid="-"; sig="-"; chan="-"
-        # Extract source MAC (SA: field)
-        for(i=1;i<=NF;i++) {
-            if($i == "SA:") { mac=$(i+1); }
-        }
-        # Extract signal (radiotap header, look for dBm)
-        for(i=1;i<=NF;i++) {
-            if($i ~ /-[0-9]+dBm/) { sig=$i; }
-        }
-        # SSID is typically after "Probe Request" in the frame
-        # tcpdump shows it as the SSID in quotes or as hex
-        for(i=1;i<=NF;i++) {
-            if($i == "Probe" && $(i+1) == "Request") {
-                # SSID is usually further on the line, may be in quotes
-                j=i+2
-                while(j<=NF && $j !~ /SA:/) {
-                    if($j ~ /^".*"$/) { ssid=$j; gsub(/"/,"",ssid); break }
-                    j++
+
+    # Prefer tshark for parsing (reliable field extraction); fall back to tcpdump
+    if command -v tshark &>/dev/null; then
+        # tshark gives us named fields: wlan.sa, wlan.ssid, radiotap.dbm_antsignal
+        (tshark -r "$capture_file" -Y 'wlan.fc.type_subtype == 0x0004' \
+            -T fields -e wlan.sa -e wlan.ssid -e radiotap.dbm_antsignal 2>/dev/null || true) | \
+        sort -u | while IFS=$'\t' read -r mac ssid sig; do
+            [[ -z "$mac" ]] && continue
+            [[ -z "$ssid" ]] && ssid="(wildcard)"
+            [[ -z "$sig" ]] && sig="-"
+            local oui
+            oui=$(echo "$mac" | cut -d: -f1-3 | tr 'a-f' 'A-F' 2>/dev/null || true)
+            printf "  %-20s %-25s %-10s %-14s %s\n" \
+                "$mac" "$(truncate_str "$ssid" 25)" "${sig}dBm" "${oui:-?}" "${mon_channel:-?}"
+            device_count=$((device_count + 1))
+        done
+    else
+        # Fallback: parse tcpdump -e output with awk
+        ("$TCPDUMP_BIN" -r "$capture_file" -e -nn 'type m subtype probe-req' 2>/dev/null || true) | \
+        awk '{
+            mac="-"; ssid="-"; sig="-"
+            for(i=1;i<=NF;i++) {
+                if($i == "SA:") { mac=$(i+1); }
+            }
+            for(i=1;i<=NF;i++) {
+                if($i ~ /-[0-9]+dBm/) { sig=$i; }
+            }
+            for(i=1;i<=NF;i++) {
+                if($i == "Probe" && $(i+1) == "Request") {
+                    j=i+2
+                    while(j<=NF && $j !~ /SA:/) {
+                        if($j ~ /^".*"$/) { ssid=$j; gsub(/"/,"",ssid); break }
+                        j++
+                    }
                 }
             }
-        }
-        if(mac != "-") {
-            printf "%s\t%s\t%s\t%s\t%s\n", mac, ssid, sig, "-", chan
-        }
-    }' | sort -u | while IFS=$'\t' read -r mac ssid sig vendor chan; do
-        # Try to get vendor from first 3 octets of MAC (OUI lookup)
-        local oui
-        oui=$(echo "$mac" | cut -d: -f1-3 | tr 'a-f' 'A-F' 2>/dev/null || true)
-        # Basic OUI lookup — we can't ship a full OUI database, but we can
-        # check /etc/ethers or just show the OUI prefix
-        vendor="${oui:-?}"
-
-        printf "  %-20s %-25s %-10s %-12s %s\n" "$mac" "$(truncate_str "$ssid" 25)" "$sig" "$vendor" "$chan"
-        device_count=$((device_count + 1))
-    done
+            if(mac != "-") {
+                printf "%s\t%s\t%s\t%s\t%s\n", mac, ssid, sig, "-", "-"
+            }
+        }' | sort -u | while IFS=$'\t' read -r mac ssid sig _chan; do
+            [[ -z "$mac" ]] && continue
+            [[ -z "$ssid" || "$ssid" == "-" ]] && ssid="(wildcard)"
+            [[ -z "$sig" ]] && sig="-"
+            local oui
+            oui=$(echo "$mac" | cut -d: -f1-3 | tr 'a-f' 'A-F' 2>/dev/null || true)
+            printf "  %-20s %-25s %-10s %-14s %s\n" \
+                "$mac" "$(truncate_str "$ssid" 25)" "$sig" "${oui:-?}" "${mon_channel:-?}"
+            device_count=$((device_count + 1))
+        done
+    fi
 
     echo ""
     if [[ $device_count -gt 0 ]]; then
-        echo -e "  ${B}Discovered ${device_count} WiFi devices via probe requests${R}"
+        echo -e "  ${B}Discovered ${device_count} WiFi device(s) via probe requests${R}"
     else
-        echo -e "  ${DIM}No probe requests captured${R}"
-        echo -e "  ${DIM}(devices may have reconnected too fast, or pcap parsing issue)${R}"
-        # Show raw pcap stats as fallback
-        local pcap_lines
-        pcap_lines=$( ("$TCPDUMP_BIN" -r "$capture_file" -nn 2>/dev/null || true) | wc -l)
-        if [[ $pcap_lines -gt 0 ]]; then
-            echo -e "  ${DIM}Raw pcap: ${pcap_lines} frames captured${R}"
-            echo -e "  ${DIM}Run: tcpdump -r ${capture_file} -e -nn${R}"
+        echo -e "  ${YE}No probe requests captured${R}"
+        echo ""
+        echo -e "  ${B}Possible reasons:${R}"
+        if [[ "$pmf_status" == "required" || "$pmf_status" == "optional" ]]; then
+            echo -e "  ${DIM}• PMF is active — clients ignore forged deauth frames${R}"
         fi
+        if [[ $aireplay_rc -ne 0 ]]; then
+            echo -e "  ${DIM}• aireplay-ng failed (exit ${aireplay_rc}) — frame injection not supported by driver${R}"
+        fi
+        if [[ $total_frames -le 1 ]]; then
+            echo -e "  ${DIM}• Almost no frames captured — monitor interface may not be receiving${R}"
+        fi
+        echo -e "  ${DIM}• ath12k (WiFi 7) may not support frame injection in monitor mode${R}"
     fi
 
-    # Cleanup
+    # --- Cleanup --------------------------------------------------------------
+    # Keep the pcap for manual inspection — don't delete it.
+    echo ""
+    echo -e "  ${DIM}Capture retained for inspection: ${capture_file}${R}"
+    echo -e "  ${DIM}View with: tcpdump -r ${capture_file} -e -nn${R}"
+    if command -v tshark &>/dev/null; then
+        echo -e "  ${DIM}  or: tshark -r ${capture_file} -e wlan.sa -e wlan.ssid -e radiotap.dbm_antsignal${R}"
+    fi
+
     echo ""
     echo -e "  ${DIM}Cleaning up monitor interface...${R}"
     "$IW_BIN" dev "$mon_iface" del 2>/dev/null || true
-    rm -rf "$tmpdir"
-
-    # Also parse with tshark if available (better SSID extraction)
-    if command -v tshark &>/dev/null && [[ -f "$capture_file" ]]; then
-        echo ""
-        echo -e "  ${B}Detailed probe request analysis (tshark):${R}"
-        echo -e "  ${DIM}(re-reading pcap — this is from the in-memory copy, already cleaned up)${R}"
-    fi
 }
 
 # --- Routing table (parsed) ------------------------------------------------

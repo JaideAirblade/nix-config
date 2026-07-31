@@ -71,6 +71,38 @@ _:
         # --- System info (TSBW has this in system-packages.nix) ---
         fastfetch
 
+        # NymVPN daemon and core networking helpers. The GUI client is managed
+        # separately through Flathub in flatpak.nix.
+        nym-vpnd
+
+        # Pear Desktop — the renamed YouTube Music client. Its stock Electron
+        # launcher tries native Wayland on this NVIDIA/MangoWM setup and can
+        # fail during GPU-process startup, so the launcher below forces X11.
+        (lib.hiPrio (makeDesktopItem {
+          name = "pear-desktop";
+          desktopName = "Pear Desktop";
+          genericName = "YouTube Music Client";
+          comment = "YouTube Music desktop client";
+          icon = "pear-desktop";
+          categories = [ "AudioVideo" "Audio" ];
+          exec = "pear-desktop --ozone-platform=x11 --disable-gpu %U";
+          startupNotify = true;
+        }))
+        pear-desktop
+
+        # NymVPN's Flatpak splash window triggers the GNOME 49 Glycin SVG
+        # loader crash on this host. The main window works with --nosplash.
+        (lib.hiPrio (makeDesktopItem {
+          name = "net.nymtech.NymVPN";
+          desktopName = "NymVPN";
+          genericName = "Privacy VPN";
+          comment = "Decentralized, mixnet, and zero-knowledge VPN";
+          icon = "net.nymtech.NymVPN";
+          categories = [ "Network" ];
+          exec = "flatpak run net.nymtech.NymVPN --nosplash";
+          startupNotify = true;
+        }))
+
         # Chromium — force XWayland via desktop entry overrides.
         # NIXOS_OZONE_WL=1 (set globally in theming.nix) makes Chromium try native
         # Wayland, which on NVIDIA + MangoWM flickers and produces visual artifacts
@@ -148,6 +180,68 @@ _:
         # Confirmed working with Buds4 Pro (PR #689, v5.2+).
         galaxy-buds-client
       ];
+
+      # NymVPN's daemon expects these networking tools in its isolated
+      # systemd PATH on NixOS.
+      systemd.services.nym-vpnd = {
+        description = "NymVPN daemon";
+        wants = [ "network-online.target" ];
+        after = [ "network-online.target" "NetworkManager.service" ];
+        wantedBy = [ "multi-user.target" ];
+        path = [
+          pkgs.iproute2
+          pkgs.iptables
+          pkgs.nftables
+          pkgs.coreutils
+        ];
+        serviceConfig = {
+          ExecStart = "${pkgs.nym-vpnd}/bin/nym-vpnd";
+          Restart = "on-failure";
+          RestartSec = 5;
+          AmbientCapabilities = [
+            "CAP_NET_ADMIN"
+            "CAP_NET_RAW"
+            "CAP_NET_BIND_SERVICE"
+          ];
+          CapabilityBoundingSet = [
+            "CAP_NET_ADMIN"
+            "CAP_NET_RAW"
+            "CAP_NET_BIND_SERVICE"
+          ];
+        };
+      };
+
+      # NymVPN creates a TUN device for the system tunnel.
+      boot.kernelModules = [ "tun" ];
+
+      # nym-vpnd creates this policy dynamically under /usr/share, but NixOS
+      # polkit does not scan that mutable path. Install the action declaratively
+      # in /etc so the GUI's unix-socket authentication is registered.
+      environment.etc."polkit-1/actions/com.nymvpn.vpnd.unix-access.policy".text = ''
+        <?xml version="1.0" encoding="UTF-8"?>
+        <policyconfig>
+          <action id="com.nymvpn.vpnd.unix-access">
+            <description>Connect via unix socket</description>
+            <message>Authentication is required to connect to the daemon</message>
+            <defaults>
+              <allow_any>auth_admin</allow_any>
+              <allow_inactive>auth_admin</allow_inactive>
+              <allow_active>auth_self</allow_active>
+            </defaults>
+          </action>
+        </policyconfig>
+      '';
+
+      # Permit the logged-in desktop user to communicate with nym-vpnd.
+      # DMS already provides the authentication agent for this host.
+      security.polkit.extraConfig = ''
+        polkit.addRule(function(action, subject) {
+          if (action.id == "com.nymvpn.vpnd.unix-access" &&
+              subject.user == "jaide") {
+            return polkit.Result.YES;
+          }
+        });
+      '';
     }
   ;
 }

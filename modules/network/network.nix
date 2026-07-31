@@ -40,6 +40,16 @@
       # cap_net_raw (capture/inject raw 802.11 frames) to the tools it uses.
       # Only enable if you want sudo-less wifi-scan (it does increase attack surface).
       security.wrappers = {
+        # `iw` can create the monitor netdev, but only `ip` can set its IFF_UP
+        # flag. Keep this capability restricted to the dedicated net-report
+        # group just like the other active WiFi diagnostics.
+        net-report-ip = {
+          source = "${pkgs.iproute2}/bin/ip";
+          owner = "root";
+          group = "net-report";
+          permissions = "u+rx,g+rx";
+          capabilities = "cap_net_admin+eip";
+        };
         net-report-iw = {
           source = "${pkgs.iw}/bin/iw";
           owner = "root";
