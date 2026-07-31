@@ -190,9 +190,15 @@ _:
         # Zed — GPU-accelerated collaborative code editor.
         zed-editor
 
-        # Geary — GTK email client. Follows libadwinda/GNOME theming, fits the
-        # standalone-WM + adw-gtk3-dark setup without pulling all of GNOME.
-        geary
+        # Evolution — full GNOME personal-information manager for mail,
+        # calendars, contacts, and tasks.
+        evolution
+
+        # Evolution's shared backend and Exchange Web Services connector.
+        # evolution already depends on the backend; keep both explicit so the
+        # complete mail/calendar integration is retained across rebuilds.
+        evolution-data-server
+        evolution-ews
 
         # Hytale Launcher — official launcher for Hytale (custom package from pkgs/).
         # Wrapped in buildFHSEnv so the pre-built binary finds its libraries.
