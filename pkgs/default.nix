@@ -5,6 +5,7 @@ pkgs: {
   octarine = pkgs.callPackage ./octarine { };
   hytale = pkgs.callPackage ./hytale { };
   helium-bin = pkgs.callPackage ./helium-bin { };
+  orbolay = pkgs.callPackage ./orbolay { };
   net-report = pkgs.callPackage ./net-report { };
   nym-vpnd = pkgs.callPackage ./nym-vpnd { };
   macrotool-gtk4 = pkgs.callPackage ./macrotool-gtk4 { };

@@ -54,6 +54,10 @@ _:
         # It is based on Vesktop and has native Linux improvements.
         equibop
 
+        # Orbolay — native Discord voice overlay. Keep it alongside Equibop;
+        # it is a separate overlay utility, not a Discord client replacement.
+        orbolay
+
         # Readest — modern ebook reader.
         readest
 
@@ -184,6 +188,37 @@ _:
         # Confirmed working with Buds4 Pro (PR #689, v5.2+).
         galaxy-buds-client
       ];
+
+      # Restore the Btrfs snapshot policy used by the previous UwU generation.
+      # The module also installs snapper, snapperd, snbk, and mksubvolume.
+      services.snapper = {
+        configs = {
+          home = {
+            SUBVOLUME = "/home";
+            FSTYPE = "btrfs";
+            ALLOW_USERS = [ "jaide" ];
+            TIMELINE_CLEANUP = true;
+            TIMELINE_CREATE = true;
+            TIMELINE_LIMIT_HOURLY = 10;
+            TIMELINE_LIMIT_DAILY = 14;
+            TIMELINE_LIMIT_WEEKLY = 4;
+            TIMELINE_LIMIT_MONTHLY = 3;
+            TIMELINE_LIMIT_YEARLY = 0;
+          };
+          root = {
+            SUBVOLUME = "/";
+            FSTYPE = "btrfs";
+            ALLOW_USERS = [ "jaide" ];
+            TIMELINE_CLEANUP = true;
+            TIMELINE_CREATE = true;
+            TIMELINE_LIMIT_HOURLY = 5;
+            TIMELINE_LIMIT_DAILY = 7;
+            TIMELINE_LIMIT_WEEKLY = 4;
+            TIMELINE_LIMIT_MONTHLY = 0;
+            TIMELINE_LIMIT_YEARLY = 0;
+          };
+        };
+      };
 
       # NymVPN's daemon expects these networking tools in its isolated
       # systemd PATH on NixOS.
