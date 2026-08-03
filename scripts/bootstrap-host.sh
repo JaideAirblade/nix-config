@@ -211,6 +211,7 @@ ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" \
 NA_OUT=$(nix build --no-link --print-out-paths "${FLAKE_ROOT}#nixos-anywhere")
 NA_TRUST_DIR="${TMP_ROOT}/nixos-anywhere-libexec"
 cp -a "${NA_OUT}/libexec/nixos-anywhere" "$NA_TRUST_DIR"
+chmod -R u+w "$NA_TRUST_DIR"
 NA_SOURCE="${NA_TRUST_DIR}/nixos-anywhere.sh"
 TRUSTED_NA="$NA_SOURCE"
 python3 - "$NA_SOURCE" "$TRUSTED_NA" <<'PY'

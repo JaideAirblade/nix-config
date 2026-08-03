@@ -40,6 +40,7 @@ require 'trap cleanup EXIT' "temporary private key cleanup is missing"
 require 'systemctl mask --runtime sleep.target suspend.target hibernate.target hybrid-sleep.target' "installer suspend is not masked"
 require '--copy-host-keys' "installed system does not preserve the authenticated installer host key"
 require 'cp -a "${NA_OUT}/libexec/nixos-anywhere" "$NA_TRUST_DIR"' "trusted nixos-anywhere copy omits required support scripts"
+require 'chmod -R u+w "$NA_TRUST_DIR"' "trusted nixos-anywhere copy remains immutable"
 require 'StrictHostKeyChecking=yes' "provisioning does not enforce authenticated SSH host keys"
 
 reject 'StrictHostKeyChecking=no' "provisioning disables SSH host authentication before transmitting secrets"
