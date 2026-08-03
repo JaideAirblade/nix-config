@@ -189,34 +189,52 @@ grep -q "&host_${HOSTNAME}" "${SOPS_YAML}" && grep -q "\*host_${HOSTNAME}" "${SO
   || { echo "ERROR: .sops.yaml verification failed — check it manually"; exit 1; }
 echo "  .sops.yaml updated + verified."
 
-# Re-encryption identity: SOPS_AGE_KEY_FILE (YubiKey) or this host's own key.
-if [ -n "${SOPS_AGE_KEY_FILE:-}" ] && [ -f "${SOPS_AGE_KEY_FILE}" ]; then
-  echo "  Re-encrypting with SOPS_AGE_KEY_FILE (touch YubiKey if prompted)..."
-elif sudo -n true 2>/dev/null; then
-  LOCAL_HOST_KEY=$(mktemp)
-  sudo install -m 600 -o "$(id -u)" -g "$(id -g)" /var/lib/sops-nix/key.txt "${LOCAL_HOST_KEY}"
-  export SOPS_AGE_KEY_FILE="${LOCAL_HOST_KEY}"
-  echo "  Re-encrypting with this host's local sops key (via sudo)..."
+# If the registered pubkey is already exactly ours, the secrets files
+# already encrypt to this key — skip the re-encrypt entirely (no YubiKey /
+# sudo needed) and just verify.
+EXISTING_PUBKEY=$(grep -oP "^  - &host_${HOSTNAME} \Kage1[a-z0-9]+" "${SOPS_YAML}" || true)
+if [ "${EXISTING_PUBKEY}" = "${AGE_PUBKEY}" ]; then
+  echo "  Registered key unchanged — skipping re-encryption."
+  SKIP_UPDATEKEYS=1
 else
-  echo "ERROR: no way to decrypt secrets: set SOPS_AGE_KEY_FILE (YubiKey) or cache sudo (sudo -v)."
-  exit 1
+  SKIP_UPDATEKEYS=0
 fi
 
-cd "${SECRETS_REPO}"
-find secrets -name '*.yaml' -print0 | while IFS= read -r -d '' f; do
-  echo "  Updating ${f}..."
-  sops updatekeys --yes "${f}" || { echo "ERROR: updatekeys failed for ${f}"; exit 1; }
-done
-[ -f secrets.yaml ] && { echo "  Updating secrets.yaml..."; sops updatekeys --yes secrets.yaml; }
+if [ "${SKIP_UPDATEKEYS}" = "0" ]; then
+  # Re-encryption identity: SOPS_AGE_KEY_FILE (YubiKey) or this host's own key.
+  if [ -n "${SOPS_AGE_KEY_FILE:-}" ] && [ -f "${SOPS_AGE_KEY_FILE}" ]; then
+    echo "  Re-encrypting with SOPS_AGE_KEY_FILE (touch YubiKey if prompted)..."
+  elif sudo -n true 2>/dev/null; then
+    LOCAL_HOST_KEY=$(mktemp)
+    sudo install -m 600 -o "$(id -u)" -g "$(id -g)" /var/lib/sops-nix/key.txt "${LOCAL_HOST_KEY}"
+    export SOPS_AGE_KEY_FILE="${LOCAL_HOST_KEY}"
+    echo "  Re-encrypting with this host's local sops key (via sudo)..."
+  else
+    echo "ERROR: no way to decrypt secrets: set SOPS_AGE_KEY_FILE (YubiKey) or cache sudo (sudo -v)."
+    exit 1
+  fi
+
+  cd "${SECRETS_REPO}"
+  find secrets -name '*.yaml' -print0 | while IFS= read -r -d '' f; do
+    echo "  Updating ${f}..."
+    sops updatekeys --yes "${f}" || { echo "ERROR: updatekeys failed for ${f}"; exit 1; }
+  done
+  [ -f secrets.yaml ] && { echo "  Updating secrets.yaml..."; sops updatekeys --yes secrets.yaml; }
+else
+  cd "${SECRETS_REPO}"
+fi
 
 # Prove the NEW host key can actually decrypt before we install anything.
-echo "  Verifying the new host key can decrypt every file..."
-find secrets -name '*.yaml' -print0 | while IFS= read -r -d '' f; do
+# Only files the host is a recipient of: shared secrets + the legacy root
+# file. Other hosts' per-host files are NOT encrypted to this key (by design).
+echo "  Verifying the new host key can decrypt its files..."
+VERIFY_FILES=$(find secrets/shared -name '*.yaml' 2>/dev/null || true)
+for f in ${VERIFY_FILES}; do
   SOPS_AGE_KEY_FILE="${AGE_KEY_FILE}" sops decrypt "${f}" >/dev/null \
     || { echo "ERROR: new host key cannot decrypt ${f}"; exit 1; }
 done
 [ -f secrets.yaml ] && SOPS_AGE_KEY_FILE="${AGE_KEY_FILE}" sops decrypt secrets.yaml >/dev/null
-echo "  All files decrypt with the new host key."
+echo "  All shared files decrypt with the new host key."
 
 git add .sops.yaml secrets/ secrets.yaml 2>/dev/null || true
 if git diff --cached --quiet; then
