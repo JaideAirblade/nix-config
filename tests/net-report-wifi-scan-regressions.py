@@ -21,6 +21,10 @@ require(SCRIPT, '"$IP_BIN" link set "$mon_iface" up', "monitor interface is brou
 require(SCRIPT, "Monitor interface failed to come UP", "monitor UP state is verified")
 require(SCRIPT, "tcpdump failed to start", "capture startup is verified")
 require(SCRIPT, "aireplay_rc", "aireplay result is checked instead of discarded")
+if 'aireplay_out=$("$AIREPLAY_BIN"' not in SCRIPT:
+    raise SystemExit("FAIL: aireplay output is not captured")
+if 'aireplay_out=$("$AIREPLAY_BIN" --deauth 5 --ignore-negative-one -D -a "$ap_bssid" "$mon_iface" 2>&1 || true)' in SCRIPT:
+    raise SystemExit("FAIL: aireplay exit status is forced to zero by '|| true'")
 require(SCRIPT, "Capture retained for inspection:", "failed capture evidence is retained")
 
 old_silent_injection = '"$AIREPLAY_BIN" --deauth 5 -a "$ap_bssid" "$mon_iface" >/dev/null 2>&1 || true'

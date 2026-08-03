@@ -921,7 +921,6 @@ section_wifi-scan() {
     tmpdir=$(mktemp -d)
     local capture_file="${tmpdir}/probes.pcap"
     local tcpdump_log="${tmpdir}/tcpdump.log"
-    local aireplay_log="${tmpdir}/aireplay.log"
 
     echo -e "  ${DIM}Capturing probe requests (10 second window)...${R}"
 
@@ -952,8 +951,11 @@ section_wifi-scan() {
     # says "No such BSSID available." See aircrack-ng issue #2103.
     echo -e "  ${DIM}Sending deauth frames to ${ap_bssid}...${R}"
     local aireplay_out aireplay_rc
-    aireplay_out=$("$AIREPLAY_BIN" --deauth 5 --ignore-negative-one -D -a "$ap_bssid" "$mon_iface" 2>&1 || true)
-    aireplay_rc=$?
+    if aireplay_out=$("$AIREPLAY_BIN" --deauth 5 --ignore-negative-one -D -a "$ap_bssid" "$mon_iface" 2>&1); then
+        aireplay_rc=0
+    else
+        aireplay_rc=$?
+    fi
 
     # Show aireplay result (was silently discarded before — the #1 reason the
     # user never saw why deauth didn't work)

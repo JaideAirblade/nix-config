@@ -2,11 +2,12 @@
 # and may be overwritten by future invocations.  Please make changes
 # to /etc/nixos/configuration.nix instead.
 #
-# NOTE: hand-written placeholder for the nixos-anywhere provisioning of
-# UwU-Server (Beelink SER10 Max, Ryzen AI 9 HX 470 / Radeon 890M).
-# nixos-anywhere --generate-hardware-config regenerates this file from the
-# target machine during provisioning; the module list below already matches
-# the hardware as observed from the live ISO (2026-08-03).
+# NOTE: hand-written and reviewed for the Beelink SER10 Max
+# (Ryzen AI 9 HX 470 / Radeon 890M), based on the live-ISO hardware observed in
+# 2026-08-03. The guarded provisioning workflow deliberately does not regenerate
+# this file because generated fileSystems conflict with Disko. Re-run
+# nixos-generate-config manually in a trusted live environment and review the
+# hardware-only changes when the hardware changes.
 { config, lib, modulesPath, ... }:
 
 {

@@ -164,6 +164,20 @@
                 | xargs -0 --no-run-if-empty shellcheck --severity=warning
               touch $out
             '';
+
+            regressions = pkgs.runCommand "repository-regressions"
+              {
+                nativeBuildInputs = [ pkgs.bash pkgs.inetutils pkgs.just pkgs.python3 ];
+              } ''
+              cd ${self}
+              bash tests/bootstrap-host-regressions.sh
+              bash tests/justfile-argument-regressions.sh
+              python3 tests/ad-lab-name-regressions.py
+              python3 tests/register-sops-host-regressions.py
+              python3 tests/user-password-regressions.py
+              python3 tests/net-report-wifi-scan-regressions.py
+              touch $out
+            '';
           };
 
           # The overlay and standalone outputs use the same nixpkgs revision.

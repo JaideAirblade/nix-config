@@ -3,6 +3,13 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+bash tests/bootstrap-host-regressions.sh
+bash tests/justfile-argument-regressions.sh
+python3 tests/ad-lab-name-regressions.py
+python3 tests/register-sops-host-regressions.py
+python3 tests/user-password-regressions.py
+python3 tests/net-report-wifi-scan-regressions.py
+
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
   exit 1

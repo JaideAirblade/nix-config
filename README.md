@@ -32,6 +32,7 @@ Intentional lower-level exceptions are excluded from recursive importing:
 | Host | Hardware | Roles | Use case |
 |------|----------|-------|----------|
 | UwU | AMD CPU, NVIDIA RTX 3080, 32GB RAM | common, personal, disk, virtualisation | Personal desktop — gaming, media, development |
+| UwU-Server | Ryzen AI 9 HX 470, Radeon 890M, 64GB RAM | common, file manager, disk, gaming, SSH | Headless-capable server/desktop provisioned with Disko |
 | TSBW-W01800 | AMD APU, LUKS, Thunderbolt dock | common | Work laptop — YubiKey login, printing, recovery tools |
 | OwO-Family | Family desktop | common, file manager, virtualisation | Preserved but not exported; provisioning waits for a verified disk by-id |
 
@@ -56,9 +57,9 @@ nix flake check
 # Check review regressions explicitly
 tests/review-regressions.sh
 
-# Deploy to the current host, or select a host explicitly
+# Deploy to the current host, or select a host explicitly (positional)
 just deploy
-just deploy host=UwU
+just deploy UwU
 
 # Update pinned inputs
 just up
@@ -66,6 +67,67 @@ just up
 # Evaluate with a full trace
 just debug
 ```
+
+## Provisioning a new device
+
+The guarded path is `just provision <host> <installer-ip>` (the older
+`just bootstrap` name is an alias). It follows the current
+[nixos-anywhere secrets workflow](https://nix-community.github.io/nixos-anywhere/howtos/secrets.html):
+the machine-specific age key is generated and added as a SOPS recipient before
+installation, then copied into the new root with `--extra-files`.
+
+Before running it:
+
+1. Add and review `hosts/<host>/default.nix`, `hardware-configuration.nix`,
+   `disk-layout.nix`, networking, user, and SSH modules. The Disko device must
+   be the verified whole-disk `/dev/disk/by-id/...` path. Do not use `/dev/sdX`
+   or `/dev/nvmeXnY` names.
+2. Give a fresh account an authorized SSH key. The provisioning script pauses
+   before reboot and runs `passwd jaide` interactively inside `/mnt`, so the
+   password never enters Git or the Nix store. Remote
+   `nixos-rebuild --target-host jaide@...` also requires `jaide` in
+   `nix.settings.trusted-users`.
+3. Register every new file with Git before evaluating it; flakes ignore
+   untracked files. `git add -N <file>` can expose a module path for early
+   review, but stage the real content with `git add <file>` before checks that
+   read it through `${self}` (inspect `git diff --cached` before committing).
+4. Run the non-destructive checks:
+
+   ```bash
+   nix eval .#nixosConfigurations.<host>.config.networking.hostName --raw
+   nix eval .#nixosConfigurations.<host>.config.system.build.toplevel.drvPath
+   just vm-test <host>
+   nix flake check
+   ```
+
+5. Boot the target from a **wired** NixOS installer, verify backups, inspect
+   `lsblk -d -o NAME,SIZE,MODEL,SERIAL` and `/dev/disk/by-id/` on the target,
+   then start provisioning:
+
+   ```bash
+   just provision <host> <installer-ip>
+   ```
+
+The script fingerprints the installer SSH key, prints the remote disk model and
+serial, and requires the exact phrase `WIPE <by-id-path> ON <target>` before it
+changes anything. It masks installer suspend, updates and verifies only the SOPS
+files the host needs, installs without rebooting, proves the systemd-boot files
+and EFI NVRAM entry point to the real ESP, and only then reboots. Secret update,
+decryption, Git push, boot-path, SSH, and post-boot system-state failures are
+fatal rather than warnings.
+
+If the host recipient already exists, implicit key rotation is refused. Supply
+its matching private key explicitly:
+
+```bash
+HOST_AGE_KEY_FILE=/secure/path/<host>-age.key \
+  just provision <host> <installer-ip>
+```
+
+After success, the password entered before reboot is active; verify remote sudo
+and review the reported `flake.lock` change before committing it. Never reboot a
+remote-only machine manually when the script has paused on a boot-path verification error;
+fix and re-run the verification while installer SSH access still exists.
 
 ## USBGuard — USB Device Whitelist
 

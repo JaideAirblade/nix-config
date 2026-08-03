@@ -1,377 +1,307 @@
 #!/usr/bin/env bash
-# bootstrap-host.sh — full initial provisioning of a NixOS host from this flake.
-#
-# v2 (2026-08-03) — reviewed after the UwU-Server install failure. Fixes:
-#   1. SECRETS-FIRST, not secrets-after. If sops.secrets.* are declared in a
-#      role the host gets at birth (our `common` role does), first-boot
-#      activation fails at setupSecrets when the host key isn't a recipient
-#      yet — and the aborted activation also skips authorized_keys.d and
-#      initialPassword → the box is reachable but fully locked out.
-#      The key is now generated + registered + re-encrypted BEFORE the
-#      install, and the private key is staged via nixos-anywhere
-#      --extra-files so first activation just works.
-#   2. BOOT VERIFICATION before reboot. The last install wrote no valid EFI
-#      NVRAM entry (stale "Linux Boot Manager" from the machine's previous
-#      life pointed at a dead partition) — the box fell through to the USB or
-#      BIOS. The script now runs nixos-anywhere with --phases
-#      kexec,disko,install (no reboot), verifies the ESP + NVRAM entry
-#      against the real partition UUID, fixes it if needed, and only then
-#      reboots.
-#   3. Live-ISO auto-suspend masked before the long closure copy (it killed
-#      our first copy mid-flight).
-#   4. --use-remote-sudo deploys need jaide in nix.settings.trusted-users on
-#      the target, otherwise the daemon rejects the unsigned local build.
-#      The script now asserts this up front instead of failing at the end.
-#   5. hardware-configuration.nix is only generated if MISSING. Regenerating
-#      would drop host-specific initrd force-loads (e.g. the nvme
-#      boot.initrd.kernelModules fix lives in disk-layout.nix precisely so
-#      regeneration can't clobber it — keep it that way).
-#
-# Usage:
-#   just bootstrap <hostname> <ip>
-#   scripts/bootstrap-host.sh <hostname> <ip>
-#
-# Prerequisites:
-#   - Target booted from a NixOS installer USB, root SSH reachable (password
-#     via SSHPASS env var, or a key already installed).
-#   - The host exists in the flake with a disko disk-layout.nix.
-#   - ~/nixos-secrets cloned. For re-encryption: SOPS_AGE_KEY_FILE pointing
-#     at YubiKey identities, OR sudo on this machine (falls back to this
-#     host's own sops key at /var/lib/sops-nix/key.txt).
+# Safely provision an already-authored NixOS host from this flake.
+# Secrets are prepared before first activation, installation pauses before
+# reboot for an ESP/NVRAM check, and destructive work requires an exact phrase.
 set -euo pipefail
 
-# ── Args ────────────────────────────────────────────────────────────
-HOSTNAME="${1:?usage: bootstrap-host.sh <hostname> <ip>}"
-IP="${2:?usage: bootstrap-host.sh <hostname> <ip>}"
+usage() {
+  cat <<'EOF'
+Usage: bootstrap-host.sh <hostname> <ip-or-dns-name>
+
+For a host already registered in .sops.yaml, set HOST_AGE_KEY_FILE to its
+existing private age key. The script refuses implicit host-key rotation.
+EOF
+}
+
+[[ $# -eq 2 ]] || { usage >&2; exit 2; }
+HOSTNAME=$1
+IP=$2
+[[ "$HOSTNAME" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] \
+  || { echo "ERROR: invalid hostname: $HOSTNAME" >&2; exit 2; }
+[[ "$IP" =~ ^[A-Za-z0-9][A-Za-z0-9.:-]*$ ]] \
+  || { echo "ERROR: invalid IP/DNS target: $IP" >&2; exit 2; }
 
 FLAKE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SECRETS_REPO="${HOME}/nixos-secrets"
 SOPS_YAML="${SECRETS_REPO}/.sops.yaml"
-AGE_KEY_FILE="/tmp/${HOSTNAME}-age.key"
-EXTRA_FILES="/tmp/${HOSTNAME}-extra-files"
-SSH_OPTS="-o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 -o ServerAliveInterval=10"
+TMP_ROOT=""
+RECOVERY_KEY_FILE=""
+SECRETS_MUTATED=0
+SECRETS_COMMITTED=0
 
-echo "════════════════════════════════════════════════════════════════"
-echo "  Bootstrap: ${HOSTNAME} @ ${IP}"
-echo "  Flake:     ${FLAKE_ROOT}"
-echo "  Secrets:   ${SECRETS_REPO}"
-echo "════════════════════════════════════════════════════════════════"
+cleanup() {
+  local rc=$?
+  if ((rc != 0 && SECRETS_MUTATED && !SECRETS_COMMITTED)); then
+    echo "Restoring the previously clean secrets checkout..." >&2
+    git -C "$SECRETS_REPO" restore --staged --worktree -- . >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$RECOVERY_KEY_FILE" ]]; then
+    if ((rc == 0 || !SECRETS_COMMITTED)); then
+      rm -f -- "$RECOVERY_KEY_FILE"
+    else
+      echo "IMPORTANT: generated recovery key retained at $RECOVERY_KEY_FILE" >&2
+    fi
+  fi
+  [[ -z "$TMP_ROOT" ]] || rm -rf -- "$TMP_ROOT"
+  return "$rc"
+}
+trap cleanup EXIT
 
-# ── Sanity checks ───────────────────────────────────────────────────
-[ -f "${SOPS_YAML}" ] || { echo "ERROR: ${SOPS_YAML} not found — clone nixos-secrets first"; exit 1; }
+for command in age-keygen git just nix python3 sops ssh ssh-keygen ssh-keyscan; do
+  command -v "$command" >/dev/null \
+    || { echo "ERROR: required command not found: $command" >&2; exit 1; }
+done
+[[ -f "$SOPS_YAML" ]] || { echo "ERROR: missing $SOPS_YAML" >&2; exit 1; }
+[[ "$(git -C "$FLAKE_ROOT" status --porcelain)" == "" ]] \
+  || { echo "ERROR: flake checkout is not clean; commit or stash it first" >&2; exit 1; }
+[[ "$(git -C "$SECRETS_REPO" status --porcelain)" == "" ]] \
+  || { echo "ERROR: secrets checkout is not clean; commit or stash it first" >&2; exit 1; }
+[[ "$(git -C "$SECRETS_REPO" branch --show-current)" == main ]] \
+  || { echo "ERROR: secrets checkout must be on branch main" >&2; exit 1; }
 
-nix eval --json ".#nixosConfigurations.${HOSTNAME}.config.networking.hostName" >/dev/null 2>&1 \
-  || { echo "ERROR: ${HOSTNAME} not found in flake nixosConfigurations"; exit 1; }
+cd "$FLAKE_ROOT"
+evaluated_hostname=$(nix eval --raw ".#nixosConfigurations.\"${HOSTNAME}\".config.networking.hostName")
+[[ "$evaluated_hostname" == "$HOSTNAME" ]] \
+  || { echo "ERROR: evaluated hostname '$evaluated_hostname' does not match '$HOSTNAME'" >&2; exit 1; }
+disk_device=$(nix eval --raw ".#nixosConfigurations.\"${HOSTNAME}\".config.disko.devices.disk.main.device")
+[[ "$disk_device" == /dev/disk/by-id/* && "$disk_device" != *-part* ]] \
+  || { echo "ERROR: disko target must be a whole-disk /dev/disk/by-id path" >&2; exit 1; }
+[[ "$(nix eval --json ".#nixosConfigurations.\"${HOSTNAME}\".config.services.openssh.enable")" == true ]] \
+  || { echo "ERROR: target configuration must enable OpenSSH" >&2; exit 1; }
+authorized_key_count=$(nix eval --json ".#nixosConfigurations.\"${HOSTNAME}\".config.users.users.jaide.openssh.authorizedKeys.keys" --apply builtins.length)
+((authorized_key_count > 0)) || { echo "ERROR: jaide has no authorized SSH key" >&2; exit 1; }
+nix eval --raw ".#nixosConfigurations.\"${HOSTNAME}\".config.system.build.toplevel.drvPath" >/dev/null
+nix fmt -- --check . >/dev/null
 
-disk_device=$(nix eval --raw ".#nixosConfigurations.${HOSTNAME}.config.disko.devices.disk.main.device" 2>/dev/null || echo "")
-[ -n "${disk_device}" ] || { echo "ERROR: ${HOSTNAME} has no disko disk config — can't provision"; exit 1; }
-echo "  Disk device: ${disk_device}"
+TMP_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/bootstrap-${HOSTNAME}.XXXXXX")
+KNOWN_HOSTS="${TMP_ROOT}/known_hosts"
+HOST_KEY_FILE="${TMP_ROOT}/host-age-key.txt"
+EXTRA_FILES="${TMP_ROOT}/extra-files"
+SOPS_BEFORE="${TMP_ROOT}/sops-before.yaml"
 
-# FIX 4: remote deploys as jaide need the store to trust her.
-trusted=$(nix eval --json ".#nixosConfigurations.${HOSTNAME}.config.nix.settings.\"trusted-users\"" 2>/dev/null || echo "[]")
-if ! echo "${trusted}" | grep -q '"jaide"'; then
-  echo "ERROR: nix.settings.trusted-users for ${HOSTNAME} doesn't include \"jaide\"."
-  echo "  Without it, the final deploy (nixos-rebuild --target-host jaide@) fails:"
-  echo "  the target's nix daemon rejects our locally-built unsigned closure."
-  exit 1
-fi
-
-# SSH to root@target must work. If SSHPASS is set, install our key first.
-if ! ssh ${SSH_OPTS} -o BatchMode=yes "root@${IP}" true 2>/dev/null; then
-  if [ -n "${SSHPASS:-}" ]; then
-    echo "  Installing SSH key on root@${IP} via password..."
-    sshpass -e ssh-copy-id ${SSH_OPTS} -i "${HOME}/.ssh/id_ed25519.pub" "root@${IP}" >/dev/null
+ssh-keyscan -T 5 "$IP" >"$KNOWN_HOSTS" 2>/dev/null
+[[ -s "$KNOWN_HOSTS" ]] || { echo "ERROR: cannot obtain installer SSH host key from $IP" >&2; exit 1; }
+echo "Installer SSH host-key fingerprints (compare with the target you trust):"
+ssh-keygen -lf "$KNOWN_HOSTS"
+SSH_PREFLIGHT=(
+  -o BatchMode=yes
+  -o ConnectTimeout=8
+  -o "UserKnownHostsFile=${KNOWN_HOSTS}"
+  -o StrictHostKeyChecking=yes
+)
+if ! ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" true 2>/dev/null; then
+  if [[ -n "${SSHPASS:-}" ]]; then
+    command -v sshpass >/dev/null || { echo "ERROR: SSHPASS is set but sshpass is unavailable" >&2; exit 1; }
+    sshpass -e ssh-copy-id -o "UserKnownHostsFile=${KNOWN_HOSTS}" -o StrictHostKeyChecking=yes \
+      -i "${HOME}/.ssh/id_ed25519.pub" "root@${IP}" >/dev/null
   fi
 fi
-ssh ${SSH_OPTS} -o BatchMode=yes "root@${IP}" true \
-  || { echo "ERROR: can't SSH to root@${IP} (set SSHPASS or install a key)"; exit 1; }
-echo "  SSH to root@${IP}: OK"
+ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" true \
+  || { echo "ERROR: root SSH to the installer failed" >&2; exit 1; }
 
-# FIX 3: the live ISO auto-suspends on idle and drops the NIC mid-copy.
-echo "  Masking suspend targets on the installer (runtime only)..."
-ssh ${SSH_OPTS} "root@${IP}" \
-  "systemctl mask --runtime sleep.target suspend.target hibernate.target hybrid-sleep.target" \
-  || echo "  WARNING: could not mask sleep targets — watch for the target dozing off"
-
-# ── Step 1 (FIX 1): secrets FIRST — generate + register + re-encrypt ──
-echo ""
-echo "── Step 1/6: sops host key — generate, register, re-encrypt ──"
-
-if [ ! -f "${AGE_KEY_FILE}" ]; then
-  age-keygen -o "${AGE_KEY_FILE}" 2>/dev/null
-  chmod 600 "${AGE_KEY_FILE}"
+remote_inventory=$(ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" bash -s -- "$disk_device" <<'REMOTE'
+set -euo pipefail
+disk=$1
+[[ -e "$disk" ]] || { echo "ERROR: configured target disk is absent: $disk" >&2; exit 1; }
+real_disk=$(readlink -f "$disk")
+[[ -b "$real_disk" ]] || { echo "ERROR: not a block device: $disk -> $real_disk" >&2; exit 1; }
+echo "Configured target: $disk -> $real_disk"
+lsblk -d -o NAME,PATH,SIZE,MODEL,SERIAL,TRAN "$real_disk"
+lsblk -f "$real_disk"
+if lsblk -nr -o MOUNTPOINTS "$real_disk" | grep -q '[^[:space:]]'; then
+  echo "WARNING: the target disk or a partition appears mounted."
 fi
-AGE_PUBKEY=$(age-keygen -y "${AGE_KEY_FILE}")
-echo "  Host age key: ${AGE_PUBKEY}"
+REMOTE
+)
+printf '%s\n' "$remote_inventory"
+confirmation_phrase="WIPE ${disk_device} ON ${IP}"
+echo "Verify the model/serial and backups, then type exactly:"
+printf '  %s\n> ' "$confirmation_phrase"
+read -r confirmation
+[[ "$confirmation" == "$confirmation_phrase" ]] || { echo "Aborted." >&2; exit 1; }
 
-python3 - "${SOPS_YAML}" "${HOSTNAME}" "${AGE_PUBKEY}" << 'PYEOF'
-import sys, re
-
-path, hostname, pubkey = sys.argv[1], sys.argv[2], sys.argv[3]
-anchor = f"&host_{hostname}"
-
-with open(path) as f:
-    content = f.read()
-
-# 1. Add or update the anchor line in the keys: section.
-anchor_line = f"  - {anchor} {pubkey}"
-anchor_re = re.compile(rf'^  - {re.escape(anchor)} .*$', re.MULTILINE)
-
-if anchor_re.search(content):
-    content = anchor_re.sub(anchor_line, content)
-    print(f"  Updated existing {anchor} with new key.")
-else:
-    host_key_re = re.compile(r'^(  - &host_.*)$', re.MULTILINE)
-    matches = list(host_key_re.finditer(content))
-    if matches:
-        last = matches[-1]
-        content = content[:last.end()] + "\n" + anchor_line + content[last.end():]
-    else:
-        content = content.replace("creation_rules:", anchor_line + "\n\ncreation_rules:")
-    print(f"  Added new {anchor}.")
-
-# 2. Add *host_<hostname> to the shared + legacy creation rules (only).
-ref_line = f"          - *host_{hostname}"
-if ref_line not in content:
-    lines = content.split("\n")
-    new_lines = []
-    current_rule = None
-    in_key_group = False
-
-    i = 0
-    while i < len(lines):
-        line = lines[i]
-
-        m = re.match(r'\s*- path_regex:\s*(.+)', line)
-        if m:
-            current_rule = m.group(1)
-            new_lines.append(line)
-            i += 1
-            continue
-
-        if "key_groups:" in line and current_rule:
-            in_key_group = True
-            new_lines.append(line)
-            i += 1
-            continue
-
-        if in_key_group and re.match(r'\s*- \*host_', line):
-            new_lines.append(line)
-            j = i + 1
-            while j < len(lines) and lines[j].startswith("          - *host_"):
-                new_lines.append(lines[j])
-                i = j
-                j += 1
-            block = "\n".join(new_lines[-10:])
-            if f"*host_{hostname}" not in block:
-                if "shared" in current_rule or "secrets.yaml" in current_rule or "secrets\\.yaml" in current_rule:
-                    new_lines.append(ref_line)
-            i += 1
-            continue
-
-        if in_key_group and line and not line.startswith("          -") and not line.startswith("      - age:"):
-            in_key_group = False
-            current_rule = None
-
-        new_lines.append(line)
-        i += 1
-
-    content = "\n".join(new_lines)
-    print(f"  Added {hostname} to shared + legacy creation rules.")
-else:
-    print(f"  {hostname} already in creation rules.")
-
-with open(path, "w") as f:
-    f.write(content)
-PYEOF
-
-grep -q "&host_${HOSTNAME}" "${SOPS_YAML}" && grep -q "\*host_${HOSTNAME}" "${SOPS_YAML}" \
-  || { echo "ERROR: .sops.yaml verification failed — check it manually"; exit 1; }
-echo "  .sops.yaml updated + verified."
-
-# If the registered pubkey is already exactly ours, the secrets files
-# already encrypt to this key — skip the re-encrypt entirely (no YubiKey /
-# sudo needed) and just verify.
-EXISTING_PUBKEY=$(grep -oP "^  - &host_${HOSTNAME} \Kage1[a-z0-9]+" "${SOPS_YAML}" || true)
-if [ "${EXISTING_PUBKEY}" = "${AGE_PUBKEY}" ]; then
-  echo "  Registered key unchanged — skipping re-encryption."
-  SKIP_UPDATEKEYS=1
+registered_pubkey=$(grep -oP "^[[:space:]]*-[[:space:]]*&host_${HOSTNAME}[[:space:]]+\Kage1[a-z0-9]+" "$SOPS_YAML" || true)
+if [[ -n "$registered_pubkey" ]]; then
+  [[ -n "${HOST_AGE_KEY_FILE:-}" && -f "${HOST_AGE_KEY_FILE}" ]] || {
+    echo "ERROR: host_${HOSTNAME} is already registered; set HOST_AGE_KEY_FILE to its existing private key" >&2
+    exit 1
+  }
+  install -m 0600 "$HOST_AGE_KEY_FILE" "$HOST_KEY_FILE"
+  host_pubkey=$(age-keygen -y "$HOST_KEY_FILE")
+  [[ "$host_pubkey" == "$registered_pubkey" ]] \
+    || { echo "ERROR: HOST_AGE_KEY_FILE does not match the registered recipient" >&2; exit 1; }
 else
-  SKIP_UPDATEKEYS=0
+  age-keygen -o "$HOST_KEY_FILE" >/dev/null
+  chmod 0600 "$HOST_KEY_FILE"
+  host_pubkey=$(age-keygen -y "$HOST_KEY_FILE")
+  recovery_dir="${HOME}/.local/state/nixos-bootstrap"
+  install -d -m 0700 "$recovery_dir"
+  RECOVERY_KEY_FILE="${recovery_dir}/${HOSTNAME}-age.key"
+  install -m 0600 "$HOST_KEY_FILE" "$RECOVERY_KEY_FILE"
 fi
 
-if [ "${SKIP_UPDATEKEYS}" = "0" ]; then
-  # Re-encryption identity: SOPS_AGE_KEY_FILE (YubiKey) or this host's own key.
-  if [ -n "${SOPS_AGE_KEY_FILE:-}" ] && [ -f "${SOPS_AGE_KEY_FILE}" ]; then
-    echo "  Re-encrypting with SOPS_AGE_KEY_FILE (touch YubiKey if prompted)..."
+cp -- "$SOPS_YAML" "$SOPS_BEFORE"
+python3 "${FLAKE_ROOT}/scripts/register-sops-host.py" "$SOPS_YAML" "$HOSTNAME" "$host_pubkey"
+if ! cmp -s "$SOPS_BEFORE" "$SOPS_YAML"; then
+  SECRETS_MUTATED=1
+fi
+
+relevant_secret_files=()
+while IFS= read -r -d '' file; do
+  case "$file" in
+    secrets.yaml|secrets/shared/*.yaml|"secrets/${HOSTNAME}/"*.yaml)
+      relevant_secret_files+=("$file")
+      ;;
+  esac
+done < <(git -C "$SECRETS_REPO" ls-files -z '*.yaml')
+((${#relevant_secret_files[@]} > 0)) \
+  || { echo "ERROR: no encrypted secret files apply to $HOSTNAME" >&2; exit 1; }
+
+if ((SECRETS_MUTATED)); then
+  if [[ -n "${SOPS_AGE_KEY_FILE:-}" && -f "${SOPS_AGE_KEY_FILE}" ]]; then
+    :
   elif sudo -n true 2>/dev/null; then
-    LOCAL_HOST_KEY=$(mktemp)
-    sudo install -m 600 -o "$(id -u)" -g "$(id -g)" /var/lib/sops-nix/key.txt "${LOCAL_HOST_KEY}"
-    export SOPS_AGE_KEY_FILE="${LOCAL_HOST_KEY}"
-    echo "  Re-encrypting with this host's local sops key (via sudo)..."
+    local_admin_key="${TMP_ROOT}/local-admin-age-key.txt"
+    sudo install -m 0600 -o "$(id -u)" -g "$(id -g)" /var/lib/sops-nix/key.txt "$local_admin_key"
+    SOPS_AGE_KEY_FILE="$local_admin_key"
+    export SOPS_AGE_KEY_FILE
   else
-    echo "ERROR: no way to decrypt secrets: set SOPS_AGE_KEY_FILE (YubiKey) or cache sudo (sudo -v)."
+    echo "ERROR: recipient update needs SOPS_AGE_KEY_FILE or cached sudo credentials" >&2
     exit 1
   fi
-
-  cd "${SECRETS_REPO}"
-  find secrets -name '*.yaml' -print0 | while IFS= read -r -d '' f; do
-    echo "  Updating ${f}..."
-    sops updatekeys --yes "${f}" || { echo "ERROR: updatekeys failed for ${f}"; exit 1; }
+  for file in "${relevant_secret_files[@]}"; do
+    echo "Updating recipients: $file"
+    (cd "$SECRETS_REPO" && sops updatekeys --yes "$file")
   done
-  [ -f secrets.yaml ] && { echo "  Updating secrets.yaml..."; sops updatekeys --yes secrets.yaml; }
-else
-  cd "${SECRETS_REPO}"
 fi
-
-# Prove the NEW host key can actually decrypt before we install anything.
-# Only files the host is a recipient of: shared secrets + the legacy root
-# file. Other hosts' per-host files are NOT encrypted to this key (by design).
-echo "  Verifying the new host key can decrypt its files..."
-VERIFY_FILES=$(find secrets/shared -name '*.yaml' 2>/dev/null || true)
-for f in ${VERIFY_FILES}; do
-  SOPS_AGE_KEY_FILE="${AGE_KEY_FILE}" sops decrypt "${f}" >/dev/null \
-    || { echo "ERROR: new host key cannot decrypt ${f}"; exit 1; }
+for file in "${relevant_secret_files[@]}"; do
+  echo "Verifying new host key: $file"
+  SOPS_AGE_KEY_FILE="${HOST_KEY_FILE}" sops --decrypt "${SECRETS_REPO}/${file}" >/dev/null
 done
-[ -f secrets.yaml ] && SOPS_AGE_KEY_FILE="${AGE_KEY_FILE}" sops decrypt secrets.yaml >/dev/null
-echo "  All shared files decrypt with the new host key."
 
-git add .sops.yaml secrets/ secrets.yaml 2>/dev/null || true
-if git diff --cached --quiet; then
-  echo "  No secrets changes to commit (host was already registered)."
-else
-  git commit -m "Add ${HOSTNAME} host age key to sops"
+runtime_dir="/run/user/$(id -u)"
+if [[ -S "${runtime_dir}/gcr/ssh" ]]; then
+  SSH_AUTH_SOCK="${runtime_dir}/gcr/ssh"
+  export SSH_AUTH_SOCK
 fi
-git push origin main 2>&1 || { echo "ERROR: secrets push failed — the flake input must see this commit"; exit 1; }
-
-cd "${FLAKE_ROOT}"
+if ((SECRETS_MUTATED)); then
+  git -C "$SECRETS_REPO" diff --check
+  git -C "$SECRETS_REPO" add -- .sops.yaml "${relevant_secret_files[@]}"
+  git -C "$SECRETS_REPO" commit -m "Add ${HOSTNAME} host age key to sops"
+  SECRETS_COMMITTED=1
+fi
+# This is intentionally unconditional: it recovers cleanly from a previous
+# run whose local commit succeeded but whose push or lock update failed.
+git -C "$SECRETS_REPO" push origin main
+cd "$FLAKE_ROOT"
 nix flake lock --update-input nixos-secrets
+nix eval --raw ".#nixosConfigurations.\"${HOSTNAME}\".config.system.build.toplevel.drvPath" >/dev/null
+install -D -m 0600 "$HOST_KEY_FILE" "${EXTRA_FILES}/var/lib/sops-nix/key.txt"
 
-# Stage the private key for first-boot activation.
-rm -rf "${EXTRA_FILES}"
-mkdir -p "${EXTRA_FILES}/var/lib/sops-nix"
-install -m 600 "${AGE_KEY_FILE}" "${EXTRA_FILES}/var/lib/sops-nix/key.txt"
-echo "  Staged host key for --extra-files."
+ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" \
+  systemctl mask --runtime sleep.target suspend.target hibernate.target hybrid-sleep.target
 
-# ── Step 2: nixos-anywhere (no reboot — verify boot first) ──────────
-echo ""
-echo "── Step 2/6: nixos-anywhere (wipe + install, NO reboot yet) ──"
-echo "  This WIPES ${disk_device} on ${IP}. Proceeding in 5 seconds..."
-sleep 5
+# nixos-anywhere 1.13.0 initializes unchecked SSH options before user-supplied
+# options. OpenSSH uses the first value, so appending strict options would not
+# override them. Run a temporary copy with only its generated identity option;
+# every host-key policy then comes from the pinned installer known_hosts file.
+NA_OUT=$(nix build --no-link --print-out-paths "${FLAKE_ROOT}#nixos-anywhere")
+NA_SOURCE="${NA_OUT}/libexec/nixos-anywhere/nixos-anywhere.sh"
+TRUSTED_NA="${TMP_ROOT}/nixos-anywhere-trusted"
+python3 - "$NA_SOURCE" "$TRUSTED_NA" <<'PY'
+from pathlib import Path
+import sys
 
-HW_CONFIG="${FLAKE_ROOT}/hosts/${HOSTNAME}/hardware-configuration.nix"
-HW_ARGS=()
-# FIX 5: only generate if missing — regeneration drops nothing host-specific
-# ONLY because we keep initrd force-loads in tracked host modules. Never
-# regenerate over an existing file unattended.
-if [ ! -f "${HW_CONFIG}" ]; then
-  HW_ARGS=(--generate-hardware-config nixos-generate-config "${HW_CONFIG}")
-  echo "  No hardware-configuration.nix — will generate one."
-fi
-
-nix run "${FLAKE_ROOT}#nixos-anywhere" -- \
+source = Path(sys.argv[1]).read_text()
+unsafe = (
+    'declare -a sshArgs=("-o" "IdentitiesOnly=yes" "-i" "$tempDir/nixos-anywhere" '
+    '"-o" "UserKnownHostsFile=' + '/dev/null" "-o" "StrictHostKeyChecking=' + 'no")'
+)
+safe = 'declare -a sshArgs=("-o" "IdentitiesOnly=yes" "-i" "$tempDir/nixos-anywhere")'
+if source.count(unsafe) != 1:
+    raise SystemExit("refusing unknown nixos-anywhere SSH initialization")
+Path(sys.argv[2]).write_text(source.replace(unsafe, safe))
+PY
+chmod 0700 "$TRUSTED_NA"
+NA_SSH_OPTIONS=(
+  --ssh-option "UserKnownHostsFile=${KNOWN_HOSTS}"
+  --ssh-option StrictHostKeyChecking=yes
+)
+"$TRUSTED_NA" \
   --flake "${FLAKE_ROOT}#${HOSTNAME}" \
   --target-host "root@${IP}" \
-  --phases kexec,disko,install \
   --extra-files "${EXTRA_FILES}" \
-  "${HW_ARGS[@]}"
+  --copy-host-keys \
+  --phases kexec,disko,install \
+  "${NA_SSH_OPTIONS[@]}"
 
-echo "  Install complete (target still running the installer)."
-
-# ── Step 3 (FIX 2): verify the boot path BEFORE rebooting ───────────
-echo ""
-echo "── Step 3/6: Verifying bootloader + EFI NVRAM entry ──"
-ssh ${SSH_OPTS} "root@${IP}" 'bash -s' << 'REMOTEEOF'
+verify_boot_path() {
+  ssh "${SSH_PREFLIGHT[@]}" \
+    "root@${IP}" bash -s -- "$disk_device" <<'REMOTE'
 set -euo pipefail
-ESP_DEV=$(findmnt -n -o SOURCE /mnt/boot 2>/dev/null || true)
-[ -n "${ESP_DEV}" ] || { echo "ERROR: /mnt/boot not mounted"; exit 1; }
-
-# systemd-boot binary must be on the ESP (nixos-anywhere's chroot can fail
-# this silently when efivars isn't available).
-if [ ! -f /mnt/boot/EFI/systemd/systemd-bootx64.efi ]; then
-  echo "  systemd-boot binary missing from ESP — running bootctl install"
-  bootctl install --esp-path=/mnt/boot
+disk=$1
+esp="${disk}-part1"
+real_disk=$(readlink -f "$disk")
+[[ -b "$real_disk" && -b "$(readlink -f "$esp")" ]] || { echo "ERROR: target disk/ESP missing" >&2; exit 1; }
+partuuid=$(blkid -s PARTUUID -o value "$esp")
+[[ -n "$partuuid" ]] || { echo "ERROR: ESP has no PARTUUID" >&2; exit 1; }
+[[ -f /mnt/boot/EFI/systemd/systemd-bootx64.efi ]] || { echo "ERROR: systemd-boot EFI binary missing" >&2; exit 1; }
+compgen -G '/mnt/boot/loader/entries/*.conf' >/dev/null || { echo "ERROR: no loader entries" >&2; exit 1; }
+[[ -s /mnt/boot/loader/loader.conf ]] || { echo "ERROR: loader.conf missing/empty" >&2; exit 1; }
+efi_output=$(efibootmgr -v)
+entry=$(grep -Fi "$partuuid" <<<"$efi_output" | grep -Fi '\EFI\systemd\systemd-bootx64.efi' | grep -oP '^Boot\K[0-9A-Fa-f]{4}' | head -1)
+if [[ -z "$entry" ]]; then
+  echo "Creating an EFI entry for ESP PARTUUID $partuuid"
+  efibootmgr -c -d "$real_disk" -p 1 -L "Linux Boot Manager" -l '\EFI\systemd\systemd-bootx64.efi' >/dev/null
+  efi_output=$(efibootmgr -v)
+  entry=$(grep -Fi "$partuuid" <<<"$efi_output" | grep -Fi '\EFI\systemd\systemd-bootx64.efi' | grep -oP '^Boot\K[0-9A-Fa-f]{4}' | head -1)
 fi
-
-PARTUUID=$(blkid -o value -s PARTUUID "${ESP_DEV}")
-DISK_DEV="/dev/$(lsblk -n -o PKNAME "${ESP_DEV}")"
-echo "  ESP: ${ESP_DEV} PARTUUID=${PARTUUID}"
-
-# Drop stale "Linux Boot Manager" entries pointing at other partitions.
-for num in $(efibootmgr -v | grep -oP '^Boot\K[0-9A-F]{4}(?=\*? +Linux Boot Manager)'); do
-  GUID=$(efibootmgr -v | grep -E "^Boot${num}\*? +Linux Boot Manager" | grep -oP 'GPT,\K[0-9a-f-]{36}' | head -1 || true)
-  if [ "${GUID,,}" != "${PARTUUID,,}" ]; then
-    echo "  Deleting stale entry Boot${num} (points at ${GUID:-nothing})"
-    efibootmgr -b "${num}" -B >/dev/null
-  fi
+[[ -n "$entry" ]] || { echo "ERROR: no NVRAM entry points at the real ESP and systemd-boot executable" >&2; exit 1; }
+boot_order=$(grep -oP '^BootOrder: \K.*' <<<"$efi_output" | head -1)
+new_order=$entry
+IFS=, read -ra old_entries <<<"$boot_order"
+for old in "${old_entries[@]}"; do
+  [[ "${old^^}" == "${entry^^}" || -z "$old" ]] || new_order+=",$old"
 done
+efibootmgr -o "$new_order" >/dev/null
+echo "Verified systemd-boot, loader entries, ESP $esp ($partuuid), and BootOrder entry $entry."
+REMOTE
+}
+verify_boot_path
 
-# Ensure an entry exists for OUR ESP and is first in the boot order.
-KEEP=$(efibootmgr -v | grep "Linux Boot Manager" | grep -c "${PARTUUID}" || true)
-if [ "${KEEP}" = "0" ]; then
-  echo "  Creating NVRAM entry for the new ESP"
-  efibootmgr -c -d "${DISK_DEV}" -p 1 -L "Linux Boot Manager" -l '\EFI\systemd\systemd-bootx64.efi' >/dev/null
-fi
-ENTRY=$(efibootmgr -v | grep "Linux Boot Manager" | grep "${PARTUUID}" | grep -oP '^Boot\K[0-9A-F]{4}' | head -1)
-OTHERS=$(efibootmgr | grep -oP '^Boot\K[0-9A-F]{4}(?=\*)' | grep -v "^${ENTRY}$" | paste -sd, -)
-efibootmgr -o "${ENTRY}${OTHERS:+,${OTHERS}}" >/dev/null
+echo "Set jaide's initial password inside the installed system before reboot."
+echo "The password is entered directly into passwd over the verified installer SSH session; it is never stored in Git or the Nix store."
+ssh -tt -o ConnectTimeout=8 -o "UserKnownHostsFile=${KNOWN_HOSTS}" -o StrictHostKeyChecking=yes \
+  "root@${IP}" "nixos-enter --root /mnt --command 'passwd jaide'"
 
-echo "  Boot entry: Boot${ENTRY} -> ${PARTUUID} (first in BootOrder)"
-grep -q '^default ' /mnt/boot/loader/loader.conf || { echo "ERROR: no default boot entry in loader.conf"; exit 1; }
-echo "  Boot path verified."
-REMOTEEOF
+"$TRUSTED_NA" \
+  --flake "${FLAKE_ROOT}#${HOSTNAME}" \
+  --target-host "root@${IP}" \
+  --phases reboot \
+  "${NA_SSH_OPTIONS[@]}"
 
-# ── Step 4: reboot + wait for the installed system ──────────────────
-echo ""
-echo "── Step 4/6: Rebooting into the installed system ──"
-ssh ${SSH_OPTS} "root@${IP}" "nohup reboot >/dev/null 2>&1 &" || true
-
-echo "  Polling jaide@${IP} SSH (up to 300s)..."
-up=0
-for i in $(seq 1 60); do
-  if ssh ${SSH_OPTS} -o BatchMode=yes "jaide@${IP}" "echo ok" 2>/dev/null | grep -q ok; then
-    up=1
-    echo "  Installed system is up (after ~$((i*5))s)."
+echo "Waiting up to 300 seconds for the installed system..."
+installed_up=0
+for _ in $(seq 1 60); do
+  if ssh -o BatchMode=yes -o ConnectTimeout=5 -o "UserKnownHostsFile=${KNOWN_HOSTS}" -o StrictHostKeyChecking=yes \
+    "jaide@${IP}" 'printf installed' 2>/dev/null | grep -q '^installed$'; then
+    installed_up=1
     break
   fi
   sleep 5
 done
-if [ "${up}" != "1" ]; then
-  echo "ERROR: ${HOSTNAME} did not come back on SSH within 300s."
-  echo "  Check the console. If the boot failed, boot the ISO via the boot"
-  echo "  menu (F7/F11) and inspect /mnt/boot + efibootmgr -v."
-  exit 1
+((installed_up)) || { echo "ERROR: installed host did not return on jaide SSH" >&2; exit 1; }
+
+remote_status=$(ssh -o BatchMode=yes -o "UserKnownHostsFile=${KNOWN_HOSTS}" -o StrictHostKeyChecking=yes \
+  "jaide@${IP}" 'printf "hostname=%s\n" "$(hostname)"; systemctl is-system-running --wait; test -f /run/secrets/ssh_key')
+printf '%s\n' "$remote_status"
+[[ "$remote_status" == *"hostname=${HOSTNAME}"* && "$remote_status" == *running* ]] \
+  || { echo "ERROR: installed hostname/system state verification failed" >&2; exit 1; }
+
+echo "${HOSTNAME} is installed: SSH works, sops created ssh_key, system state is running, and bootability was proven before reboot."
+if git -C "$FLAKE_ROOT" diff --quiet -- flake.lock; then
+  :
+else
+  echo "Review and commit the flake.lock update: git -C $FLAKE_ROOT diff -- flake.lock"
 fi
-
-# ── Step 5: verify activation actually completed (secrets!) ─────────
-echo ""
-echo "── Step 5/6: Verifying first activation (secrets, services) ──"
-ssh ${SSH_OPTS} -o BatchMode=yes "jaide@${IP}" '
-  echo "  hostname: $(hostname)"
-  echo "  secrets:  $(ls /run/secrets/ 2>/dev/null | tr "\n" " ")"
-  echo "  failed units: $(systemctl --failed --no-legend | wc -l)"
-  [ -f /run/secrets/ssh_key ] || { echo "ERROR: /run/secrets/ssh_key missing — sops activation failed"; exit 1; }
-'
-
-# ── Step 6: first deploy (syncs to the latest flake state) ──────────
-echo ""
-echo "── Step 6/6: First deploy via jaide@ (local build, remote switch) ──"
-nixos-rebuild switch \
-  --flake ".#${HOSTNAME}" \
-  --target-host "jaide@${IP}" \
-  --use-remote-sudo \
-  --use-substitutes
-
-echo ""
-echo "════════════════════════════════════════════════════════════════"
-echo "  ${HOSTNAME} provisioned, booted, and verified!"
-echo "════════════════════════════════════════════════════════════════"
-echo ""
-echo "  Next steps:"
-echo "    1. SSH in:  ssh jaide@${IP}"
-echo "    2. Change the initial password:  passwd"
-echo "    3. Verify secrets:  ls /run/secrets/"
-echo "    4. Commit:  git add -A && git commit (flake.lock + hardware-config)"
-echo ""
-echo "  For future deploys:"
-echo "    just deploy-remote ${HOSTNAME} ${IP}"
+echo "The password entered before reboot is active; verify sudo with: ssh -t jaide@${IP} sudo -v"

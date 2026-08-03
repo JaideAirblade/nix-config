@@ -36,9 +36,10 @@
     { pkgs, ... }:
 
     let
-      syncScript = pkgs.writers.writePython3Bin "sync-readest-dms-theme" {
-        flakeIgnore = [ "E501" "E302" "E305" "F401" "E402" ];
-      } ''
+      syncScript = pkgs.writers.writePython3Bin "sync-readest-dms-theme"
+        {
+          flakeIgnore = [ "E501" "E302" "E305" "F401" "E402" ];
+        } ''
         import json
         import os
         import re

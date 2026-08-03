@@ -7,11 +7,9 @@ _:
     {
       users.users."jaide" = {
         extraGroups = [ "networkmanager" "wheel" ];
-
-        # TEMPORARY first-boot password — no password is set anywhere else in
-        # the config, and without one the account is locked (no greeter login,
-        # no sudo). CHANGE IMMEDIATELY after first login with `passwd`.
-        initialPassword = "nixos";
+        # The authorized SSH key is the only bootstrap credential. Set a login
+        # password with `passwd` over that authenticated session if remote sudo is
+        # needed; never put a plaintext bootstrap password in the Nix store.
       };
     }
   ;

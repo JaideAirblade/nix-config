@@ -16,9 +16,10 @@ _:
 
     let
       # E501: the embedded CSS template intentionally uses long lines.
-      syncScript = pkgs.writers.writePython3Bin "sync-legcord-dms-theme" {
-        flakeIgnore = [ "E501" ];
-      } ''
+      syncScript = pkgs.writers.writePython3Bin "sync-legcord-dms-theme"
+        {
+          flakeIgnore = [ "E501" ];
+        } ''
         import json
         import os
         import re

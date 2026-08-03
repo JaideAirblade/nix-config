@@ -11,7 +11,26 @@ _:
 {
   nixos.modules.adLab =
     { pkgs, ... }:
-
+    let
+      # These names are used in virsh commands, SSH-config regexes, and
+      # recursive key-directory removal. Keep them inside the AD-lab namespace
+      # and refuse the two irreplaceable template/DC domains.
+      validateLabClientName = ''
+        validate_lab_client_name() {
+          local name="$1"
+          if [[ ! "$name" =~ ^ad-[A-Za-z0-9][A-Za-z0-9_-]*$ ]]; then
+            echo "ERROR: VM name must match ^ad-[A-Za-z0-9][A-Za-z0-9_-]*$" >&2
+            exit 2
+          fi
+          case "$name" in
+            ad-dc1|ad-client-base)
+              echo "ERROR: refusing destructive client operation on reserved VM $name" >&2
+              exit 2
+              ;;
+          esac
+        }
+      '';
+    in
     {
       # ── AD attack tools + lab management scripts ───────────────────────
       # Attack tools complement the impacket/evil-winrm/netexec tools from
@@ -157,8 +176,11 @@ _:
         (pkgs.writeShellScriptBin "lab-fresh-client" ''
                 set -euo pipefail
                 VM_NAME="''${1:?Usage: lab-fresh-client <vm-name>}"
+                ${validateLabClientName}
+                validate_lab_client_name "$VM_NAME"
                 BASE="ad-client-base"
-                KEY_DIR="$HOME/.ssh/lab-keys/$VM_NAME"
+                KEY_ROOT="$HOME/.ssh/lab-keys"
+                KEY_DIR="$KEY_ROOT/$VM_NAME"
 
                 # Nuke old VM if it exists
                 virsh destroy "$VM_NAME" 2>/dev/null || true
@@ -208,8 +230,10 @@ _:
 
         # Revert a client VM to its base snapshot (faster than fresh clone)
         (pkgs.writeShellScriptBin "lab-revert" ''
-          set -e
+          set -euo pipefail
           VM_NAME="''${1:?Usage: lab-revert <vm-name>}"
+          ${validateLabClientName}
+          validate_lab_client_name "$VM_NAME"
           virsh snapshot-revert "$VM_NAME" base-snapshot 2>/dev/null || {
             echo "No base-snapshot found for $VM_NAME. Use lab-fresh-client instead."
             exit 1
@@ -220,11 +244,14 @@ _:
 
         # Nuke a client VM + clean up SSH keys
         (pkgs.writeShellScriptBin "lab-nuke" ''
-          set -e
+          set -euo pipefail
           VM_NAME="''${1:?Usage: lab-nuke <vm-name>}"
+          ${validateLabClientName}
+          validate_lab_client_name "$VM_NAME"
           virsh destroy "$VM_NAME" 2>/dev/null || true
           virsh undefine "$VM_NAME" --remove-all-storage 2>/dev/null || true
-          rm -rf "$HOME/.ssh/lab-keys/$VM_NAME"
+          KEY_ROOT="$HOME/.ssh/lab-keys"
+          rm -rf -- "$KEY_ROOT/$VM_NAME"
           # Remove SSH config entry
           sed -i "/^Host $VM_NAME$/,/^\$/d" "$HOME/.ssh/config" 2>/dev/null || true
           echo "VM $VM_NAME nuked. SSH keys + config cleaned up."
