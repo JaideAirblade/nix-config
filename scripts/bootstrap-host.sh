@@ -78,6 +78,8 @@ KNOWN_HOSTS="${TMP_ROOT}/known_hosts"
 HOST_KEY_FILE="${TMP_ROOT}/host-age-key.txt"
 EXTRA_FILES="${TMP_ROOT}/extra-files"
 SOPS_BEFORE="${TMP_ROOT}/sops-before.yaml"
+SOPS_VERIFY_CONFIG="${TMP_ROOT}/xdg-verify"
+mkdir -m 0700 "$SOPS_VERIFY_CONFIG"
 
 ssh-keyscan -T 5 "$IP" >"$KNOWN_HOSTS" 2>/dev/null
 [[ -s "$KNOWN_HOSTS" ]] || { echo "ERROR: cannot obtain installer SSH host key from $IP" >&2; exit 1; }
@@ -176,7 +178,8 @@ if ((SECRETS_MUTATED)); then
 fi
 for file in "${relevant_secret_files[@]}"; do
   echo "Verifying new host key: $file"
-  SOPS_AGE_KEY_FILE="${HOST_KEY_FILE}" sops --decrypt "${SECRETS_REPO}/${file}" >/dev/null
+  XDG_CONFIG_HOME="${SOPS_VERIFY_CONFIG}" SOPS_AGE_KEY_FILE="${HOST_KEY_FILE}" \
+    sops --decrypt "${SECRETS_REPO}/${file}" >/dev/null
 done
 
 runtime_dir="/run/user/$(id -u)"

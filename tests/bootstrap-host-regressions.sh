@@ -26,7 +26,9 @@ reject() {
 
 require 'read -r confirmation' "provisioning lacks an explicit typed wipe confirmation"
 require 'WIPE ${disk_device} ON ${IP}' "confirmation is not bound to the exact disk and target"
-require 'SOPS_AGE_KEY_FILE="${HOST_KEY_FILE}" sops --decrypt' "new host key is not tested before installation"
+require 'SOPS_AGE_KEY_FILE="${HOST_KEY_FILE}"' "new host key is not selected for verification"
+require 'sops --decrypt "${SECRETS_REPO}/${file}" >/dev/null' "new host key is not tested before installation"
+require 'XDG_CONFIG_HOME="${SOPS_VERIFY_CONFIG}"' "host-key verification can fall back to interactive user identities"
 require '--extra-files "${EXTRA_FILES}"' "the prepared sops host key is not installed before first activation"
 require '--phases kexec,disko,install' "install does not pause before reboot for boot-path verification"
 require 'verify_boot_path' "ESP/NVRAM boot-path verification is missing"
