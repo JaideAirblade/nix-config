@@ -58,8 +58,10 @@
     };
 
     # Encrypted secrets — separate PRIVATE repo.
+    # TODO: Switch back to git+ssh://git@github.com once SSH key is deployed via sops.
+    #       For now use local clone (fetched via gh auth) to bootstrap.
     nixos-secrets = {
-      url = "git+ssh://git@github.com/JaideAirblade/nixos-secrets.git?ref=main";
+      url = "git+file:///home/jaide/nixos-secrets";
       flake = false;
     };
 
