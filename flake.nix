@@ -115,6 +115,7 @@
       imports = featureModules ++ [
         # Host entry points select a few merged roles and generated hardware.
         ./hosts/UwU/default.nix
+        ./hosts/UwU-Server/default.nix
         ./hosts/TSBW-W01800/default.nix
       ];
 
