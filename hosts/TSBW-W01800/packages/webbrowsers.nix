@@ -57,14 +57,14 @@ _:
 
             # 2. Install runtime dependencies from Flathub
             for app in ${toString desiredFlathubApps}; do
-              flatpak install -y --noninteractive flathub "$app"
+              flatpak install -y --noninteractive flathub "$app" || true
             done
 
             # 3. Install Orion from local bundle (fetched via nix fetchurl)
-            flatpak install -y --noninteractive ${orionBundle}
+            flatpak install -y --noninteractive ${orionBundle} || true
 
             # 3b. Install NekoPlay from local bundle (fetched via nix fetchurl)
-            flatpak install -y --noninteractive ${nekoPlayBundle}
+            flatpak install -y --noninteractive ${nekoPlayBundle} || true
           '';
       };
     }
