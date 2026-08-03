@@ -24,6 +24,35 @@ _:
       networking.localCommands = ''
         ${pkgs.iproute2}/bin/ip route add 148.251.13.54/32 via 192.168.178.1 dev enp10s0 quickack 1 2>/dev/null || true
       '';
+
+      # Disable Energy Efficient Ethernet on the Realtek wired adapter.
+      # EEE can silently break long-lived Discord voice/WebRTC sessions while
+      # ordinary TCP traffic continues to look healthy. Apply it once at boot
+      # and again whenever NetworkManager brings the interface back up.
+      systemd.services.disable-eee-enp10s0 = {
+        description = "Disable EEE on the Realtek Ethernet adapter";
+        wantedBy = [ "multi-user.target" ];
+        wants = [ "sys-subsystem-net-devices-enp10s0.device" ];
+        after = [
+          "NetworkManager.service"
+          "sys-subsystem-net-devices-enp10s0.device"
+        ];
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = "${pkgs.ethtool}/bin/ethtool --set-eee enp10s0 eee off";
+          RemainAfterExit = true;
+        };
+      };
+
+      environment.etc."NetworkManager/dispatcher.d/20-disable-eee-enp10s0" = {
+        mode = "0755";
+        text = ''
+          # Keep EEE disabled after NetworkManager reconnects the link.
+          [ "$1" = "enp10s0" ] || exit 0
+          [ "$2" = "up" ] || exit 0
+          ${pkgs.ethtool}/bin/ethtool --set-eee "$1" eee off >/dev/null 2>&1 || true
+        '';
+      };
     }
   ;
 }
