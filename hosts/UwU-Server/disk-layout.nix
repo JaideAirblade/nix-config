@@ -25,6 +25,14 @@ _:
   nixos.hosts."UwU-Server" =
     _:
     {
+      # Force-load the NVMe driver in the initrd instead of relying on udev
+      # modalias coldplug. The Crucial E100 sits behind a quirky bridge on
+      # this board (c1:00.0); without an early force-load the device can lose
+      # the race against initrd device discovery → "switch root target
+      # contains no usable init". Keep this OUTSIDE hardware-configuration.nix
+      # — nixos-generate-config regenerations must not drop it.
+      boot.initrd.kernelModules = [ "nvme" ];
+
       disko.devices.disk.main = {
         type = "disk";
         device = "/dev/disk/by-id/nvme-CT1000E100SSD8_2545EAD120AF";
