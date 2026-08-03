@@ -13,6 +13,7 @@
     modules = [
       inputs.disko.nixosModules.disko
       config.nixos.modules.common
+      config.nixos.modules.privateAccounts
       config.nixos.modules.fileManager
       config.nixos.modules.disk
       config.nixos.hosts."UwU-Server"

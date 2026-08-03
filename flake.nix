@@ -167,15 +167,27 @@
 
             regressions = pkgs.runCommand "repository-regressions"
               {
-                nativeBuildInputs = [ pkgs.bash pkgs.inetutils pkgs.just pkgs.python3 ];
+                nativeBuildInputs = [
+                  pkgs.bash
+                  pkgs.inetutils
+                  pkgs.just
+                  pkgs.openssh
+                  pkgs.python3
+                ];
               } ''
-              cd ${self}
-              bash tests/bootstrap-host-regressions.sh
-              bash tests/justfile-argument-regressions.sh
+                cd ${self}
+                bash tests/bootstrap-host-regressions.sh
+                bash tests/bootstrap-authenticity-regressions.sh
+                bash tests/bootstrap-network-regressions.sh
+                bash tests/verify-installed-boot-regressions.sh
+                bash tests/justfile-argument-regressions.sh
               python3 tests/ad-lab-name-regressions.py
               python3 tests/register-sops-host-regressions.py
               python3 tests/user-password-regressions.py
+              python3 tests/private-accounts-regressions.py
+              bash tests/set-private-password-hash-regressions.sh
               python3 tests/net-report-wifi-scan-regressions.py
+              python3 tests/mnemosyne-activation-regressions.py
               touch $out
             '';
           };

@@ -9,6 +9,7 @@
     modules = [
       inputs.disko.nixosModules.disko
       config.nixos.modules.common
+      config.nixos.modules.privateAccounts
       config.nixos.modules.fileManager
       config.nixos.modules.personal
       config.nixos.modules.virtualisation

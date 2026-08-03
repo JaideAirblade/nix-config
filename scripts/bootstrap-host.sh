@@ -13,6 +13,134 @@ existing private age key. The script refuses implicit host-key rotation.
 EOF
 }
 
+host_key_sets_overlap() {
+  python3 - "$1" "$2" <<'PY'
+import sys
+
+
+def keys(path):
+    result = set()
+    with open(path, encoding="utf-8") as handle:
+        for line in handle:
+            fields = line.split()
+            if len(fields) >= 3 and fields[-2].startswith(("ssh-", "ecdsa-", "sk-")):
+                result.add((fields[-2], fields[-1]))
+    return result
+
+
+raise SystemExit(0 if keys(sys.argv[1]) & keys(sys.argv[2]) else 1)
+PY
+}
+
+filter_host_keys_to_overlap() {
+  python3 - "$1" "$2" "$3" <<'PY'
+import sys
+
+
+def key_from_line(line):
+    fields = line.split()
+    if len(fields) >= 3 and fields[-2].startswith(("ssh-", "ecdsa-", "sk-")):
+        return fields[-2], fields[-1]
+    return None
+
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    trusted = {key for line in handle if (key := key_from_line(line)) is not None}
+
+matched = []
+with open(sys.argv[2], encoding="utf-8") as handle:
+    for line in handle:
+        if key_from_line(line) in trusted:
+            matched.append(line)
+
+if not matched:
+    raise SystemExit(1)
+with open(sys.argv[3], "w", encoding="utf-8") as handle:
+    handle.writelines(matched)
+PY
+}
+
+network_cidr_for_target() {
+  python3 - "$1" <<'PY'
+import ipaddress
+import json
+import subprocess
+import sys
+import socket
+
+
+target = socket.gethostbyname(sys.argv[1])
+route = json.loads(subprocess.check_output(["ip", "-j", "route", "get", target]))[0]
+dev = route["dev"]
+source = ipaddress.ip_address(route.get("prefsrc") or route.get("src"))
+addresses = json.loads(subprocess.check_output(["ip", "-j", "address", "show", "dev", dev]))
+for interface in addresses:
+    for entry in interface.get("addr_info", []):
+        if entry.get("family") != "inet":
+            continue
+        network = ipaddress.ip_network(f"{entry['local']}/{entry['prefixlen']}", strict=False)
+        if source in network and ipaddress.ip_address(target) in network:
+            if network.num_addresses > 4096:
+                raise SystemExit("refusing to scan a network larger than /20")
+            print(network)
+            raise SystemExit(0)
+raise SystemExit("could not determine the directly connected target network")
+PY
+}
+
+neighbor_ips_in_cidr() {
+  ip -j neigh | python3 -c '
+import ipaddress, json, sys
+network = ipaddress.ip_network(sys.argv[1], strict=True)
+usable = {"REACHABLE", "STALE", "DELAY", "PROBE", "PERMANENT"}
+for entry in json.load(sys.stdin):
+    try:
+        address = ipaddress.ip_address(entry.get("dst", ""))
+    except ValueError:
+        continue
+    if address in network and set(entry.get("state", [])) & usable:
+        print(address)
+' "$1"
+}
+
+confirm_installer_host_key() {
+  local known_hosts=$1
+  local target=$2
+  local expected=${INSTALLER_HOST_FINGERPRINT:-}
+  local filtered="${known_hosts}.verified"
+  local fingerprint key_type
+  local matched=0
+
+  if [[ -z "$expected" ]]; then
+    echo "Read the ED25519 SHA-256 fingerprint from the target console." >&2
+    printf 'Fingerprint for %s: ' "$target" >&2
+    read -r expected
+  fi
+  [[ "$expected" == SHA256:* ]] \
+    || { echo "ERROR: expected an ED25519 SHA-256 host fingerprint" >&2; return 1; }
+
+  : >"$filtered"
+  while IFS= read -r line; do
+    read -r _ fingerprint _ key_type < <(
+      printf '%s\n' "$line" | ssh-keygen -E sha256 -lf - 2>/dev/null
+    ) || continue
+    if [[ "$key_type" == '(ED25519)' && "$fingerprint" == "$expected" ]]; then
+      printf '%s\n' "$line" >>"$filtered"
+      matched=1
+    fi
+  done <"$known_hosts"
+  if ((matched == 0)); then
+    rm -f "$filtered"
+    echo "ERROR: installer host fingerprint does not match the out-of-band value" >&2
+    return 1
+  fi
+  mv "$filtered" "$known_hosts"
+}
+
+if [[ ${BOOTSTRAP_HOST_LIB_ONLY:-0} == 1 ]]; then
+  return 0 2>/dev/null || exit 0
+fi
+
 [[ $# -eq 2 ]] || { usage >&2; exit 2; }
 HOSTNAME=$1
 IP=$2
@@ -47,7 +175,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for command in age-keygen git just nix python3 sops ssh ssh-keygen ssh-keyscan; do
+for command in age-keygen git ip just nix nmap python3 sops ssh ssh-keygen ssh-keyscan tar; do
   command -v "$command" >/dev/null \
     || { echo "ERROR: required command not found: $command" >&2; exit 1; }
 done
@@ -66,6 +194,23 @@ evaluated_hostname=$(nix eval --raw ".#nixosConfigurations.\"${HOSTNAME}\".confi
 disk_device=$(nix eval --raw ".#nixosConfigurations.\"${HOSTNAME}\".config.disko.devices.disk.main.device")
 [[ "$disk_device" == /dev/disk/by-id/* && "$disk_device" != *-part* ]] \
   || { echo "ERROR: disko target must be a whole-disk /dev/disk/by-id path" >&2; exit 1; }
+hashed_password_file=$(nix eval --json \
+  ".#nixosConfigurations.\"${HOSTNAME}\".config.users.users.jaide.hashedPasswordFile" \
+  | python3 -c 'import json, sys; print(json.load(sys.stdin) or "")')
+uses_private_password_secret=0
+if [[ -n "$hashed_password_file" ]]; then
+  early_password_secret=$(nix eval --json \
+    ".#nixosConfigurations.\"${HOSTNAME}\".config.sops.secrets.jaide_password_hash.neededForUsers")
+  mutable_users=$(nix eval --json \
+    ".#nixosConfigurations.\"${HOSTNAME}\".config.users.mutableUsers")
+  [[ "$early_password_secret" == true ]] \
+    || { echo "ERROR: jaide_password_hash must set neededForUsers = true" >&2; exit 1; }
+  [[ "$mutable_users" == false ]] \
+    || { echo "ERROR: SOPS password hashes require users.mutableUsers = false" >&2; exit 1; }
+  [[ "$hashed_password_file" == /run/secrets-for-users/* ]] \
+    || { echo "ERROR: jaide hashedPasswordFile is not an early sops-nix secret" >&2; exit 1; }
+  uses_private_password_secret=1
+fi
 [[ "$(nix eval --json ".#nixosConfigurations.\"${HOSTNAME}\".config.services.openssh.enable")" == true ]] \
   || { echo "ERROR: target configuration must enable OpenSSH" >&2; exit 1; }
 authorized_key_count=$(nix eval --json ".#nixosConfigurations.\"${HOSTNAME}\".config.users.users.jaide.openssh.authorizedKeys.keys" --apply builtins.length)
@@ -76,15 +221,25 @@ nix fmt -- --check . >/dev/null
 TMP_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/bootstrap-${HOSTNAME}.XXXXXX")
 KNOWN_HOSTS="${TMP_ROOT}/known_hosts"
 HOST_KEY_FILE="${TMP_ROOT}/host-age-key.txt"
-EXTRA_FILES="${TMP_ROOT}/extra-files"
 SOPS_BEFORE="${TMP_ROOT}/sops-before.yaml"
 SOPS_VERIFY_CONFIG="${TMP_ROOT}/xdg-verify"
+REMOTE_FLAKE="/tmp/nixos-bootstrap-flake"
+REMOTE_SECRETS="/tmp/nixos-bootstrap-secrets"
 mkdir -m 0700 "$SOPS_VERIFY_CONFIG"
 
-ssh-keyscan -T 5 "$IP" >"$KNOWN_HOSTS" 2>/dev/null
-[[ -s "$KNOWN_HOSTS" ]] || { echo "ERROR: cannot obtain installer SSH host key from $IP" >&2; exit 1; }
-echo "Installer SSH host-key fingerprints (compare with the target you trust):"
-ssh-keygen -lf "$KNOWN_HOSTS"
+if [[ -n ${INSTALLER_KNOWN_HOSTS_FILE:-} ]]; then
+  [[ -f "$INSTALLER_KNOWN_HOSTS_FILE" ]] \
+    || { echo "ERROR: pre-provisioned known-hosts file is missing: $INSTALLER_KNOWN_HOSTS_FILE" >&2; exit 1; }
+  install -m 0600 "$INSTALLER_KNOWN_HOSTS_FILE" "$KNOWN_HOSTS"
+  ssh-keygen -F "$IP" -f "$KNOWN_HOSTS" >/dev/null \
+    || { echo "ERROR: pre-provisioned known-hosts file has no entry for $IP" >&2; exit 1; }
+else
+  ssh-keyscan -T 5 "$IP" >"$KNOWN_HOSTS" 2>/dev/null
+  [[ -s "$KNOWN_HOSTS" ]] || { echo "ERROR: cannot obtain installer SSH host key from $IP" >&2; exit 1; }
+  echo "Installer SSH host-key fingerprints:"
+  ssh-keygen -E sha256 -lf "$KNOWN_HOSTS"
+  confirm_installer_host_key "$KNOWN_HOSTS" "$IP"
+fi
 SSH_PREFLIGHT=(
   -o BatchMode=yes
   -o ConnectTimeout=8
@@ -100,6 +255,9 @@ if ! ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" true 2>/dev/null; then
 fi
 ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" true \
   || { echo "ERROR: root SSH to the installer failed" >&2; exit 1; }
+ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" \
+  'set -euo pipefail; command -v python3 >/dev/null; test -d /sys/firmware/efi/efivars; test -w /sys/firmware/efi/efivars; efibootmgr -v >/dev/null' \
+  || { echo "ERROR: installer must provide python3 and writable UEFI variables" >&2; exit 1; }
 
 remote_inventory=$(ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" bash -s -- "$disk_device" <<'REMOTE'
 set -euo pipefail
@@ -116,6 +274,9 @@ fi
 REMOTE
 )
 printf '%s\n' "$remote_inventory"
+target_cidr=$(network_cidr_for_target "$IP")
+echo "Post-boot discovery will authenticate SSH candidates within $target_cidr"
+
 confirmation_phrase="WIPE ${disk_device} ON ${IP}"
 echo "Verify the model/serial and backups, then type exactly:"
 printf '  %s\n> ' "$confirmation_phrase"
@@ -153,6 +314,9 @@ while IFS= read -r -d '' file; do
   case "$file" in
     secrets.yaml|secrets/shared/*.yaml|"secrets/${HOSTNAME}/"*.yaml)
       relevant_secret_files+=("$file")
+      ;;
+    secrets/private/*.yaml)
+      ((uses_private_password_secret)) && relevant_secret_files+=("$file")
       ;;
   esac
 done < <(git -C "$SECRETS_REPO" ls-files -z '*.yaml')
@@ -197,9 +361,8 @@ fi
 # run whose local commit succeeded but whose push or lock update failed.
 git -C "$SECRETS_REPO" push origin main
 cd "$FLAKE_ROOT"
-nix flake lock --update-input nixos-secrets
+nix flake update nixos-secrets
 nix eval --raw ".#nixosConfigurations.\"${HOSTNAME}\".config.system.build.toplevel.drvPath" >/dev/null
-install -D -m 0600 "$HOST_KEY_FILE" "${EXTRA_FILES}/var/lib/sops-nix/key.txt"
 
 ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" \
   systemctl mask --runtime sleep.target suspend.target hibernate.target hybrid-sleep.target
@@ -236,49 +399,47 @@ NA_SSH_OPTIONS=(
 "$TRUSTED_NA" \
   --flake "${FLAKE_ROOT}#${HOSTNAME}" \
   --target-host "root@${IP}" \
-  --extra-files "${EXTRA_FILES}" \
-  --copy-host-keys \
-  --phases kexec,disko,install \
+  --phases kexec,disko \
   "${NA_SSH_OPTIONS[@]}"
 
-verify_boot_path() {
-  ssh "${SSH_PREFLIGHT[@]}" \
-    "root@${IP}" bash -s -- "$disk_device" <<'REMOTE'
-set -euo pipefail
-disk=$1
-esp="${disk}-part1"
-real_disk=$(readlink -f "$disk")
-[[ -b "$real_disk" && -b "$(readlink -f "$esp")" ]] || { echo "ERROR: target disk/ESP missing" >&2; exit 1; }
-partuuid=$(blkid -s PARTUUID -o value "$esp")
-[[ -n "$partuuid" ]] || { echo "ERROR: ESP has no PARTUUID" >&2; exit 1; }
-[[ -f /mnt/boot/EFI/systemd/systemd-bootx64.efi ]] || { echo "ERROR: systemd-boot EFI binary missing" >&2; exit 1; }
-compgen -G '/mnt/boot/loader/entries/*.conf' >/dev/null || { echo "ERROR: no loader entries" >&2; exit 1; }
-[[ -s /mnt/boot/loader/loader.conf ]] || { echo "ERROR: loader.conf missing/empty" >&2; exit 1; }
-efi_output=$(efibootmgr -v)
-entry=$(grep -Fi "$partuuid" <<<"$efi_output" | grep -Fi '\EFI\systemd\systemd-bootx64.efi' | grep -oP '^Boot\K[0-9A-Fa-f]{4}' | head -1)
-if [[ -z "$entry" ]]; then
-  echo "Creating an EFI entry for ESP PARTUUID $partuuid"
-  efibootmgr -c -d "$real_disk" -p 1 -L "Linux Boot Manager" -l '\EFI\systemd\systemd-bootx64.efi' >/dev/null
-  efi_output=$(efibootmgr -v)
-  entry=$(grep -Fi "$partuuid" <<<"$efi_output" | grep -Fi '\EFI\systemd\systemd-bootx64.efi' | grep -oP '^Boot\K[0-9A-Fa-f]{4}' | head -1)
-fi
-[[ -n "$entry" ]] || { echo "ERROR: no NVRAM entry points at the real ESP and systemd-boot executable" >&2; exit 1; }
-boot_order=$(grep -oP '^BootOrder: \K.*' <<<"$efi_output" | head -1)
-new_order=$entry
-IFS=, read -ra old_entries <<<"$boot_order"
-for old in "${old_entries[@]}"; do
-  [[ "${old^^}" == "${entry^^}" || -z "$old" ]] || new_order+=",$old"
-done
-efibootmgr -o "$new_order" >/dev/null
-echo "Verified systemd-boot, loader entries, ESP $esp ($partuuid), and BootOrder entry $entry."
-REMOTE
-}
-verify_boot_path
+# nixos-anywhere establishes the trusted installer and applies Disko. The
+# actual OS installation is deliberately target-side `nixos-install --flake`.
+# Transfer only Git-tracked source files; the secrets checkout contains SOPS
+# ciphertext, never decrypted values.
+ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" \
+  "rm -rf '${REMOTE_FLAKE}' '${REMOTE_SECRETS}'; mkdir -p '${REMOTE_FLAKE}' '${REMOTE_SECRETS}'"
+git -C "$FLAKE_ROOT" ls-files -z \
+  | tar -C "$FLAKE_ROOT" --null --files-from=- -czf - \
+  | ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" "tar -xzf - -C '${REMOTE_FLAKE}'"
+git -C "$SECRETS_REPO" ls-files -z \
+  | tar -C "$SECRETS_REPO" --null --files-from=- -czf - \
+  | ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" "tar -xzf - -C '${REMOTE_SECRETS}'"
 
-echo "Set jaide's initial password inside the installed system before reboot."
-echo "The password is entered directly into passwd over the verified installer SSH session; it is never stored in Git or the Nix store."
-ssh -tt -o ConnectTimeout=8 -o "UserKnownHostsFile=${KNOWN_HOSTS}" -o StrictHostKeyChecking=yes \
-  "root@${IP}" "nixos-enter --root /mnt --command 'passwd jaide'"
+# Install both identities before first activation: the age key unlocks SOPS,
+# while copying the already-authenticated installer host keys preserves SSH
+# host identity across the reboot.
+ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" \
+  'set -e; install -d -m 0700 /mnt/var/lib/sops-nix; umask 077; cat > /mnt/var/lib/sops-nix/key.txt; chmod 0600 /mnt/var/lib/sops-nix/key.txt; install -d -m 0755 /mnt/etc/ssh; cp -a /etc/ssh/ssh_host_* /mnt/etc/ssh/' \
+  <"$HOST_KEY_FILE"
+
+ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" bash -s -- \
+  "$REMOTE_FLAKE" "$REMOTE_SECRETS" "$HOSTNAME" <<'REMOTE'
+set -euo pipefail
+remote_flake=$1
+remote_secrets=$2
+host=$3
+nix --extra-experimental-features 'nix-command flakes' flake lock \
+  --override-input nixos-secrets "path:${remote_secrets}" \
+  "$remote_flake"
+PATH="/nix/var/nix/profiles/system/sw/bin:${PATH}" \
+  /run/current-system/sw/bin/nixos-install \
+    --flake "path:${remote_flake}#${host}" \
+    --no-root-password \
+    --option experimental-features 'nix-command flakes'
+REMOTE
+
+ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" bash -s -- "$disk_device" \
+  <"${FLAKE_ROOT}/scripts/verify-installed-boot.sh"
 
 "$TRUSTED_NA" \
   --flake "${FLAKE_ROOT}#${HOSTNAME}" \
@@ -288,21 +449,39 @@ ssh -tt -o ConnectTimeout=8 -o "UserKnownHostsFile=${KNOWN_HOSTS}" -o StrictHost
 
 echo "Waiting up to 300 seconds for the installed system..."
 installed_up=0
+candidate_keys="$TMP_ROOT/postboot-known-hosts"
+candidate_scan="$TMP_ROOT/postboot-scanned-hosts"
 for _ in $(seq 1 60); do
-  if ssh -o BatchMode=yes -o ConnectTimeout=5 -o "UserKnownHostsFile=${KNOWN_HOSTS}" -o StrictHostKeyChecking=yes \
-    "jaide@${IP}" 'printf installed' 2>/dev/null | grep -q '^installed$'; then
-    installed_up=1
-    break
-  fi
+  nmap -sn "$target_cidr" >/dev/null 2>&1 || true
+  candidates=("$IP")
+  while IFS= read -r discovered_ip; do
+    [[ -n "$discovered_ip" && "$discovered_ip" != "$IP" ]] \
+      && candidates+=("$discovered_ip")
+  done < <(neighbor_ips_in_cidr "$target_cidr")
+
+  for candidate_ip in "${candidates[@]}"; do
+    : >"$candidate_scan"
+    ssh-keyscan -T 2 "$candidate_ip" >"$candidate_scan" 2>/dev/null || continue
+    filter_host_keys_to_overlap "$KNOWN_HOSTS" "$candidate_scan" "$candidate_keys" || continue
+    if ssh -o BatchMode=yes -o ConnectTimeout=5 -o "UserKnownHostsFile=${candidate_keys}" -o StrictHostKeyChecking=yes \
+      "jaide@${candidate_ip}" 'printf installed' 2>/dev/null | grep -q '^installed$'; then
+      cat "$candidate_keys" >>"$KNOWN_HOSTS"
+      IP=$candidate_ip
+      installed_up=1
+      break 2
+    fi
+  done
   sleep 5
 done
-((installed_up)) || { echo "ERROR: installed host did not return on jaide SSH" >&2; exit 1; }
+((installed_up)) \
+  || { echo "ERROR: installed host did not return on an authenticated SSH key within $target_cidr" >&2; exit 1; }
+echo "Authenticated installed host at post-boot address $IP"
 
 remote_status=$(ssh -o BatchMode=yes -o "UserKnownHostsFile=${KNOWN_HOSTS}" -o StrictHostKeyChecking=yes \
-  "jaide@${IP}" 'printf "hostname=%s\n" "$(hostname)"; systemctl is-system-running --wait; test -f /run/secrets/ssh_key')
+  "jaide@${IP}" 'printf "hostname=%s\n" "$(hostname)"; systemctl is-system-running --wait; test -f /run/secrets/ssh_key; printf "password_state=%s\n" "$(passwd -S jaide | cut -d " " -f 2)"')
 printf '%s\n' "$remote_status"
-[[ "$remote_status" == *"hostname=${HOSTNAME}"* && "$remote_status" == *running* ]] \
-  || { echo "ERROR: installed hostname/system state verification failed" >&2; exit 1; }
+[[ "$remote_status" == *"hostname=${HOSTNAME}"* && "$remote_status" == *running* && "$remote_status" == *"password_state=P"* ]] \
+  || { echo "ERROR: installed hostname/system state/password verification failed" >&2; exit 1; }
 
 echo "${HOSTNAME} is installed: SSH works, sops created ssh_key, system state is running, and bootability was proven before reboot."
 if git -C "$FLAKE_ROOT" diff --quiet -- flake.lock; then
@@ -310,4 +489,4 @@ if git -C "$FLAKE_ROOT" diff --quiet -- flake.lock; then
 else
   echo "Review and commit the flake.lock update: git -C $FLAKE_ROOT diff -- flake.lock"
 fi
-echo "The password entered before reboot is active; verify sudo with: ssh -t jaide@${IP} sudo -v"
+echo "The SOPS-managed password hash is active; verify sudo with: ssh -t jaide@${IP} sudo -v"

@@ -8,16 +8,27 @@
 # NOTE: Do NOT use lib.mkForce on extraGroups — it would override the
 # merge and drop the input/uinput groups added by macrotool.nix, breaking
 # evdev input capture and uinput injection.
-_:
+{ inputs, ... }:
 {
   nixos.hosts."UwU" =
-    { lib, ... }:
+    { config, lib, ... }:
 
     {
       users.users."jaide" = {
         description = lib.mkForce "Jaide";
         extraGroups = [ "networkmanager" "wheel" "wireshark" "_lldpd" ];
       };
+
+      # The Luna controller key exists only on UwU. Target devices receive
+      # only its public key through the privateAccounts role.
+      sops.secrets.luna_ssh_private_key = {
+        sopsFile = "${inputs.nixos-secrets}/secrets/UwU/luna-agent.yaml";
+        owner = "jaide";
+        group = "users";
+        mode = "0600";
+      };
+      environment.sessionVariables.LUNA_SSH_IDENTITY =
+        config.sops.secrets.luna_ssh_private_key.path;
     }
   ;
 }

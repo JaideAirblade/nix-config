@@ -74,7 +74,9 @@ The guarded path is `just provision <host> <installer-ip>` (the older
 `just bootstrap` name is an alias). It follows the current
 [nixos-anywhere secrets workflow](https://nix-community.github.io/nixos-anywhere/howtos/secrets.html):
 the machine-specific age key is generated and added as a SOPS recipient before
-installation, then copied into the new root with `--extra-files`.
+installation, then streamed over the authenticated installer SSH session into
+`/mnt/var/lib/sops-nix/key.txt` before the first activation. The authenticated
+installer SSH host keys are preserved in the mounted target at the same time.
 
 Before running it:
 
@@ -82,9 +84,16 @@ Before running it:
    `disk-layout.nix`, networking, user, and SSH modules. The Disko device must
    be the verified whole-disk `/dev/disk/by-id/...` path. Do not use `/dev/sdX`
    or `/dev/nvmeXnY` names.
-2. Give a fresh account an authorized SSH key. The provisioning script pauses
-   before reboot and runs `passwd jaide` interactively inside `/mnt`, so the
-   password never enters Git or the Nix store. Remote
+2. Give a fresh account an authorized SSH key. Private devices consume the
+   shared Jaide yescrypt hash from `secrets/private/accounts.yaml` through
+   `sops.secrets.jaide_password_hash.neededForUsers` and
+   `users.users.jaide.hashedPasswordFile`. Create or rotate it with
+   `scripts/set-private-password-hash.sh`; the GUI prompt hashes the password
+   in memory and writes only SOPS ciphertext. Private hosts set
+   `users.mutableUsers = false`, so local `passwd` changes are replaced on the
+   next activation; rotate the shared password through this helper instead.
+   Commit and push the secrets repo, then update the `nixos-secrets` lock before
+   provisioning. Remote
    `nixos-rebuild --target-host jaide@...` also requires `jaide` in
    `nix.settings.trusted-users`.
 3. Register every new file with Git before evaluating it; flakes ignore
@@ -102,19 +111,41 @@ Before running it:
 
 5. Boot the target from a **wired** NixOS installer, verify backups, inspect
    `lsblk -d -o NAME,SIZE,MODEL,SERIAL` and `/dev/disk/by-id/` on the target,
-   then start provisioning:
+   and read the installer's ED25519 SHA-256 SSH fingerprint from its local
+   console. Then start provisioning and enter that exact fingerprint when
+   prompted:
 
    ```bash
    just provision <host> <installer-ip>
    ```
 
-The script fingerprints the installer SSH key, prints the remote disk model and
-serial, and requires the exact phrase `WIPE <by-id-path> ON <target>` before it
-changes anything. It masks installer suspend, updates and verifies only the SOPS
-files the host needs, installs without rebooting, proves the systemd-boot files
-and EFI NVRAM entry point to the real ESP, and only then reboots. Secret update,
-decryption, Git push, boot-path, SSH, and post-boot system-state failures are
-fatal rather than warnings.
+For unattended use, set `INSTALLER_HOST_FINGERPRINT=SHA256:...` from an
+out-of-band source or provide `INSTALLER_KNOWN_HOSTS_FILE=/secure/known_hosts`.
+The script will not send an installer password before that trust check passes.
+
+The script authenticates the installer SSH key, prints the remote disk model
+and serial, proves writable UEFI variables are available, and requires the exact
+phrase `WIPE <by-id-path> ON <target>` before it changes anything. It masks
+installer suspend, updates and verifies only the SOPS files the host needs, uses
+nixos-anywhere for kexec and Disko, then performs the actual installation on the
+target with `nixos-install --flake`. Before reboot it proves that `/mnt/boot` is
+the vfat ESP on the configured disk, the selected loader entry's kernel/initrd
+byte-match the exact store artifacts named by the installed profile's
+`boot.json`, its `init=` names that same generation, and the exact
+PARTUUID+systemd-boot NVRAM entry is first after re-reading `efibootmgr`. After
+reboot it scans the directly connected CIDR and accepts only a candidate whose
+SSH key exactly matches the protected installation identity; Ethernet MAC
+randomization and a changed DHCP address therefore do not break discovery. Secret
+update, decryption, Git push, password-hash activation, boot-path, SSH, and
+post-boot system-state failures are fatal rather than warnings.
+
+The final `nixos-install` evaluates and downloads on the target. It reuses
+normal binary caches and paths already in the installer store, but transferring
+the flake source does not expose the controller's existing `/nix/store`.
+For repeated same-architecture installs, optionally build the target toplevel
+on the controller and use authenticated `nix copy --to ssh-ng://root@<target>`
+before `nixos-install`; Nix then transfers only closure paths missing from the
+installer. A shared Attic/Cachix cache is the scalable fleet equivalent.
 
 If the host recipient already exists, implicit key rotation is refused. Supply
 its matching private key explicitly:
@@ -124,10 +155,26 @@ HOST_AGE_KEY_FILE=/secure/path/<host>-age.key \
   just provision <host> <installer-ip>
 ```
 
-After success, the password entered before reboot is active; verify remote sudo
-and review the reported `flake.lock` change before committing it. Never reboot a
-remote-only machine manually when the script has paused on a boot-path verification error;
-fix and re-run the verification while installer SSH access still exists.
+After success, the SOPS-managed password hash is active; verify remote sudo and
+review the reported `flake.lock` change before committing it. Never reboot a
+remote-only machine manually when the script has paused on a boot-path
+verification error; fix and re-run the verification while installer SSH access
+still exists.
+
+### Luna automation trust boundary
+
+The dedicated Luna SSH key is intentionally a **root-equivalent fleet
+credential** on private hosts. The authorized-key `restrict` option disables
+forwarding, agent use, X11, and PTY allocation; it does not limit remote command
+execution. Luna also has an account-scoped `NOPASSWD: ALL` rule so general
+noninteractive automation can elevate with `sudo -n`.
+
+Only `UwU` receives the SOPS-encrypted private half, owned by `jaide` with mode
+`0600`. Compromise of Jaide's session or that key on `UwU` therefore grants root
+automation access to every private host authorizing it. Keep it off other
+machines, do not agent-forward it, and rotate/remove the dedicated public key on
+all targets if the controller or ciphertext is suspected compromised. Jaide's
+own sudo policy remains password-required and independent of Luna.
 
 ## USBGuard — USB Device Whitelist
 

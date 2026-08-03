@@ -4,10 +4,16 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 bash tests/bootstrap-host-regressions.sh
+bash tests/bootstrap-authenticity-regressions.sh
+bash tests/bootstrap-network-regressions.sh
+bash tests/verify-installed-boot-regressions.sh
 bash tests/justfile-argument-regressions.sh
 python3 tests/ad-lab-name-regressions.py
 python3 tests/register-sops-host-regressions.py
 python3 tests/user-password-regressions.py
+python3 tests/private-accounts-regressions.py
+bash tests/set-private-password-hash-regressions.sh
+bash tests/private-pam-u2f-regressions.sh
 python3 tests/net-report-wifi-scan-regressions.py
 python3 tests/mnemosyne-activation-regressions.py
 
