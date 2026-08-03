@@ -77,6 +77,13 @@ provision hostname ip:
       --target-host root@{{ ip }} \
       --generate-hardware-config nixos-generate-config hosts/{{ hostname }}/hardware-configuration.nix
 
+# Full bootstrap: provision + sops key registration + secrets re-encrypt
+# + first deploy. Does everything from this machine — the closure is
+# built LOCALLY (fast) and pushed to the target. See scripts/bootstrap-host.sh
+# Usage: just bootstrap UwU-Server 192.168.1.50
+bootstrap hostname ip:
+    ./scripts/bootstrap-host.sh {{ hostname }} {{ ip }}
+
 # Test a host's disk layout in a VM — no install, no disk changes.
 # Boots a QEMU VM with the disko config to verify partitioning works.
 # Usage: just vm-test UwU
@@ -86,9 +93,26 @@ vm-test hostname:
       --vm-test
 
 # Deploy to an existing remote host (after first provisioning).
-# Usage: just deploy-remote homelab 192.168.1.50
+# Builds the closure LOCALLY (fast, uses this machine's CPU + nix store),
+# copies the store paths to the target, and activates remotely via
+# jaide@ + sudo. No root SSH access needed (PermitRootLogin=no is fine).
+# Usage: just deploy-remote UwU-Server 192.168.1.50
 deploy-remote hostname ip:
-    nixos-rebuild switch --flake .#{{ hostname }} --target-host root@{{ ip }}
+    nixos-rebuild switch \
+      --flake .#{{ hostname }} \
+      --target-host jaide@{{ ip }} \
+      --use-remote-sudo \
+      --use-substitutes
+
+# Build a remote host's closure locally without activating — dry-run
+# pre-check. Same local-build strategy as deploy-remote.
+# Usage: just dry-remote UwU-Server 192.168.1.50
+dry-remote hostname ip:
+    nixos-rebuild dry-activate \
+      --flake .#{{ hostname }} \
+      --target-host jaide@{{ ip }} \
+      --use-remote-sudo \
+      --use-substitutes
 
 # ── AD test lab ─────────────────────────────────────────────────
 # Start the AD lab network + domain controller VM
