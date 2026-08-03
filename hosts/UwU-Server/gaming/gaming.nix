@@ -25,7 +25,7 @@ _:
         # Millennium-wrapped Steam (theme/skin loader), provided by the
         # millennium overlay selected in ./default.nix.
         package = pkgs.millennium-steam;
-        gamescopeSession.enable = true; # adds the "gamescope + steam" session
+        gamescopeSession.enable = false; # keep Steam out of DankGreeter's session list
         remotePlay.openFirewall = false;
         dedicatedServer.openFirewall = false;
         localNetworkGameTransfers.openFirewall = false;

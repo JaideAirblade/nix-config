@@ -165,6 +165,12 @@
               touch $out
             '';
 
+            server-greeter =
+              assert !self.nixosConfigurations.UwU-Server.config.programs.steam.gamescopeSession.enable;
+              pkgs.runCommand "uwu-server-greeter-check" { } ''
+                touch $out
+              '';
+
             regressions = pkgs.runCommand "repository-regressions"
               {
                 nativeBuildInputs = [
