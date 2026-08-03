@@ -9,6 +9,7 @@ python3 tests/ad-lab-name-regressions.py
 python3 tests/register-sops-host-regressions.py
 python3 tests/user-password-regressions.py
 python3 tests/net-report-wifi-scan-regressions.py
+python3 tests/mnemosyne-activation-regressions.py
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2

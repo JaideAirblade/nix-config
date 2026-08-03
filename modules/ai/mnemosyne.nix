@@ -37,13 +37,13 @@ _:
       system.activationScripts.mnemosyne-plugin = ''
         if [ ! -d /home/jaide/.hermes ]; then
           echo "mnemosyne-plugin: ~/.hermes missing, skipping (will link on next rebuild)"
-          exit 0
+        else
+          mkdir -p ${hermes-plugins}
+          find ${hermes-plugins} -maxdepth 1 -type l -delete
+          for f in ${mnemosyne-hermes-dir}/*; do
+            ln -sfn "$f" ${hermes-plugins}/"$(basename "$f")"
+          done
         fi
-        mkdir -p ${hermes-plugins}
-        find ${hermes-plugins} -maxdepth 1 -type l -delete
-        for f in ${mnemosyne-hermes-dir}/*; do
-          ln -sfn "$f" ${hermes-plugins}/"$(basename "$f")"
-        done
       '';
     }
   ;
