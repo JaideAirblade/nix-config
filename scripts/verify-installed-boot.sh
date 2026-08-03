@@ -28,9 +28,11 @@ pattern = re.compile(
     + re.escape(part)
     + r",GPT,"
     + re.escape(uuid)
-    + r",[^,()]+,[^,()]+\)/\\?File\("
+    + r",[^,()]+,[^,()]+\)(?:/\\?File\("
     + re.escape(loader)
-    + r"\)$",
+    + r"\)|/"
+    + re.escape(loader)
+    + r")$",
     re.IGNORECASE,
 )
 for line in sys.stdin:

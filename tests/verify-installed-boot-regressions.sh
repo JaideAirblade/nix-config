@@ -86,6 +86,11 @@ case "${1:-}" in
       exact)
         printf 'BootOrder: 0009,0001\nBoot0009* Linux Boot Manager HD(2,GPT,%s,0x800,0x1000)/\\File(\\EFI\\systemd\\systemd-bootx64.efi)\nBoot0001* Other\n' "$PARTUUID"
         ;;
+      direct)
+        # efibootmgr 18 renders a valid EFI filepath node directly, without
+        # the textual File(...) wrapper used by some firmware/tool versions.
+        printf 'BootOrder: 0009,0001\nBoot0009* Linux Boot Manager HD(2,GPT,%s,0x800,0x1000)/\\EFI\\systemd\\systemd-bootx64.efi\nBoot0001* Other\n' "$PARTUUID"
+        ;;
       inactive)
         printf 'BootOrder: 0009,0001\nBoot0009 Linux Boot Manager HD(2,GPT,%s,0x800,0x1000)/\\File(\\EFI\\systemd\\systemd-bootx64.efi)\nBoot0001* Other\n' "$PARTUUID"
         ;;
@@ -136,6 +141,14 @@ printf 'exact\n' >"$EFI_STATE"
 bash "$SCRIPT" "$fake_disk" >/dev/null
 if [[ -e "$CREATE_CALLED" ]]; then
   echo 'FAIL: an exact pre-existing EFI entry was not reused' >&2
+  ((adversarial_failures += 1))
+fi
+
+reset_efi
+printf 'direct\n' >"$EFI_STATE"
+bash "$SCRIPT" "$fake_disk" >/dev/null
+if [[ -e "$CREATE_CALLED" ]]; then
+  echo 'FAIL: an exact direct-path EFI entry was not reused' >&2
   ((adversarial_failures += 1))
 fi
 
