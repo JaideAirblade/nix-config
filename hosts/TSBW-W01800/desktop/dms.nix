@@ -25,7 +25,15 @@
         # graphical-session.target, so DMS starts under both compositors.
         systemd = {
           enable = true;
-          restartIfChanged = true;
+          # DMS refuses to start a second instance ("already running for this
+          # session"), so restartIfChanged just stops+fails. Worse, stopping
+          # dms.service during `nixos-rebuild switch` collapses
+          # graphical-session.target (StopWhenUnneeded=yes,
+          # RefuseManualStart=yes), which then prevents xdg-desktop-portal
+          # (Requisite=graphical-session.target) from restarting — breaking
+          # the portal on every switch that bumps the DMS store path.
+          # Keep the running instance; it picks up the new path on reboot.
+          restartIfChanged = false;
           target = lib.mkForce "graphical-session.target";
         };
 
@@ -40,7 +48,9 @@
         enable = true;
         systemd = {
           enable = true;
-          restartIfChanged = true;
+          # Same rationale as DMS above: stopping dcal.service mid-switch
+          # collapses graphical-session.target and breaks xdg-desktop-portal.
+          restartIfChanged = false;
           target = "graphical-session.target";
         };
       };
