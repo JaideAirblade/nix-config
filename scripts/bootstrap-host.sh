@@ -71,6 +71,8 @@ import socket
 
 target = socket.gethostbyname(sys.argv[1])
 route = json.loads(subprocess.check_output(["ip", "-j", "route", "get", target]))[0]
+if route.get("gateway") or route.get("via"):
+    raise SystemExit("target route uses a gateway and is not directly connected")
 dev = route["dev"]
 source = ipaddress.ip_address(route.get("prefsrc") or route.get("src"))
 addresses = json.loads(subprocess.check_output(["ip", "-j", "address", "show", "dev", dev]))
@@ -218,7 +220,7 @@ authorized_key_count=$(nix eval --json ".#nixosConfigurations.\"${HOSTNAME}\".co
 nix eval --raw ".#nixosConfigurations.\"${HOSTNAME}\".config.system.build.toplevel.drvPath" >/dev/null
 nix fmt -- --check . >/dev/null
 
-TMP_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/bootstrap-${HOSTNAME}.XXXXXX")
+TMP_ROOT=$(mktemp -d "/tmp/bootstrap-${HOSTNAME}.XXXXXX")
 KNOWN_HOSTS="${TMP_ROOT}/known_hosts"
 HOST_KEY_FILE="${TMP_ROOT}/host-age-key.txt"
 SOPS_BEFORE="${TMP_ROOT}/sops-before.yaml"
@@ -274,8 +276,12 @@ fi
 REMOTE
 )
 printf '%s\n' "$remote_inventory"
-target_cidr=$(network_cidr_for_target "$IP")
-echo "Post-boot discovery will authenticate SSH candidates within $target_cidr"
+target_cidr=""
+if target_cidr=$(network_cidr_for_target "$IP" 2>/dev/null); then
+  echo "Post-boot discovery will authenticate SSH candidates within $target_cidr"
+else
+  echo "Routed target: post-boot verification will retry only the original pinned address $IP"
+fi
 
 confirmation_phrase="WIPE ${disk_device} ON ${IP}"
 echo "Verify the model/serial and backups, then type exactly:"
@@ -363,6 +369,12 @@ git -C "$SECRETS_REPO" push origin main
 cd "$FLAKE_ROOT"
 nix flake update nixos-secrets
 nix eval --raw ".#nixosConfigurations.\"${HOSTNAME}\".config.system.build.toplevel.drvPath" >/dev/null
+CONTROLLER_TOPLEVEL=$(nix build --out-link "${TMP_ROOT}/controller-toplevel" --print-out-paths \
+  ".#nixosConfigurations.\"${HOSTNAME}\".config.system.build.toplevel")
+if [[ ! "$CONTROLLER_TOPLEVEL" =~ ^/nix/store/[0-9a-df-np-sv-z]{32}-nixos-system-[A-Za-z0-9._+-]+$ ]]; then
+  echo "ERROR: controller build returned an unexpected system path" >&2
+  exit 1
+fi
 
 ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" \
   systemctl mask --runtime sleep.target suspend.target hibernate.target hybrid-sleep.target
@@ -415,6 +427,21 @@ git -C "$SECRETS_REPO" ls-files -z \
   | tar -C "$SECRETS_REPO" --null --files-from=- -czf - \
   | ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" "tar -xzf - -C '${REMOTE_SECRETS}'"
 
+# Reuse the controller-built closure over the already-authenticated installer
+# channel. Target-side nixos-install remains authoritative, but can reuse every
+# identical store path instead of downloading or rebuilding it on the target.
+NIX_SSH_CONFIG="${TMP_ROOT}/nix-ssh-config"
+{
+  printf 'Host *\n'
+  printf '  BatchMode yes\n'
+  printf '  ConnectTimeout 8\n'
+  printf '  UserKnownHostsFile %s\n' "$KNOWN_HOSTS"
+  printf '  StrictHostKeyChecking yes\n'
+} >"$NIX_SSH_CONFIG"
+chmod 0600 "$NIX_SSH_CONFIG"
+NIX_SSHOPTS="-F ${NIX_SSH_CONFIG}" \
+  nix copy --to "ssh-ng://root@${IP}" "$CONTROLLER_TOPLEVEL"
+
 # Install both identities before first activation: the age key unlocks SOPS,
 # while copying the already-authenticated installer host keys preserves SSH
 # host identity across the reboot.
@@ -452,12 +479,14 @@ installed_up=0
 candidate_keys="$TMP_ROOT/postboot-known-hosts"
 candidate_scan="$TMP_ROOT/postboot-scanned-hosts"
 for _ in $(seq 1 60); do
-  nmap -sn "$target_cidr" >/dev/null 2>&1 || true
   candidates=("$IP")
-  while IFS= read -r discovered_ip; do
-    [[ -n "$discovered_ip" && "$discovered_ip" != "$IP" ]] \
-      && candidates+=("$discovered_ip")
-  done < <(neighbor_ips_in_cidr "$target_cidr")
+  if [[ -n "$target_cidr" ]]; then
+    nmap -sn "$target_cidr" >/dev/null 2>&1 || true
+    while IFS= read -r discovered_ip; do
+      [[ -n "$discovered_ip" && "$discovered_ip" != "$IP" ]] \
+        && candidates+=("$discovered_ip")
+    done < <(neighbor_ips_in_cidr "$target_cidr")
+  fi
 
   for candidate_ip in "${candidates[@]}"; do
     : >"$candidate_scan"

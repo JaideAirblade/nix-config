@@ -139,13 +139,17 @@ randomization and a changed DHCP address therefore do not break discovery. Secre
 update, decryption, Git push, password-hash activation, boot-path, SSH, and
 post-boot system-state failures are fatal rather than warnings.
 
-The final `nixos-install` evaluates and downloads on the target. It reuses
-normal binary caches and paths already in the installer store, but transferring
-the flake source does not expose the controller's existing `/nix/store`.
-For repeated same-architecture installs, optionally build the target toplevel
-on the controller and use authenticated `nix copy --to ssh-ng://root@<target>`
-before `nixos-install`; Nix then transfers only closure paths missing from the
-installer. A shared Attic/Cachix cache is the scalable fleet equivalent.
+The controller builds the target toplevel before destructive work and, after the
+authenticated kexec/Disko phases, automatically copies that closure to the
+installer with `nix copy --to ssh-ng://root@...` over the pinned SSH channel.
+The final target-side `nixos-install` remains authoritative, evaluates the
+transferred reviewed source, and reuses every identical store path already
+copied instead of downloading or rebuilding it. This keeps physical installs
+fast and shortens the credential-bearing rescue window on VPS deployments.
+Directly connected targets retain MAC-independent CIDR rediscovery after reboot;
+routed VPS targets retry only their original pinned address and never trigger a
+LAN scan. A shared Attic/Cachix cache remains the scalable fleet equivalent for
+paths the controller does not already have.
 
 If the host recipient already exists, implicit key rotation is refused. Supply
 its matching private key explicitly:
