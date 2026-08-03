@@ -206,8 +206,10 @@ ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" \
 # override them. Run a temporary copy with only its generated identity option;
 # every host-key policy then comes from the pinned installer known_hosts file.
 NA_OUT=$(nix build --no-link --print-out-paths "${FLAKE_ROOT}#nixos-anywhere")
-NA_SOURCE="${NA_OUT}/libexec/nixos-anywhere/nixos-anywhere.sh"
-TRUSTED_NA="${TMP_ROOT}/nixos-anywhere-trusted"
+NA_TRUST_DIR="${TMP_ROOT}/nixos-anywhere-libexec"
+cp -a "${NA_OUT}/libexec/nixos-anywhere" "$NA_TRUST_DIR"
+NA_SOURCE="${NA_TRUST_DIR}/nixos-anywhere.sh"
+TRUSTED_NA="$NA_SOURCE"
 python3 - "$NA_SOURCE" "$TRUSTED_NA" <<'PY'
 from pathlib import Path
 import sys
