@@ -53,11 +53,11 @@
 
 stdenv.mkDerivation rec {
   pname = "helium-bin";
-  version = "0.14.9.1";
+  version = "0.15.1.1";
 
   src = fetchurl {
     url = "https://github.com/imputnet/helium-linux/releases/download/${version}/helium-${version}-x86_64_linux.tar.xz";
-    hash = "sha256-BmYX3xKpzVsyxRxmypMpXRnp6+Z5wLcaEY8aEYN+Zz0=";
+    hash = "sha256-1RrtHYW5TwBhINTu22JSd4KjnxORlDK/77u1pElddZo=";
   };
 
   dontConfigure = true;

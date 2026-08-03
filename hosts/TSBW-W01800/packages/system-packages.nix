@@ -48,6 +48,9 @@ _:
           octarine # Private markdown note-taking app (custom package from pkgs/)
           readest # Modern ebook reader (epub, pdf, mobi, cbz, etc.)
 
+          # Browser — Helium (Chromium-based, privacy-focused; custom package)
+          helium-bin
+
           # Cloud sync
           rclone # Universal cloud storage sync (Google Drive, etc.)
 

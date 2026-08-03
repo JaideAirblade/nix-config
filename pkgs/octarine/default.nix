@@ -38,11 +38,11 @@
 
 stdenv.mkDerivation (finalAttrs: {
   pname = "octarine";
-  version = "0.47.4";
+  version = "0.49.0";
 
   src = fetchurl {
     url = "https://pub-3d35bc018fc54f11bde129e3e73e8002.r2.dev/${finalAttrs.version}/linux/Octarine-bin-${finalAttrs.version}-1-x86_64.pkg.tar.zst";
-    hash = "sha256-e9/20tY1epvvUw+2WcDsZVCtDNWWYBtr8dNIBifbE6w=";
+    hash = "sha256-hUiKn0mGVDj3yoi6ITM+ffoN36ok5Ak9Oiukk6tbFD0=";
   };
 
   nativeBuildInputs = [
