@@ -10,6 +10,10 @@ _:
     _:
 
     {
+      # jaide can add locally-built (unsigned) closures to the store — required
+      # for `nixos-rebuild --target-host jaide@... --use-remote-sudo` deploys.
+      nix.settings.trusted-users = [ "jaide" ];
+
       services.openssh = {
         enable = true;
         settings = {
