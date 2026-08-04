@@ -286,7 +286,7 @@
               dockerfile = toString honchoDockerfile;
             };
             entrypoint = [ "/bin/sh" "-ec" ];
-            command = "/app/.venv/bin/python scripts/provision_db.py && /app/.venv/bin/python scripts/configure_embeddings.py --yes";
+            command = [ "/app/.venv/bin/python scripts/provision_db.py && /app/.venv/bin/python scripts/configure_embeddings.py --yes" ];
             depends_on = {
               database.condition = "service_healthy";
               redis.condition = "service_healthy";

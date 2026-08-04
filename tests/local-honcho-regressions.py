@@ -127,6 +127,11 @@ for setting in (
     "scripts/configure_embeddings.py --yes",
 ):
     require(module, setting, f"embedding bootstrap setting missing: {setting}")
+require(
+    module,
+    'command = [ "/app/.venv/bin/python scripts/provision_db.py && /app/.venv/bin/python scripts/configure_embeddings.py --yes" ];',
+    "Honcho init shell program is not preserved as one argv element",
+)
 
 # Operational guardrails.
 for service in ("local-ai-models", "nemotron-local", "qwen-embedding-local", "honcho-local", "honcho-backup"):
