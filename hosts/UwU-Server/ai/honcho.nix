@@ -561,7 +561,6 @@
             # SCHED_FIFO/90. Keep RestrictRealtime rather than allowing local
             # inference to starve SSH and system services.
             "--jinja"
-            "--special"
             "--flash-attn"
             "on"
             "--n-gpu-layers"

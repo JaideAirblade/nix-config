@@ -76,8 +76,11 @@ require(module, "06507c7b42688469c4e7298b0a1e16deff06caf291cf0a5b278c308249c3e43
 # place adjacent list elements on separate lines without weakening the check.
 for flag, value in (("ctx-size", "32768"), ("temp", "0.6"), ("top-p", "0.95")):
     require_pattern(module, rf'"--{re.escape(flag)}"\s+"{re.escape(value)}"', f"Nemotron flag missing: --{flag} {value}")
-for flag in ("jinja", "special"):
-    require(module, f'"--{flag}"', f"Nemotron flag missing: --{flag}")
+require(module, '"--jinja"', "Nemotron flag missing: --jinja")
+require_condition(
+    re.search(r'nemotron-local = .*?"--special".*?qwen-embedding-local =', module, re.MULTILINE | re.DOTALL) is None,
+    "Nemotron production API exposes special chat tokens",
+)
 reject(module, r'"--prio"\s+"3"', "Nemotron may not request SCHED_FIFO/90 under RestrictRealtime")
 
 # Local-only network boundary. Database and Redis must not publish host ports.
