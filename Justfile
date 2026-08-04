@@ -137,6 +137,10 @@ lab-create-dc $iso="":
 lab-create-client-base $iso="":
     lab-create-client-base "$iso"
 
+# Create the NixOS print server VM in the ad-lab network
+lab-create-printserver:
+    lab-create-printserver
+
 # Create a fresh client VM from base image (throws away old one)
 # Generates temp SSH key, injects into VM, adds SSH config entry
 lab-fresh-client $name="ad-client1":
@@ -153,3 +157,29 @@ lab-nuke $name="ad-client1":
 # Attach a direct macvtap NIC (explicit physical interface required).
 lab-bridge $name $iface:
     lab-bridge-attach "$name" "$iface"
+
+# ── TSBW Windows VM (real AD domain join) ──────────────────────
+# Create the Windows VM bridged to the Thunderbolt dock NIC (enp1s0)
+# Pass the Windows ISO path: just tsbw-vm-create ~/Downloads/Win11.iso
+tsbw-vm-create $iso="":
+    tsbw-vm-create "$iso"
+
+# Start the TSBW Windows VM
+tsbw-vm-start:
+    tsbw-vm-start
+
+# Stop the TSBW Windows VM (graceful shutdown)
+tsbw-vm-stop:
+    tsbw-vm-stop
+
+# Bridge the VM to the physical NIC (enp1s0 by default)
+tsbw-vm-bridge $iface="enp1s0":
+    tsbw-vm-bridge "$iface"
+
+# TSBW Windows VM status — VM, network, noVNC URL
+tsbw-vm-status:
+    tsbw-vm-status
+
+# Destroy the TSBW Windows VM + delete its disk
+tsbw-vm-nuke:
+    tsbw-vm-nuke

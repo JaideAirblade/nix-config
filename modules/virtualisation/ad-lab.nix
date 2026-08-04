@@ -132,6 +132,74 @@ _:
           echo "  virsh snapshot-create-as $VM_NAME dc-base-snapshot"
         '')
 
+        # ── Print server VM creation (NixOS, from this flake) ──────
+        # Creates a NixOS VM in the ad-lab network at 192.168.100.20.
+        # The VM disk image is built from this flake's Projet-Printserver
+        # config via `nixos-rebuild build-vm`, then imported into libvirt.
+        # After first boot, SSH in and run `realm join lab.local`.
+        (pkgs.writeShellScriptBin "lab-create-printserver" ''
+          set -euo pipefail
+          VM_NAME="Projet-Printserver"
+          FLAKE_DIR="''${1:-$(git rev-parse --show-toplevel 2>/dev/null || echo "$HOME/nixos")}"
+
+          if virsh dominfo "$VM_NAME" >/dev/null 2>&1; then
+            echo "VM $VM_NAME already exists. Use 'virsh start $VM_NAME' to start it."
+            exit 0
+          fi
+
+          lab-net-create
+
+          # Build the VM disk image from the flake. This produces a
+          # nixos.qcow2 disk image with the bootloader and NixOS installed.
+          echo "Building Projet-Printserver VM image from flake..."
+          VM_RESULT=$(mktemp -d)
+          nix build "$FLAKE_DIR#nixosConfigurations.Projet-Printserver.config.system.build.vm" \
+            --out-link "$VM_RESULT/result" 2>&1
+
+          # The build produces a symlink to a directory containing
+          # nixos.qcow2 (the disk image) and run-vm (the launch script).
+          DISK_IMG="$VM_RESULT/result/nixos.qcow2"
+          if [ ! -f "$DISK_IMG" ]; then
+            echo "ERROR: VM disk image not found at $DISK_IMG"
+            echo "Build output:"
+            ls -la "$VM_RESULT/result/"
+            exit 1
+          fi
+
+          # Create a writable copy of the disk image for libvirt.
+          VM_DISK="/var/lib/libvirt/images/$VM_NAME.qcow2"
+          sudo mkdir -p "$(dirname "$VM_DISK")"
+          sudo cp "$DISK_IMG" "$VM_DISK"
+          sudo chown libvirtd:libvirtd "$VM_DISK" 2>/dev/null || true
+
+          # Create the VM with virt-install, using the flake-built disk.
+          # The VM uses the ad-lab network (192.168.100.0/24).
+          # The static IP (192.168.100.20) is set in the NixOS config.
+          echo "Creating print server VM $VM_NAME..."
+          virt-install \
+            --name "$VM_NAME" \
+            --network network=ad-lab \
+            --memory 2048 \
+            --vcpus 2 \
+            --os-variant nixos-25.05 \
+            --disk path="$VM_DISK",bus=virtio,format=qcow2 \
+            --import \
+            --graphics spice \
+            --noautoconsole
+
+          echo ""
+          echo "Print server VM $VM_NAME created and started."
+          echo "  IP: 192.168.100.20 (static, from NixOS config)"
+          echo "  SSH: ssh root@192.168.100.20"
+          echo ""
+          echo "  Next steps:"
+          echo "    1. SSH in: ssh root@192.168.100.20"
+          echo "    2. Join AD: realm join lab.local -U Administrator"
+          echo "    3. Verify: id administrator && getent group 'Domain Admins'"
+          echo "    4. Add admin to lpadmin: usermod -aG lpadmin administrator"
+          echo "    5. Redeploy: just deploy Projet-Printserver"
+        '')
+
         # Client base image creation (one-time, from ISO)
         (pkgs.writeShellScriptBin "lab-create-client-base" ''
           set -euo pipefail
