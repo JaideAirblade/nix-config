@@ -462,6 +462,12 @@
           assertion = !(builtins.elem "docker" config.users.users.jaide.extraGroups);
           message = "Jaide must not be added to the root-equivalent docker group";
         }
+        {
+          assertion =
+            config.systemd.services.honcho-local.serviceConfig.Environment
+            == [ "DOCKER_BUILDKIT=1" ];
+          message = "Honcho Compose builds must use the reviewed BuildKit environment";
+        }
       ];
 
       virtualisation.docker = {
@@ -648,6 +654,9 @@
             RemainAfterExit = true;
             StateDirectory = "honcho";
             StateDirectoryMode = "0700";
+            Environment = [
+              "DOCKER_BUILDKIT=1"
+            ];
             ExecStartPre = [
               (lib.getExe honchoSetup)
               (lib.getExe waitForModels)
