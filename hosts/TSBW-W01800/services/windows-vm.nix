@@ -10,7 +10,7 @@
 _:
 {
   nixos.hosts."TSBW-W01800" =
-    { pkgs, lib, ... }:
+    { pkgs, ... }:
     let
       # The physical NIC the VM bridges to. enp1s0 = RTL8111 PCIe ethernet
       # behind the ThinkPad Thunderbolt 3 Dock.

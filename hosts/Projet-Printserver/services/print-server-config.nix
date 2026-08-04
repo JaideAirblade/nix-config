@@ -32,7 +32,7 @@
 _:
 {
   nixos.hosts."Projet-Printserver" =
-    { ... }:
+    _:
 
     {
       printServer = {

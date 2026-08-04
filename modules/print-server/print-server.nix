@@ -304,7 +304,7 @@ _:
           settings = {
             global = {
               security = "ads";
-              realm = cfg.realm;
+              inherit (cfg) realm;
               workgroup = lib.toUpper (lib.head (lib.splitString "." cfg.domain));
               "server role" = "member server";
               "server string" = "NixOS Print Server (${cfg.netbiosName})";
