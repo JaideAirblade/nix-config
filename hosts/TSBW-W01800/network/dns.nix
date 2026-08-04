@@ -33,14 +33,21 @@ _:
       # Stop CoreDNS if it's still running (port conflict)
       services.coredns.enable = false;
 
-      # dnsproxy as a systemd service
+      # dnsproxy as a systemd service.
+      #
+      # NOT auto-started by multi-user.target — dnsproxy-battery.service is the
+      # sole manager of dnsproxy.service (start on AC, stop on battery).  Both
+      # wantedBy and the NM dispatcher's systemctl restart would race with
+      # dnsproxy-battery at boot, hitting systemd's start rate limit and
+      # leaving dnsproxy in failed state.
       systemd.services.dnsproxy = {
         description = "dnsproxy DNS server (DoH + internal domain routing)";
         after = [ "network.target" "NetworkManager.service" ];
         wants = [ "NetworkManager.service" ];
-        wantedBy = [ "multi-user.target" ];
         # Ensure old DNS services are stopped before dnsproxy starts
         before = [ "smartdns.service" "coredns.service" ];
+        startLimitBurst = 30;
+        startLimitIntervalSec = 60;
         # nmcli is needed in preStart to read DHCP DNS servers
         path = [ pkgs.networkmanager ];
 
@@ -140,7 +147,16 @@ _:
           fi
           mv "$TMPFILE" /run/dnsproxy/internal-upstreams.txt
 
-          systemctl restart dnsproxy.service
+          # Restart dnsproxy so it picks up the new upstreams — but only if
+          # it's already running.  dnsproxy-battery.service is the sole
+          # authority on whether dnsproxy should be running at all (AC=yes,
+          # battery=no).  If we restart it while battery mode has stopped it,
+          # we subvert battery management and race with dnsproxy-battery at
+          # boot, hitting systemd's start rate limit.  `try-restart` only
+          # restarts active units — if dnsproxy is stopped, it's a no-op.
+          # `|| true` guards against rate-limit failures so the dispatcher
+          # script itself never exits non-zero (NM logs warnings on exit 1).
+          systemctl try-restart dnsproxy.service 2>/dev/null || true
         '';
       };
 

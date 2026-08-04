@@ -37,6 +37,7 @@ _:
         wantedBy = [ "graphical.target" ];
         serviceConfig = {
           Type = "oneshot";
+          RemainAfterExit = true;
         };
         path = [ pkgs.networkmanager pkgs.procps ];
         script = ''
@@ -99,6 +100,7 @@ _:
         wantedBy = [ "graphical.target" ];
         serviceConfig = {
           Type = "oneshot";
+          RemainAfterExit = true;
         };
         script = ''
           ac=0

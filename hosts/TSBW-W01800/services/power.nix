@@ -231,7 +231,15 @@ _:
         #   - power-battery-tune: GPU DPM + EPP fallback
         #   - dnsproxy-battery: stop/start dnsproxy, rewrite resolv.conf
         #   - services-battery: stop/start smartd + avahi
-        SUBSYSTEM=="power_supply", ACTION=="change", RUN+="/bin/sh -c 'systemctl restart power-battery-tune.service 2>/dev/null || true; systemctl restart dnsproxy-battery.service 2>/dev/null || true; systemctl restart services-battery.service 2>/dev/null || true'"
+        #
+        # Uses a helper script because udev fires many power_supply "change"
+        # events at boot as drivers initialize — each would restart all three
+        # services, hitting systemd's start rate limit and leaving dnsproxy
+        # in failed state.  The script debounces: it only restarts the
+        # services when the AC state actually changes since the last run.
+        # udev's $$ substitution doesn't support shell $() command
+        # substitution inside RUN+=, hence the external script.
+        SUBSYSTEM=="power_supply", ACTION=="change", RUN+="${pkgs.bash}/bin/bash ${./power-change.sh}"
       '';
 
       # GPU DPM + EPP fallback on battery — systemd service for power source changes.
@@ -255,6 +263,7 @@ _:
         wantedBy = [ "graphical.target" ];
         serviceConfig = {
           Type = "oneshot";
+          RemainAfterExit = true;
         };
         script = ''
           ac=0
