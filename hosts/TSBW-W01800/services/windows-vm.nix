@@ -33,7 +33,7 @@ _:
         wantedBy = [ "multi-user.target" ];
         serviceConfig = {
           Type = "simple";
-          ExecStart = "${pkgs.novnc}/bin/novnc_server"
+          ExecStart = "${pkgs.novnc}/bin/novnc"
             + " --listen ${toString novncPort}"
             + " --vnc localhost:${toString (5900 + vncDisplay)}";
           Restart = "on-failure";
