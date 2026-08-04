@@ -6,6 +6,7 @@
 
     modules = [
       config.nixos.modules.common
+      config.nixos.modules.virtualisation
       config.nixos.hosts."TSBW-W01800"
 
       # Generated lower-level module exception.
