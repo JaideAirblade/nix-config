@@ -31,7 +31,7 @@ require 'sops --decrypt "${SECRETS_REPO}/${file}" >/dev/null' "new host key is n
 require 'XDG_CONFIG_HOME="${SOPS_VERIFY_CONFIG}"' "host-key verification can fall back to interactive user identities"
 require '--phases kexec,disko' "nixos-anywhere does not perform the remote bootstrap and Disko phases"
 require 'CONTROLLER_TOPLEVEL=$(nix build --out-link "${TMP_ROOT}/controller-toplevel" --print-out-paths' "controller closure is not GC-rooted through destructive phases"
-require 'nix copy --to "ssh-ng://root@${IP}" "$CONTROLLER_TOPLEVEL"' "controller closure is not copied over authenticated SSH"
+require 'nix copy --no-check-sigs --to "ssh-ng://root@${IP}" "$CONTROLLER_TOPLEVEL"' "controller closure copy does not permit authenticated locally built paths"
 require 'NIX_SSHOPTS="-F ${NIX_SSH_CONFIG}"' "nix copy does not use a whitespace-safe SSH config"
 require 'TMP_ROOT=$(mktemp -d "/tmp/bootstrap-${HOSTNAME}.XXXXXX")' "security-sensitive temporary paths are not constrained beneath /tmp"
 require '/run/current-system/sw/bin/nixos-install' "target installation is not performed by nixos-install"
@@ -67,6 +67,7 @@ reject 'UserKnownHostsFile=/dev/null' "provisioning discards its pinned SSH host
 reject '--generate-hardware-config' "provisioning can overwrite the reviewed hardware module and conflict with disko"
 reject '--phases kexec,disko,install' "nixos-anywhere still performs the final install phase"
 reject 'CONTROLLER_TOPLEVEL=$(nix build --no-link' "controller closure can be garbage-collected after disk wipe"
+reject 'nix copy --to "ssh-ng://root@${IP}" "$CONTROLLER_TOPLEVEL"' "controller closure copy can reject unsigned local derivations after wipe"
 reject "'set -euo pipefail; command -v python3 >/dev/null; test -d /sys/firmware/efi/efivars" "bootstrap still requires Python from arbitrary rescue media"
 reject 'scp ${SSH_OPTS} "jaide@${IP}:/var/lib/sops-nix/key.txt"' "bootstrap still tries to read the root-owned key as jaide"
 reject 'nixos-enter --root /mnt' "bootstrap still uses an imperative password mutation"
@@ -86,7 +87,7 @@ if uefi < 0 or wipe < 0 or uefi > wipe:
     raise SystemExit('FAIL: UEFI capability is not proven before wipe confirmation')
 
 disko = text.find('--phases kexec,disko')
-copy = text.find('nix copy --to "ssh-ng://root@${IP}" "$CONTROLLER_TOPLEVEL"')
+copy = text.find('nix copy --no-check-sigs --to "ssh-ng://root@${IP}" "$CONTROLLER_TOPLEVEL"')
 install = text.find('/run/current-system/sw/bin/nixos-install')
 if min(disko, copy, install) < 0 or not disko < copy < install:
     raise SystemExit('FAIL: controller closure copy must occur after Disko and before nixos-install')

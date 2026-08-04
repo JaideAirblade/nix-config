@@ -430,6 +430,8 @@ git -C "$SECRETS_REPO" ls-files -z \
 # Reuse the controller-built closure over the already-authenticated installer
 # channel. Target-side nixos-install remains authoritative, but can reuse every
 # identical store path instead of downloading or rebuilding it on the target.
+# The pinned root SSH channel is the trust boundary for locally built paths,
+# which are intentionally not required to carry a binary-cache signature.
 NIX_SSH_CONFIG="${TMP_ROOT}/nix-ssh-config"
 {
   printf 'Host *\n'
@@ -440,7 +442,7 @@ NIX_SSH_CONFIG="${TMP_ROOT}/nix-ssh-config"
 } >"$NIX_SSH_CONFIG"
 chmod 0600 "$NIX_SSH_CONFIG"
 NIX_SSHOPTS="-F ${NIX_SSH_CONFIG}" \
-  nix copy --to "ssh-ng://root@${IP}" "$CONTROLLER_TOPLEVEL"
+  nix copy --no-check-sigs --to "ssh-ng://root@${IP}" "$CONTROLLER_TOPLEVEL"
 
 # Install both identities before first activation: the age key unlocks SOPS,
 # while copying the already-authenticated installer host keys preserves SSH

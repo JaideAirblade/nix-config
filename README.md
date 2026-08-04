@@ -141,7 +141,9 @@ post-boot system-state failures are fatal rather than warnings.
 
 The controller builds the target toplevel before destructive work and, after the
 authenticated kexec/Disko phases, automatically copies that closure to the
-installer with `nix copy --to ssh-ng://root@...` over the pinned SSH channel.
+installer with `nix copy --no-check-sigs --to ssh-ng://root@...` over the pinned
+root SSH channel. Signature checking is disabled only for this authenticated
+transfer because locally built derivations do not carry binary-cache signatures.
 The final target-side `nixos-install` remains authoritative, evaluates the
 transferred reviewed source, and reuses every identical store path already
 copied instead of downloading or rebuilding it. This keeps physical installs
