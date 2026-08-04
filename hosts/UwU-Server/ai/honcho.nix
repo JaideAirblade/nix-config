@@ -462,12 +462,6 @@
           assertion = !(builtins.elem "docker" config.users.users.jaide.extraGroups);
           message = "Jaide must not be added to the root-equivalent docker group";
         }
-        {
-          assertion =
-            config.systemd.services.honcho-local.serviceConfig.Environment
-            == [ "DOCKER_BUILDKIT=1" ];
-          message = "Honcho Compose builds must use the reviewed BuildKit environment";
-        }
       ];
 
       virtualisation.docker = {
@@ -648,18 +642,28 @@
             "qwen-embedding-local.service"
           ];
           wantedBy = [ "multi-user.target" ];
-          path = [ pkgs.docker pkgs.docker-compose ];
+          path = [ pkgs.docker pkgs.docker-buildx pkgs.docker-compose ];
           serviceConfig = {
             Type = "oneshot";
             RemainAfterExit = true;
             StateDirectory = "honcho";
             StateDirectoryMode = "0700";
-            Environment = [
-              "DOCKER_BUILDKIT=1"
-            ];
             ExecStartPre = [
               (lib.getExe honchoSetup)
               (lib.getExe waitForModels)
+              (lib.escapeShellArgs [
+                "${pkgs.docker}/bin/docker"
+                "buildx"
+                "build"
+                "--builder"
+                "default"
+                "--load"
+                "--file"
+                (toString honchoDockerfile)
+                "--tag"
+                honchoImage
+                (toString inputs.honcho)
+              ])
             ];
             ExecStart = lib.escapeShellArgs [
               "${pkgs.docker-compose}/bin/docker-compose"
@@ -671,7 +675,7 @@
               "/var/lib/honcho/runtime.env"
               "up"
               "--detach"
-              "--build"
+              "--no-build"
               "--remove-orphans"
               "--wait"
             ];

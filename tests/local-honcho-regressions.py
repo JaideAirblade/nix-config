@@ -146,15 +146,24 @@ require(module, 'TimeoutStartSec = "2h";', "large model download has no explicit
 require_pattern(module, r'local-ai-models = \{.*?RemainAfterExit = true;.*?Restart = "on-failure";', "model downloader is not a retained, retrying prerequisite")
 require(module, 'runtimeInputs = [ pkgs.coreutils pkgs.docker-compose pkgs.findutils ];', "backup does not carry its Compose binary")
 require(module, 'docker-compose \\', "backup does not invoke standalone docker-compose")
-require_pattern(
-    module,
-    r'honcho-local = \{.*?Environment = \[\s*"DOCKER_BUILDKIT=1"\s*\];',
-    "Honcho image build does not enable Docker BuildKit through Compose",
-)
 require(
     module,
-    'config.systemd.services.honcho-local.serviceConfig.Environment\n            == [ "DOCKER_BUILDKIT=1" ];',
-    "evaluated Honcho BuildKit environment assertion is missing",
+    "path = [ pkgs.docker pkgs.docker-buildx pkgs.docker-compose ];",
+    "Honcho service path does not retain the explicit Buildx plugin",
+)
+require_pattern(
+    module,
+    r'ExecStartPre = \[.*?\$\{pkgs\.docker\}/bin/docker.*?"buildx".*?"build".*?"--builder".*?"default".*?"--load".*?"--file".*?\(toString honchoDockerfile\).*?"--tag".*?honchoImage.*?\(toString inputs\.honcho\).*?\];',
+    "Honcho image is not built explicitly with Docker Buildx and the digest-pinned Dockerfile",
+)
+require_pattern(
+    module,
+    r'ExecStart = lib\.escapeShellArgs \[.*?"up".*?"--detach".*?"--no-build".*?"--remove-orphans".*?"--wait".*?\];',
+    "Honcho Compose startup does not explicitly prohibit policy-driven builds",
+)
+require_condition(
+    re.search(r'ExecStart = lib\.escapeShellArgs \[.*?"up".*?"--build"', module, re.MULTILINE | re.DOTALL) is None,
+    "Honcho Compose startup still requests the legacy implicit build path",
 )
 require(review, "local-honcho-regressions.py", "aggregate regression runner does not invoke the Honcho test")
 
