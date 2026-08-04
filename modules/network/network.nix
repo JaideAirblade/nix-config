@@ -350,9 +350,56 @@
       # Query neighbors with:  lldpctl
       #  JSON output:          lldpctl -f json
       #  Specific interface:   lldpctl -p <iface>
+      #
+      # --- LLDP privacy: randomized identity ---------------------------------
+      # By default lldpd advertises the real hostname (SysName=TSBW-W01800),
+      # the real hardware MAC (ChassisID=mac d6:08:93:...), and the full OS
+      # version (SysDescr=NixOS 26.11 ... Linux 7.1.5 ...).  The switch and
+      # firewall see all of this the moment lldpd starts — before DHCP even
+      # completes — defeating the DHCP hostname + MAC randomization above.
+      #
+      # We override all three with a random identity generated at boot:
+      #   - SysName:     a random realistic device name (same generator as
+      #                  the DHCP hostname, but a separate draw so the LLDP
+      #                  name and DHCP name don't match)
+      #   - ChassisID:   the same random name (as a string, not a MAC — so
+      #                  no hardware MAC is ever leaked via LLDP)
+      #   - SysDescr:    a generic description that reveals no OS/kernel info
+      #
+      # The boot service writes /run/lldpd-identity.conf before lldpd starts,
+      # and -O makes lldpd process it at startup.  The file uses lldpcli
+      # syntax (see `man lldpcli`, "CONFIGURATION FILE" section).
+
+      # Boot service: generate a random LLDP identity before lldpd starts.
+      systemd.services.lldpd-identity = {
+        description = "Generate random LLDP identity for lldpd";
+        before = [ "lldpd.service" ];
+        wantedBy = [ "multi-user.target" ];
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+        };
+        script = ''
+          RAND=$(/etc/NetworkManager/generate-random-hostname.sh)
+          mkdir -p /run/lldpd
+          cat > /run/lldpd/identity.conf << EOF
+          configure system hostname "$RAND"
+          configure system chassisid "$RAND"
+          configure system description "Linux network device"
+          EOF
+          chmod 644 /run/lldpd/identity.conf
+        '';
+      };
+
       services.lldpd = {
         enable = true;
-        extraArgs = [ "-c" ]; # also receive CDP frames
+        # -c: also receive CDP frames (Cisco Discovery Protocol)
+        # -O: process our random identity config at startup (overrides
+        #     SysName, ChassisID, and SysDescr so lldpd doesn't leak the
+        #     real hostname, hardware MAC, or OS version to the switch)
+        # -k: don't advertise kernel release/version/machine (belt-and-
+        #     suspenders for the SysDescr override above)
+        extraArgs = [ "-c" "-k" "-O" "/run/lldpd/identity.conf" ];
       };
 
       # --- Bluetooth MAC randomization -----------------------------------------
