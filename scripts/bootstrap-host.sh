@@ -258,8 +258,8 @@ fi
 ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" true \
   || { echo "ERROR: root SSH to the installer failed" >&2; exit 1; }
 ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" \
-  'set -euo pipefail; command -v python3 >/dev/null; test -d /sys/firmware/efi/efivars; test -w /sys/firmware/efi/efivars; efibootmgr -v >/dev/null' \
-  || { echo "ERROR: installer must provide python3 and writable UEFI variables" >&2; exit 1; }
+  'set -euo pipefail; test -d /sys/firmware/efi/efivars; test -w /sys/firmware/efi/efivars; efibootmgr -v >/dev/null' \
+  || { echo "ERROR: installer must provide writable UEFI variables" >&2; exit 1; }
 
 remote_inventory=$(ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" bash -s -- "$disk_device" <<'REMOTE'
 set -euo pipefail
@@ -465,7 +465,8 @@ PATH="/nix/var/nix/profiles/system/sw/bin:${PATH}" \
     --option experimental-features 'nix-command flakes'
 REMOTE
 
-ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" bash -s -- "$disk_device" \
+ssh "${SSH_PREFLIGHT[@]}" "root@${IP}" \
+  env "PATH=${CONTROLLER_TOPLEVEL}/sw/bin:/run/current-system/sw/bin" bash -s -- "$disk_device" \
   <"${FLAKE_ROOT}/scripts/verify-installed-boot.sh"
 
 "$TRUSTED_NA" \
