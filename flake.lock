@@ -274,6 +274,23 @@
         "type": "github"
       }
     },
+    "honcho": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1783972307,
+        "narHash": "sha256-BekiGw5l1eTGbCtGrOcPeJHk/ckJ9pmBJ7r8YXNIMGM=",
+        "owner": "plastic-labs",
+        "repo": "honcho",
+        "rev": "5ad22840d829878f9ac4d13e9538e5fef216c97e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "plastic-labs",
+        "ref": "v3.0.12",
+        "repo": "honcho",
+        "type": "github"
+      }
+    },
     "mangowm": {
       "inputs": {
         "flake-parts": "flake-parts_3",
@@ -655,6 +672,7 @@
         "dms": "dms",
         "flake-parts": "flake-parts",
         "hermes-agent": "hermes-agent",
+        "honcho": "honcho",
         "mangowm": "mangowm",
         "millennium": "millennium",
         "niri": "niri",
