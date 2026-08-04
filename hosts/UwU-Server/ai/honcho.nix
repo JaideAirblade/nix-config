@@ -334,7 +334,7 @@
           provider: custom
           base_url: http://127.0.0.1:8080/v1
           api_key: ""
-          context_length: 32768
+          context_length: 65536
         memory:
           provider: honcho
       '';
@@ -550,7 +550,7 @@
             "--port"
             "8080"
             "--ctx-size"
-            "32768"
+            "65536"
             "--temp"
             "0.6"
             "--top-p"

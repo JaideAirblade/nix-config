@@ -74,8 +74,9 @@ require(module, "06507c7b42688469c4e7298b0a1e16deff06caf291cf0a5b278c308249c3e43
 
 # Unsloth's model-specific tool-calling settings. Allow the Nix formatter to
 # place adjacent list elements on separate lines without weakening the check.
-for flag, value in (("ctx-size", "32768"), ("temp", "0.6"), ("top-p", "0.95")):
+for flag, value in (("ctx-size", "65536"), ("temp", "0.6"), ("top-p", "0.95")):
     require_pattern(module, rf'"--{re.escape(flag)}"\s+"{re.escape(value)}"', f"Nemotron flag missing: --{flag} {value}")
+require(module, "context_length: 65536", "Hermes local profile must advertise the matching 64K context")
 require(module, '"--jinja"', "Nemotron flag missing: --jinja")
 require_condition(
     re.search(r'nemotron-local = .*?"--special".*?qwen-embedding-local =', module, re.MULTILINE | re.DOTALL) is None,
