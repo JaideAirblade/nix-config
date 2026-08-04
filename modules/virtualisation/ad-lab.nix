@@ -195,8 +195,9 @@ _:
           echo "  Next steps:"
           echo "    1. SSH in: ssh root@192.168.100.20"
           echo "    2. Join AD: realm join lab.local -U Administrator"
-          echo "    3. Verify: id administrator && getent group 'Domain Admins'"
-          echo "    4. Add admin to lpadmin: usermod -aG lpadmin administrator"
+          echo "    3. Get the exact SSSD user name: id administrator && getent passwd administrator"
+          echo "    4. Add that name declaratively to users.groups.lpadmin.members"
+          echo "       in hosts/Projet-Printserver/users/users.nix"
           echo "    5. Redeploy: just deploy Projet-Printserver"
         '')
 

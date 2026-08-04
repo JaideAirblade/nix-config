@@ -361,9 +361,8 @@ _:
             ${locationBlocks}
 
             # Allow admin management only from the lpadmin group.
-            # AD users in the "Domain Admins" group should be added to the
-            # local lpadmin group after domain join:
-            #   usermod -aG lpadmin <ad-admin-user>
+            # Declare each administrator's exact SSSD user name in the host's
+            # users.groups.lpadmin.members list after joining the domain.
             <Location /admin>
               Order allow,deny
               Require user @lpadmin

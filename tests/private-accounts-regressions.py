@@ -3,6 +3,7 @@
 
 from pathlib import Path
 import re
+import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 ROLE = ROOT / "modules/users/private-accounts.nix"
@@ -10,6 +11,7 @@ UWU = ROOT / "hosts/UwU/default.nix"
 SERVER = ROOT / "hosts/UwU-Server/default.nix"
 WORK = ROOT / "hosts/TSBW-W01800/default.nix"
 UWU_USERS = ROOT / "hosts/UwU/users/users.nix"
+PRINTSERVER_USERS = ROOT / "hosts/Projet-Printserver/users/users.nix"
 
 
 def require(condition: bool, message: str) -> None:
@@ -23,6 +25,7 @@ uwu = UWU.read_text()
 server = SERVER.read_text()
 work = WORK.read_text()
 uwu_users = UWU_USERS.read_text()
+printserver_users = PRINTSERVER_USERS.read_text()
 
 require("nixos.modules.privateAccounts" in role, "privateAccounts role is not declared")
 require(
@@ -120,6 +123,127 @@ require(
     )
     is not None,
     "UwU does not publish the newline-safe Luna identity template path",
+)
+require(
+    "users.mutableUsers = false;" in printserver_users,
+    "print server local users are not declaratively managed",
+)
+
+# Reject imperative lpadmin guidance in every tracked textual file, including
+# generated shell snippets and documentation. Build sandboxes omit .git, so
+# fall back to the already-filtered source tree there.
+try:
+    tracked_output = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files", "-z"],
+        check=True,
+        capture_output=True,
+    ).stdout
+    tracked_paths = [ROOT / path.decode() for path in tracked_output.split(b"\0") if path]
+except (FileNotFoundError, subprocess.CalledProcessError):
+    tracked_paths = [path for path in ROOT.rglob("*") if path.is_file()]
+
+user_command_pattern = re.compile(
+    r"(?<![A-Za-z0-9_.-])user" + r"mod(?![A-Za-z0-9_.-])",
+    re.IGNORECASE,
+)
+lpadmin_group_pattern = re.compile(
+    r"(?:(?<![A-Za-z0-9_.-])lpadmin|"
+    r"(?<![A-Za-z0-9_.-])(?:-G|-aG)lpadmin)"
+    r"(?![A-Za-z0-9_.-])",
+    re.IGNORECASE,
+)
+
+
+def has_ephemeral_lpadmin_edit(text: str) -> bool:
+    """Reject logical lines coupling the account editor to the print-admin group."""
+    logical_lines: list[str] = []
+    pending = ""
+    for physical_line in text.splitlines(keepends=True):
+        has_newline = physical_line.endswith("\n")
+        line = physical_line[:-1] if has_newline else physical_line
+        if line.endswith("\r"):
+            line = line[:-1]
+        trailing_backslashes = len(line) - len(line.rstrip("\\"))
+        if has_newline and trailing_backslashes % 2 == 1:
+            pending += line[:-1]
+            continue
+        logical_lines.append(pending + line)
+        pending = ""
+    if pending:
+        logical_lines.append(pending)
+    return any(
+        user_command_pattern.search(line) and lpadmin_group_pattern.search(line)
+        for line in logical_lines
+    )
+
+
+command_name = "user" + "mod"
+positive_lpadmin_commands = [
+    f"{command_name} -aG lpadmin administrator",
+    f"{command_name} -aG wheel,lpadmin administrator",
+    f"{command_name} -aGlpadmin administrator",
+    f"{command_name} -aGwheel,lpadmin administrator",
+    f"{command_name} --append --groups lpadmin administrator",
+    f"{command_name} --groups=wheel,lpadmin --append administrator",
+    f"{command_name} -G lpadmin -a administrator",
+    f'echo "Run {command_name} -aG lpadmin administrator"',
+    f"echo 'Run {command_name} --groups lpadmin --append administrator'",
+    f"{command_name} -aG wheel,\\\nlpadmin administrator",
+    f'{command_name} --append --groups "$groups,lpadmin" administrator',
+    f'{command_name} -a -G wheel -c "note -G lpadmin" administrator',
+    f"{command_name} -aG wheel administrator; {command_name} -G lpadmin other",
+    f"{command_name} -d/data -Glpadmin administrator",
+    f"{command_name} -aG lpadmin${{suffix}} administrator",
+    (b"\xff " + command_name.encode() + b" -aG lpadmin administrator").decode(
+        "utf-8", errors="surrogateescape"
+    ),
+]
+negative_lpadmin_commands = [
+    f"{command_name} -aG lpadmin-old administrator",
+    f"{command_name} -aG wheel,lpadmin-old administrator",
+    f"{command_name} -aG wheel administrator",
+    f"printf lpadmin",
+    f"{command_name}-old -aG lpadmin administrator",
+    f"foo-{command_name} -aG lpadmin administrator",
+    f"{command_name} x-Glpadmin administrator",
+    f"{command_name} foo-aGlpadmin administrator",
+    f"{command_name} -aG wheel administrator " + "\\\\" + "\nprintf lpadmin",
+]
+require(
+    all(has_ephemeral_lpadmin_edit(command) for command in positive_lpadmin_commands),
+    "ephemeral lpadmin detector misses a supported command form",
+)
+require(
+    not any(has_ephemeral_lpadmin_edit(command) for command in negative_lpadmin_commands),
+    "ephemeral print-admin detector confuses a different group or unrelated text",
+)
+
+ephemeral_lpadmin_guidance: list[str] = []
+lpadmin_scan_errors: list[str] = []
+for path in tracked_paths:
+    try:
+        data = path.read_bytes()
+    except OSError:
+        lpadmin_scan_errors.append(str(path.relative_to(ROOT)))
+        continue
+    if b"\0" in data:
+        continue
+    text = data.decode("utf-8", errors="surrogateescape")
+    if has_ephemeral_lpadmin_edit(text):
+        ephemeral_lpadmin_guidance.append(str(path.relative_to(ROOT)))
+
+require(
+    not lpadmin_scan_errors,
+    "tracked text files could not be scanned: " + ", ".join(lpadmin_scan_errors),
+)
+require(
+    not ephemeral_lpadmin_guidance,
+    "tracked configuration or guidance recommends an ephemeral lpadmin group edit: "
+    + ", ".join(ephemeral_lpadmin_guidance),
+)
+require(
+    'users.groups.lpadmin.members = [ "<exact-sssd-user-name>" ];' in printserver_users,
+    "print server documentation lacks a persistent SSSD print-admin workflow",
 )
 
 violations: list[str] = []

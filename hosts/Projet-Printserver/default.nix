@@ -13,8 +13,10 @@
 #   1. Boot the VM:  just lab-create-printserver
 #   2. SSH in:       ssh root@192.168.100.20
 #   3. Join domain:  realm join lab.local -U Administrator
-#   4. Verify:       id administrator && getent group "Domain Admins"
-#   5. Add admin to lpadmin:  usermod -aG lpadmin administrator
+#   4. Verify:       id administrator && getent passwd administrator
+#   5. Put the exact SSSD user name reported above in
+#      hosts/Projet-Printserver/users/users.nix under
+#      users.groups.lpadmin.members
 #   6. Deploy:       just deploy Projet-Printserver
 #
 # After the join, AD users can print to \\PRINTSERVER\<printer> and the

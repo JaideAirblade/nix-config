@@ -3,12 +3,14 @@
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / "hosts/UwU-Server/ai/honcho.nix"
 FLAKE = ROOT / "flake.nix"
+LOCK = ROOT / "flake.lock"
 REVIEW = ROOT / "tests/review-regressions.sh"
 
 
@@ -18,6 +20,11 @@ def fail(message: str) -> None:
 
 def require(text: str, needle: str, message: str) -> None:
     if needle not in text:
+        fail(message)
+
+
+def require_condition(condition: bool, message: str) -> None:
+    if not condition:
         fail(message)
 
 
@@ -36,11 +43,30 @@ if not MODULE.is_file():
 
 module = MODULE.read_text(encoding="utf-8")
 flake = FLAKE.read_text(encoding="utf-8")
+lock = json.loads(LOCK.read_text(encoding="utf-8"))
 review = REVIEW.read_text(encoding="utf-8")
 
 # Reproducible upstream/model selection.
 require(flake, "github:plastic-labs/honcho/v3.0.12", "Honcho v3.0.12 is not pinned")
-require(module, "5ad22840d829878f9ac4d13e9538e5fef216c97e", "Honcho source commit guard is missing")
+commit_match = re.search(r'honchoCommit\s*=\s*"([0-9a-f]{40})";', module)
+require_condition(commit_match is not None, "Honcho source commit guard is missing")
+assert commit_match is not None
+honcho_commit = commit_match.group(1)
+honcho_node = lock["nodes"]["root"]["inputs"]["honcho"]
+locked_honcho_commit = lock["nodes"][honcho_node]["locked"]["rev"]
+require_condition(
+    honcho_commit == locked_honcho_commit,
+    "Honcho source commit guard does not match the locked input revision",
+)
+require_condition(
+    honcho_commit == "5ad22840d829878f9ac4d13e9538e5fef216c97e",
+    "Honcho source commit changed unexpectedly",
+)
+require_pattern(
+    module,
+    r"assertion\s*=\s*inputs\.honcho\.rev\s*==\s*honchoCommit;",
+    "evaluated Honcho input revision assertion is missing",
+)
 require(module, "Nemotron-3-Nano-30B-A3B-UD-Q4_K_XL.gguf", "selected Nemotron quant is missing")
 require(module, "627f5b04aedc97f967332f331bd75b7a4ed2f33ca83e6ee74b44235cc1887890", "Nemotron SHA-256 is missing")
 require(module, "Qwen3-Embedding-0.6B-Q8_0.gguf", "embedding model is missing")
@@ -69,6 +95,30 @@ require(module, 'cap_drop = [ "ALL" ];', "Honcho application containers do not d
 require(module, 'security_opt = [ "no-new-privileges:true" ];', "Honcho application containers permit privilege escalation")
 require(module, 'pull_policy = "never";', "local Honcho image may be pulled from an untrusted registry")
 reject(module, r'POSTGRES_HOST_AUTH_METHOD\s*=\s*"?trust', "PostgreSQL trust authentication is enabled")
+
+redis_match = re.search(r"\n\s+redis = \{(?P<body>.*?)\n\s+\};\n\n\s+init =", module, re.DOTALL)
+require_condition(redis_match is not None, "Redis Compose service block is missing")
+assert redis_match is not None
+redis = redis_match.group("body")
+require(
+    redis,
+    'image = "redis:8.2@sha256:616bb446d5db225ddf786052834279e7c7222c48694d4451e8af22b8f5953b28";',
+    "Redis UID/GID assumptions are not bound to the reviewed image digest",
+)
+require(redis, 'cap_drop = [ "ALL" ];', "Redis does not drop all capabilities by default")
+require(
+    redis,
+    'user = "999:999";',
+    "Redis is not pinned to the image's unprivileged redis UID/GID",
+)
+reject(redis, r"cap_add\s*=", "Redis should not receive capabilities when running as UID/GID 999")
+require(redis, 'security_opt = [ "no-new-privileges:true" ];', "Redis permits privilege escalation")
+
+require_pattern(
+    module,
+    r'local-ai-models\s*=\s*\{.*?RestrictAddressFamilies\s*=\s*\[\s*"AF_INET"\s*"AF_INET6"\s*"AF_NETLINK"\s*"AF_UNIX"\s*\];',
+    "model downloader lacks AF_NETLINK required by aria2/c-ares DNS",
+)
 
 # Local embeddings must use immutable 1024-dimensional pgvector bootstrap.
 for setting in (

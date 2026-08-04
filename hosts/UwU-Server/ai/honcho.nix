@@ -272,6 +272,9 @@
               timeout = "5s";
               retries = 20;
             };
+            # The pinned Redis 8.2.8 image owns /data as 999:999. Running as
+            # that identity bypasses its root-only permission/privilege path.
+            user = "999:999";
             cap_drop = [ "ALL" ];
             security_opt = [ "no-new-privileges:true" ];
           };
@@ -452,6 +455,10 @@
     {
       assertions = [
         {
+          assertion = inputs.honcho.rev == honchoCommit;
+          message = "Honcho source input revision must match the reviewed honchoCommit";
+        }
+        {
           assertion = !(builtins.elem "docker" config.users.users.jaide.extraGroups);
           message = "Jaide must not be added to the root-equivalent docker group";
         }
@@ -518,7 +525,9 @@
             ProtectKernelModules = true;
             ProtectKernelTunables = true;
             ProtectSystem = "strict";
-            RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" ];
+            # aria2 uses c-ares, which needs AF_NETLINK to discover usable
+            # interfaces before resolving the pinned Hugging Face URLs.
+            RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_NETLINK" "AF_UNIX" ];
             RestrictNamespaces = true;
             RestrictRealtime = true;
             RestrictSUIDSGID = true;
