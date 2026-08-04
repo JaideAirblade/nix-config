@@ -107,13 +107,19 @@ require(
 require(
     "sops.secrets.luna_ssh_private_key" in uwu_users
     and "secrets/UwU/luna-agent.yaml" in uwu_users
+    and "sops.templates.luna_ssh_identity" in uwu_users
+    and 'content = "${config.sops.placeholder.luna_ssh_private_key}\\n";' in uwu_users
     and 'owner = "jaide";' in uwu_users
     and 'mode = "0600";' in uwu_users,
     "the Luna controller key is not SOPS-deployed only on UwU",
 )
 require(
-    "LUNA_SSH_IDENTITY" in uwu_users,
-    "UwU does not publish the runtime Luna identity path to the agent",
+    re.search(
+        r"LUNA_SSH_IDENTITY\s*=\s*\n\s*config\.sops\.templates\.luna_ssh_identity\.path;",
+        uwu_users,
+    )
+    is not None,
+    "UwU does not publish the newline-safe Luna identity template path",
 )
 
 violations: list[str] = []

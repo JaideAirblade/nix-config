@@ -21,14 +21,16 @@
 
       # The Luna controller key exists only on UwU. Target devices receive
       # only its public key through the privateAccounts role.
-      sops.secrets.luna_ssh_private_key = {
-        sopsFile = "${inputs.nixos-secrets}/secrets/UwU/luna-agent.yaml";
+      sops.secrets.luna_ssh_private_key.sopsFile =
+        "${inputs.nixos-secrets}/secrets/UwU/luna-agent.yaml";
+      sops.templates.luna_ssh_identity = {
+        content = "${config.sops.placeholder.luna_ssh_private_key}\n";
         owner = "jaide";
         group = "users";
         mode = "0600";
       };
       environment.sessionVariables.LUNA_SSH_IDENTITY =
-        config.sops.secrets.luna_ssh_private_key.path;
+        config.sops.templates.luna_ssh_identity.path;
     }
   ;
 }
