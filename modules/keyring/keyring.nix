@@ -27,6 +27,6 @@ _: {
 
     # Export SSH_AUTH_SOCK to all login shells so git signing / ssh
     # push work in terminals. The GCR agent socket path is stable.
-    environment.sessionVariables.SSH_AUTH_SOCK = "$XDG_RUNTIME_DIR/gcr/ssh";
+    environment.sessionVariables.SSH_AUTH_SOCK = "\${XDG_RUNTIME_DIR}/gcr/ssh";
   };
 }
