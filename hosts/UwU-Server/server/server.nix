@@ -14,6 +14,8 @@ _:
       # for `nixos-rebuild --target-host jaide@... --use-remote-sudo` deploys.
       nix.settings.trusted-users = [ "jaide" ];
 
+      services.fail2ban.enable = true;
+
       services.openssh = {
         enable = true;
         settings = {
