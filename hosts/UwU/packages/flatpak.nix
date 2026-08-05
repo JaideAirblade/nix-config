@@ -32,6 +32,7 @@ _:
       # override idempotently at login instead of relying on mutable manual state.
       systemd.user.services.sober-flatpak-input-override = {
         description = "Grant Sober access to input devices";
+        unitConfig.ConditionUser = "jaide";
         wantedBy = [ "default.target" ];
         serviceConfig = {
           Type = "oneshot";

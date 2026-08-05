@@ -339,6 +339,7 @@
       # stopped before writing (to prevent clobber) and restarted after.
       systemd.user.services.readest-dms-theme-sync = {
         description = "Sync Readest theme with DankMaterialShell";
+        unitConfig.ConditionUser = "jaide";
         after = [ "graphical-session.target" ];
         wantedBy = [ "default.target" ];
         serviceConfig = {
@@ -356,6 +357,7 @@
       # atomically, so watch the parent directory.
       systemd.user.paths.readest-dms-theme-sync = {
         description = "Watch DMS palette changes for Readest";
+        unitConfig.ConditionUser = "jaide";
         wantedBy = [ "default.target" ];
         pathConfig = {
           PathChanged = [ "%h/.cache/DankMaterialShell" ];

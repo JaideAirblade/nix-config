@@ -503,6 +503,7 @@ _:
       # colors. Also symlinks the matugen config + template into ~/.config/.
       systemd.user.services.millennium-theme-sync = {
         description = "Sync DMS matugen colors to Millennium Material-Theme";
+        unitConfig.ConditionUser = "jaide";
         after = [ "graphical-session.target" ];
         wantedBy = [ "default.target" ];
         serviceConfig = {
@@ -522,6 +523,7 @@ _:
       # Watch dank-colors.css for changes → re-sync the theme automatically.
       systemd.user.paths.millennium-theme-sync = {
         description = "Watch dank-colors.css for Millennium theme sync";
+        unitConfig.ConditionUser = "jaide";
         wantedBy = [ "default.target" ];
         pathConfig = {
           PathChanged = [ "%h/.config/gtk-4.0/dank-colors.css" ];

@@ -242,6 +242,7 @@ _:
       # Debounced ~2s so DMS's cache/CSS writes have settled before parsing.
       systemd.user.services.legcord-dms-theme-sync = {
         description = "Sync Legcord System24 colors with DankMaterialShell";
+        unitConfig.ConditionUser = "jaide";
         after = [ "graphical-session.target" ];
         wantedBy = [ "default.target" ];
         serviceConfig = {
@@ -260,6 +261,7 @@ _:
       # individual files.
       systemd.user.paths.legcord-dms-theme-sync = {
         description = "Watch DMS palette changes for Legcord";
+        unitConfig.ConditionUser = "jaide";
         wantedBy = [ "default.target" ];
         pathConfig = {
           PathChanged = [

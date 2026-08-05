@@ -43,6 +43,7 @@ _:
       # systemd user services for rclone Google Drive sync
       systemd.user.services.rclone-gdrive-sync = {
         description = "Rclone Google Drive sync";
+        unitConfig.ConditionUser = "jaide";
         serviceConfig = {
           Type = "oneshot";
           # Bidirectionally sync ~/Documents/Life with the vault root on Drive.
@@ -59,6 +60,7 @@ _:
 
       systemd.user.timers.rclone-gdrive-sync = {
         description = "Timer for Rclone Google Drive sync";
+        unitConfig.ConditionUser = "jaide";
         wantedBy = [ "timers.target" ];
         timerConfig = {
           OnBootSec = "5min";
