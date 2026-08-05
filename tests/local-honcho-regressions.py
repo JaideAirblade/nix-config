@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static regressions for UwU-Server's fully local Honcho stack."""
+"""Static regressions for UwU-Server's local inference/Honcho rollback stack."""
 
 from __future__ import annotations
 
@@ -144,7 +144,8 @@ require(module, 'users.users.jaide.extraGroups', "Docker-group exclusion asserti
 require(module, 'assertion = !(builtins.elem "docker"', "Jaide Docker-group exclusion assertion is missing")
 require(module, 'pkgs.llama-cpp-vulkan', "Vulkan llama.cpp package is not selected")
 require(module, 'default: ${nemotronAlias}', "managed Hermes profile does not select Nemotron")
-require(module, 'provider: honcho', "managed Hermes profile does not select Honcho memory")
+require(module, 'provider: mnemosyne', "managed Hermes profile does not select Mnemosyne memory")
+reject(module, r'^\s+provider: honcho$', "managed Hermes profile still selects Honcho memory")
 require(module, 'baseUrl = "http://127.0.0.1:8000";', "profile-local Honcho URL is missing")
 require(module, 'hosts.hermes_local', "named Hermes profile has no isolated Honcho host block")
 require(module, 'hermes-local-profile = {', "managed Hermes local profile service is missing")

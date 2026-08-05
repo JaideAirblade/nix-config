@@ -211,6 +211,7 @@
               python3 tests/net-report-wifi-scan-regressions.py
               python3 tests/mnemosyne-activation-regressions.py
               python3 tests/local-honcho-regressions.py
+              python3 tests/server-hermes-extensions-regressions.py
               touch $out
             '';
           };

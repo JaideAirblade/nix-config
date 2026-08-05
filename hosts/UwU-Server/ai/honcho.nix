@@ -336,7 +336,7 @@
           api_key: ""
           context_length: 65536
         memory:
-          provider: honcho
+          provider: mnemosyne
       '';
 
       hermesHonchoConfig = pkgs.writeText "hermes-local-honcho.json" (builtins.toJSON {
@@ -372,7 +372,7 @@
             hermes profile create local \
               --no-alias \
               --no-skills \
-              --description "Fully local UwU-Server profile: Nemotron + Honcho"
+              --description "Fully local UwU-Server profile: Nemotron + Mnemosyne"
           fi
 
           install -m 0600 ${lib.escapeShellArg hermesLocalConfig} "$profile_dir/config.yaml"

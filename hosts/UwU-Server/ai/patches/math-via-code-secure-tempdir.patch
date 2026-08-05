@@ -1,0 +1,28 @@
+diff --git a/skills/math-via-code/SKILL.md b/skills/math-via-code/SKILL.md
+index 51c9416..f7ac322 100644
+--- a/skills/math-via-code/SKILL.md
++++ b/skills/math-via-code/SKILL.md
+@@ -66 +66 @@ assert abs(overhead_royalties - round(revenue * 0.07, 2)) < 0.01, "Royalties = 7
+-When a script needs external packages or complex quoting, write it to the system temp dir and run the file:
++When a script needs external packages or complex quoting, create a unique private temporary directory, run the file inside the context, and let it be deleted immediately afterward:
+@@ -68,0 +69 @@ When a script needs external packages or complex quoting, write it to the system
++import subprocess
+@@ -72,3 +73,6 @@ from pathlib import Path
+-script = Path(tempfile.gettempdir()) / "math_via_code_calc.py"
+-script.write_text(code, encoding="utf-8")
+-# then: terminal → python path/to/venv/bin/python script
++python_executable = Path("/path/to/project/.venv/bin/python")  # use the actual project interpreter
++with tempfile.TemporaryDirectory(prefix="math_via_code_") as temp_dir:
++    script = Path(temp_dir) / "calculation.py"
++    script.write_text(code, encoding="utf-8")
++    script.chmod(0o600)
++    subprocess.run([str(python_executable), str(script)], check=True)
+@@ -143 +147 @@ assert abs(computed_sde - source_sde) < 0.01, \
+-4. Write multi-line scripts under `tempfile.gettempdir()` and run the file; avoid complex f-strings in subprocess.
++4. Run multi-line scripts inside a unique `tempfile.TemporaryDirectory()` context; avoid complex f-strings in subprocess.
+@@ -151 +155 @@ assert abs(computed_sde - source_sde) < 0.01, \
+-4. **f-strings with escaped quotes break in subprocess.** Write a temp file via `tempfile.gettempdir()`, then run it.
++4. **f-strings with escaped quotes break in subprocess.** Use a private `TemporaryDirectory`, mode-`0600` script, and `subprocess.run(..., check=True)`.
+@@ -164 +168 @@ assert abs(computed_sde - source_sde) < 0.01, \
+-- [ ] Temp scripts use `tempfile.gettempdir()`, not a hardcoded POSIX-only temp path
++- [ ] Temp scripts run inside a unique `tempfile.TemporaryDirectory()`, are mode `0600`, and are cleaned up

@@ -1,0 +1,23 @@
+diff --git a/router.py b/router.py
+index 60205f0..bf945c0 100644
+--- a/router.py
++++ b/router.py
+@@ -3551,0 +3552,18 @@ START_TIME = time.time()   # for uptime in /metrics
++# Upstream intentionally gives every proxy API key the same administrative
++# authority as the operator key. It also lets the instance registry probe
++# caller-supplied URLs. Keep both surfaces fail-closed unless an operator has
++# explicitly accepted that trust model. Normal inference, health, models,
++# status, usage, logs, and metrics endpoints remain available.
++ADMIN_SURFACES_ENABLED = os.environ.get("HERMES_ADMIN_SURFACES", "0") == "1"
++
++
++@app.before_request
++def _reject_disabled_admin_surfaces():
++    if ADMIN_SURFACES_ENABLED:
++        return None
++    if (request.path == "/dashboard" or
++            request.path.startswith("/v1/config/") or
++            request.path.startswith("/v1/instances")):
++        return jsonify({"error": "not found"}), 404
++    return None
++

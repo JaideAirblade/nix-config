@@ -485,11 +485,11 @@
     "nixos-secrets": {
       "flake": false,
       "locked": {
-        "lastModified": 1785886787,
-        "narHash": "sha256-dChvYfFvqqhTMvuRFMU/Rp5EdZC59Ttezex07ZuGGxQ=",
+        "lastModified": 1785890791,
+        "narHash": "sha256-AxGCwUZplTf/Sm+jhoS+AGjh3BiYisiXxaCaIfvc2hQ=",
         "ref": "main",
-        "rev": "5153478fb86fee1079d65d7b204061ac12e78ae2",
-        "revCount": 14,
+        "rev": "9b01d8b28a1d76543f8eabeb0be73a397a1c4c4d",
+        "revCount": 15,
         "type": "git",
         "url": "ssh://git@github.com/JaideAirblade/nixos-secrets.git"
       },
@@ -593,22 +593,6 @@
         "type": "github"
       }
     },
-    "nixpkgs-stable_2": {
-      "locked": {
-        "lastModified": 1785858998,
-        "narHash": "sha256-fKCq5jphd6l/Ms6gc3dptkw/TcKLYub9lQE5g6rbbkc=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "04607e1165ac22c5fde6dcc54c9e0b3c0487c555",
-        "type": "github"
-      },
-      "original": {
-        "owner": "NixOS",
-        "ref": "nixos-26.05",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
     "npm-lockfile-fix": {
       "inputs": {
         "nixpkgs": [
@@ -696,7 +680,6 @@
         "nixos-secrets": "nixos-secrets",
         "nixpkgs": "nixpkgs",
         "nixpkgs-ivpn": "nixpkgs-ivpn",
-        "nixpkgs-stable": "nixpkgs-stable_2",
         "sops-nix": "sops-nix"
       }
     },
