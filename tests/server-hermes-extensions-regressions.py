@@ -51,6 +51,7 @@ for needle in (
     'users.groups.hermes-router = { };',
     "sops.secrets.hermes_router_proxy_api_key",
     "sops.templates.hermes-router-env",
+    'restartUnits = [ "hermes-router.service" ];',
     'HOST = "127.0.0.1";',
     'PORT = "8319";',
     'CACHE_TTL_SECONDS = "0";',
@@ -104,7 +105,13 @@ for plugin_patch_path in (MINIMAX_IMAGE_PATCH, MINIMAX_VIDEO_PATCH):
     for needle in (
         "get_hermes_home",
         "_managed_media_roots",
-        ".resolve()",
+        "_open_directory_nofollow",
+        "O_DIRECTORY",
+        "dir_fd=directory_descriptor",
+        "_require_exact_image_container",
+        "PNG contains trailing data",
+        "_MAX_IMAGE_PIXELS",
+        "decoded.load()",
         ".relative_to(",
         "st_nlink != 1",
         'src.startswith("data:image/")',
@@ -139,14 +146,27 @@ require("save_url_video(" not in video_added, "video plugin must not auto-downlo
 for needle in (
     'mathSkillPath = "/home/jaide/.hermes/skills/software-development/math-via-code";',
     '"${mathViaCodeSource}/skills/math-via-code"',
-    '[[ -e "$skill_path" && ! -L "$skill_path" ]]',
-    'ln -sfnT "$skill_source" "$skill_path"',
+    "preflight_managed_symlink() {",
+    "preflight_target_parent() {",
+    "managed_store_identity() {",
+    '[[ "$current_identity" == "$expected_identity" ]]',
+    'refusing symlinked parent for managed Hermes target',
+    'current_target="$(readlink -f -- "$target" || true)"',
+    'expected_target="$(readlink -f -- "$source")"',
+    'if [[ "$current_target" != "$expected_target" ]]; then',
+    "# Preflight every managed target before any filesystem mutation.",
+    "# Mutate only after every target has passed preflight.",
     'systemd.services.hermes-server-extensions = {',
+    "system.build.hermesServerExtensionsInstaller = installHermesServerExtensions;",
     'User = "jaide";',
     'Environment = "HOME=/home/jaide";',
     'ReadWritePaths = [ "/home/jaide/.hermes" ];',
 ):
-    require(needle in source, f"missing server math skill deployment behavior: {needle}")
+    require(needle in source, f"missing server extension deployment behavior: {needle}")
+
+preflight_marker = source.index("# Preflight every managed target before any filesystem mutation.")
+mutation_marker = source.index("# Mutate only after every target has passed preflight.")
+require(preflight_marker < mutation_marker, "all managed targets must be preflighted before mutation")
 
 for needle in (
     'minimaxImagePluginPath = "/home/jaide/.hermes/plugins/minimax-image";',
@@ -175,8 +195,14 @@ for needle in (
     'localMnemosynePluginPath = "/home/jaide/.hermes/profiles/local/plugins/mnemosyne";',
     'hermes config set memory.provider mnemosyne',
     'after = [ "hermes-local-profile.service" ];',
+    'requires = [ "hermes-local-profile.service" ];',
 ):
     require(needle in source, f"missing declarative server Mnemosyne behavior: {needle}")
+
+require(
+    'if [[ -f /home/jaide/.hermes/config.yaml ]]; then' not in source,
+    "default Mnemosyne selection must not be skipped on a fresh Hermes home",
+)
 
 local_stack = LOCAL_STACK.read_text(encoding="utf-8")
 require("provider: mnemosyne" in local_stack, "managed local profile must select Mnemosyne")

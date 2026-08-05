@@ -1,97 +1,436 @@
-diff --git a/README.md b/README.md
-index 0ef2f5f..4881eb0 100644
---- a/README.md
-+++ b/README.md
-@@ -24 +24 @@ hermes plugins install rriggs/hermes-plugin-minimax-image
--hermes plugins enable minimax
-+hermes plugins enable minimax-image
 diff --git a/__init__.py b/__init__.py
-index f84f973..cdcb40c 100644
+index f84f973..5041790 100644
 --- a/__init__.py
 +++ b/__init__.py
-@@ -41 +40,0 @@ from agent.image_gen_provider import (
+@@ -26,11 +26,15 @@ API: POST {api}/v1/image_generation
+ from __future__ import annotations
+
+ import base64
++import binascii
++from io import BytesIO
+ import logging
+ import mimetypes
+ import os
+ from pathlib import Path
++import stat
+ from typing import Any, Dict, List, Optional
++import zlib
+
+ from agent.image_gen_provider import (
+     DEFAULT_ASPECT_RATIO,
+@@ -38,7 +42,6 @@ from agent.image_gen_provider import (
+     error_response,
+     normalize_reference_images,
+     resolve_aspect_ratio,
 -    save_url_image,
-@@ -79,0 +79,29 @@ _MAX_INLINE_BYTES = 10 * 1024 * 1024
+     success_response,
+ )
+
+@@ -75,6 +78,316 @@ _DEFAULT_KEY_ENV = "MINIMAX_API_KEY"
+
+ # Max file size for base64 inline encoding (10 MB).
+ _MAX_INLINE_BYTES = 10 * 1024 * 1024
++_MAX_IMAGE_PIXELS = 40_000_000
++
++
 +def _managed_media_roots() -> List[Path]:
-+    """Return the host media roots Hermes itself manages for attachments."""
++    """Return lexical media roots beneath the configured Hermes profile."""
 +    from hermes_constants import get_hermes_home
 +
-+    home = get_hermes_home()
++    home = Path(os.path.abspath(os.path.expanduser(get_hermes_home())))
 +    return [
-+        home / "cache",
-+        home / "images",
-+        home / "image_cache",
-+        home / "audio_cache",
-+        home / "video_cache",
-+        home / "temp_vision_images",
-+        home / "temp_video_files",
++        home / name
++        for name in (
++            "cache",
++            "images",
++            "image_cache",
++            "audio_cache",
++            "video_cache",
++            "temp_vision_images",
++            "temp_video_files",
++        )
 +    ]
 +
 +
-+def _detected_image_mime(data: bytes) -> Optional[str]:
-+    """Identify the small set of image formats accepted by MiniMax inputs."""
-+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
-+        return "image/png"
-+    if data.startswith(b"\xff\xd8\xff"):
-+        return "image/jpeg"
-+    if data.startswith((b"GIF87a", b"GIF89a")):
-+        return "image/gif"
-+    if len(data) >= 12 and data.startswith(b"RIFF") and data[8:12] == b"WEBP":
-+        return "image/webp"
-+    return None
++def _directory_open_flags() -> int:
++    return (
++        os.O_RDONLY
++        | getattr(os, "O_CLOEXEC", 0)
++        | getattr(os, "O_DIRECTORY", 0)
++        | getattr(os, "O_NOFOLLOW", 0)
++    )
 +
 +
-@@ -89 +117,4 @@ def _to_data_uri(path: str) -> str:
--    p = Path(path).expanduser()
++def _open_directory_nofollow(path: Path) -> int:
++    """Open an absolute directory path without following any symlink component."""
++    if not path.is_absolute():
++        raise ValueError("Managed media root must be absolute")
++    flags = _directory_open_flags()
++    descriptor = os.open("/", flags)
 +    try:
-+        p = Path(path).expanduser().resolve(strict=True)
-+    except (OSError, RuntimeError) as exc:
-+        raise ValueError(f"Image file not found: {path}") from exc
-@@ -91,0 +123,12 @@ def _to_data_uri(path: str) -> str:
-+    if p.stat().st_nlink != 1:
-+        raise ValueError("Local image must not be a hardlinked file")
++        for component in path.parts[1:]:
++            if component in ("", ".", ".."):
++                raise ValueError("Unsafe managed media path component")
++            next_descriptor = os.open(component, flags, dir_fd=descriptor)
++            os.close(descriptor)
++            descriptor = next_descriptor
++        return descriptor
++    except Exception:
++        os.close(descriptor)
++        raise
++
++
++def _open_managed_file(path: str) -> tuple[Path, int]:
++    """Open a managed file through no-follow directory descriptors."""
++    candidate = Path(os.path.abspath(os.path.expanduser(path)))
++    selected_root: Optional[Path] = None
++    relative: Optional[Path] = None
 +    for root in _managed_media_roots():
 +        try:
-+            p.relative_to(root.resolve())
-+            break
++            candidate_relative = candidate.relative_to(root)
 +        except ValueError:
 +            continue
-+    else:
-+        raise ValueError(
-+            "Local image path must be inside a Hermes-managed media directory"
-+        )
-@@ -99,3 +142,7 @@ def _to_data_uri(path: str) -> str:
++        if candidate_relative.parts and all(
++            component not in ("", ".", "..") for component in candidate_relative.parts
++        ):
++            selected_root = root
++            relative = candidate_relative
++            break
++    if selected_root is None or relative is None:
++        raise ValueError("Local image path must be inside a Hermes-managed media directory")
++
++    try:
++        directory_descriptor = _open_directory_nofollow(selected_root)
++    except OSError as exc:
++        raise ValueError(f"Image file cannot be opened safely: {path}") from exc
++    try:
++        for component in relative.parts[:-1]:
++            next_descriptor = os.open(
++                component,
++                _directory_open_flags(),
++                dir_fd=directory_descriptor,
++            )
++            os.close(directory_descriptor)
++            directory_descriptor = next_descriptor
++        file_flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
++        return candidate, os.open(relative.parts[-1], file_flags, dir_fd=directory_descriptor)
++    except OSError as exc:
++        raise ValueError(f"Image file cannot be opened safely: {path}") from exc
++    finally:
++        os.close(directory_descriptor)
++
++
++_IMAGE_MIME_BY_FORMAT = {
++    "PNG": "image/png",
++    "JPEG": "image/jpeg",
++    "GIF": "image/gif",
++    "WEBP": "image/webp",
++}
++
++
++def _jpeg_container_end(data: bytes) -> int:
++    if not data.startswith(b"\xff\xd8"):
++        raise ValueError("Malformed JPEG SOI marker")
++    position = 2
++    in_scan = False
++    while position < len(data):
++        if in_scan:
++            marker_start = data.find(b"\xff", position)
++            if marker_start < 0:
++                break
++            code_position = marker_start + 1
++            while code_position < len(data) and data[code_position] == 0xFF:
++                code_position += 1
++            if code_position >= len(data):
++                break
++            marker = data[code_position]
++            if marker == 0x00 or 0xD0 <= marker <= 0xD7:
++                position = code_position + 1
++                continue
++            if marker == 0xD9:
++                return code_position + 1
++            position = marker_start
++            in_scan = False
++            continue
++
++        if data[position] != 0xFF:
++            raise ValueError("Malformed JPEG marker stream")
++        code_position = position + 1
++        while code_position < len(data) and data[code_position] == 0xFF:
++            code_position += 1
++        if code_position >= len(data):
++            break
++        marker = data[code_position]
++        marker_end = code_position + 1
++        if marker == 0xD9:
++            return marker_end
++        if marker in (0x01, 0xD8) or 0xD0 <= marker <= 0xD7:
++            position = marker_end
++            continue
++        if marker_end + 2 > len(data):
++            break
++        segment_length = int.from_bytes(data[marker_end : marker_end + 2], "big")
++        if segment_length < 2 or marker_end + segment_length > len(data):
++            raise ValueError("Malformed JPEG segment length")
++        position = marker_end + segment_length
++        if marker == 0xDA:
++            in_scan = True
++    raise ValueError("JPEG is missing its final EOI marker")
++
++
++def _gif_sub_blocks_end(data: bytes, position: int) -> int:
++    while position < len(data):
++        block_size = data[position]
++        position += 1
++        if block_size == 0:
++            return position
++        position += block_size
++        if position > len(data):
++            break
++    raise ValueError("Truncated GIF data sub-block")
++
++
++def _gif_container_end(data: bytes) -> int:
++    if len(data) < 13 or not data.startswith((b"GIF87a", b"GIF89a")):
++        raise ValueError("Malformed GIF header")
++    position = 13
++    packed = data[10]
++    if packed & 0x80:
++        position += 3 * (2 ** ((packed & 0x07) + 1))
++    while position < len(data):
++        introducer = data[position]
++        position += 1
++        if introducer == 0x3B:
++            return position
++        if introducer == 0x21:
++            if position >= len(data):
++                break
++            position += 1
++            position = _gif_sub_blocks_end(data, position)
++            continue
++        if introducer == 0x2C:
++            if position + 9 > len(data):
++                break
++            descriptor_packed = data[position + 8]
++            position += 9
++            if descriptor_packed & 0x80:
++                position += 3 * (2 ** ((descriptor_packed & 0x07) + 1))
++            if position >= len(data):
++                break
++            position += 1
++            position = _gif_sub_blocks_end(data, position)
++            continue
++        raise ValueError("Malformed GIF block stream")
++    raise ValueError("GIF is missing its final trailer")
++
++
++def _webp_container_end(data: bytes) -> int:
++    if (
++        len(data) < 20
++        or data[:4] != b"RIFF"
++        or data[8:12] != b"WEBP"
++        or int.from_bytes(data[4:8], "little") + 8 != len(data)
++    ):
++        raise ValueError("WebP RIFF length does not match the payload")
++    allowed_chunks = {
++        b"VP8 ", b"VP8L", b"VP8X", b"ALPH", b"ANIM", b"ANMF",
++        b"ICCP", b"EXIF", b"XMP ",
++    }
++    position = 12
++    while position < len(data):
++        if position + 8 > len(data):
++            raise ValueError("Truncated WebP chunk header")
++        kind = data[position : position + 4]
++        if kind not in allowed_chunks:
++            raise ValueError("Unsupported WebP chunk")
++        chunk_size = int.from_bytes(data[position + 4 : position + 8], "little")
++        payload_end = position + 8 + chunk_size
++        padded_end = payload_end + (chunk_size & 1)
++        if padded_end > len(data):
++            raise ValueError("Truncated WebP chunk")
++        if padded_end > payload_end and data[payload_end] != 0:
++            raise ValueError("Invalid WebP padding byte")
++        position = padded_end
++    return position
++
++
++def _require_exact_image_container(data: bytes, image_format: str) -> None:
++    """Reject accepted images with bytes outside their declared container."""
++    if image_format == "PNG":
++        if not data.startswith(b"\x89PNG\r\n\x1a\n"):
++            raise ValueError("Malformed PNG container")
++        offset = 8
++        while offset + 12 <= len(data):
++            length = int.from_bytes(data[offset : offset + 4], "big")
++            chunk_end = offset + 12 + length
++            if chunk_end > len(data):
++                raise ValueError("Truncated PNG container")
++            kind = data[offset + 4 : offset + 8]
++            payload = data[offset + 8 : offset + 8 + length]
++            expected_crc = int.from_bytes(data[offset + 8 + length : chunk_end], "big")
++            if zlib.crc32(kind + payload) & 0xFFFFFFFF != expected_crc:
++                raise ValueError("Invalid PNG chunk checksum")
++            offset = chunk_end
++            if kind == b"IEND":
++                if length != 0 or offset != len(data):
++                    raise ValueError("PNG contains trailing data")
++                return
++        raise ValueError("PNG is missing its final IEND chunk")
++    if image_format == "JPEG":
++        if _jpeg_container_end(data) != len(data):
++            raise ValueError("JPEG contains trailing data")
++        return
++    if image_format == "GIF":
++        if _gif_container_end(data) != len(data):
++            raise ValueError("GIF contains trailing data")
++        return
++    if image_format == "WEBP":
++        if _webp_container_end(data) != len(data):
++            raise ValueError("WebP contains trailing data")
++        return
++    raise ValueError("Unsupported local image container")
++
++
++def _verified_image_mime(data: bytes) -> str:
++    """Verify, fully decode, and classify a bounded image payload."""
++    if not data or len(data) > _MAX_INLINE_BYTES:
++        raise ValueError("Image data is empty or exceeds the inline size limit")
++    try:
++        from PIL import Image, UnidentifiedImageError
++    except ImportError as exc:
++        raise ValueError("Pillow is required to validate local image content") from exc
++    try:
++        with Image.open(BytesIO(data)) as image:
++            image_format = image.format
++            width, height = image.size
++            if width <= 0 or height <= 0 or width * height > _MAX_IMAGE_PIXELS:
++                raise ValueError("Image dimensions exceed the decoded-pixel limit")
++            image.verify()
++    except (Image.DecompressionBombError, UnidentifiedImageError, OSError, SyntaxError, ValueError) as exc:
++        raise ValueError("Unsupported or malformed local image content") from exc
++    mime = _IMAGE_MIME_BY_FORMAT.get(image_format or "")
++    if mime is None:
++        raise ValueError("Unsupported local image content; expected JPEG, PNG, GIF, or WebP")
++    _require_exact_image_container(data, image_format or "")
++    try:
++        with Image.open(BytesIO(data)) as decoded:
++            if decoded.format != image_format or decoded.size != (width, height):
++                raise ValueError("Image identity changed between verification and decoding")
++            decoded.load()
++    except (Image.DecompressionBombError, UnidentifiedImageError, OSError, SyntaxError, ValueError) as exc:
++        raise ValueError("Image pixel data cannot be fully decoded") from exc
++    return mime
++
++
++def _validated_data_uri(src: str) -> str:
++    """Validate size, base64 encoding, declared MIME, and complete image data."""
++    try:
++        header, encoded = src.split(",", 1)
++        declared_mime, encoding = header[5:].split(";", 1)
++    except ValueError as exc:
++        raise ValueError("Malformed image data URI") from exc
++    declared_mime = declared_mime.lower()
++    if encoding.lower() != "base64" or declared_mime not in _IMAGE_MIME_BY_FORMAT.values():
++        raise ValueError("Only base64 JPEG, PNG, GIF, or WebP data URIs are accepted")
++    try:
++        data = base64.b64decode(encoded, validate=True)
++    except (binascii.Error, ValueError) as exc:
++        raise ValueError("Malformed base64 image data URI") from exc
++    detected_mime = _verified_image_mime(data)
++    if detected_mime != declared_mime:
++        raise ValueError("Image data URI MIME does not match decoded content")
++    return src
+
+
+ def _to_data_uri(path: str) -> str:
+@@ -86,19 +399,37 @@ def _to_data_uri(path: str) -> str:
+
+     Raises ``ValueError`` for missing files or unsupported sizes.
+     """
+-    p = Path(path).expanduser()
+-    if not p.is_file():
+-        raise ValueError(f"Image file not found: {path}")
+-    if p.stat().st_size > _MAX_INLINE_BYTES:
+-        raise ValueError(
+-            f"Image too large for inline encoding ({p.stat().st_size} bytes, "
+-            f"max {_MAX_INLINE_BYTES}). Use a URL instead."
+-        )
++    try:
++        p, fd = _open_managed_file(path)
++    except (OSError, RuntimeError, ValueError) as exc:
++        if isinstance(exc, ValueError):
++            raise
++        raise ValueError(f"Image file cannot be opened safely: {path}") from exc
+     mime, _ = mimetypes.guess_type(str(p))
+     if not mime or not mime.startswith("image/"):
 -        mime = "image/png"  # safe fallback
 -    b64 = base64.b64encode(p.read_bytes()).decode("ascii")
 -    return f"data:{mime};base64,{b64}"
++        os.close(fd)
 +        raise ValueError(f"Unsupported local image type: {p.suffix or 'unknown'}")
-+    data = p.read_bytes()
-+    detected_mime = _detected_image_mime(data)
-+    if detected_mime is None or detected_mime != mime:
-+        raise ValueError("Unsupported local image content; expected JPEG, PNG, GIF, or WebP")
++    with os.fdopen(fd, "rb") as image_file:
++        metadata = os.fstat(image_file.fileno())
++        if not stat.S_ISREG(metadata.st_mode):
++            raise ValueError("Local image must be a regular file")
++        if metadata.st_nlink != 1:
++            raise ValueError("Local image must not be a hardlinked file")
++        if metadata.st_uid != os.getuid():
++            raise ValueError("Local image must be owned by the Hermes user")
++        if stat.S_IMODE(metadata.st_mode) & 0o077:
++            raise ValueError("Local image must not be accessible by group or other users")
++        data = image_file.read(_MAX_INLINE_BYTES + 1)
++    if len(data) > _MAX_INLINE_BYTES:
++        raise ValueError(
++            f"Image too large for inline encoding (max {_MAX_INLINE_BYTES} bytes). "
++            "Use a URL instead."
++        )
++    detected_mime = _verified_image_mime(data)
++    if detected_mime != mime:
++        raise ValueError("Local image extension does not match verified image content")
 +    b64 = base64.b64encode(data).decode("ascii")
 +    return f"data:{detected_mime};base64,{b64}"
-@@ -110 +157 @@ def _normalize_source(src: str) -> str:
+
+
+ def _normalize_source(src: str) -> str:
+@@ -107,8 +438,12 @@ def _normalize_source(src: str) -> str:
+     - http/https URLs and data URIs pass through unchanged.
+     - Local file paths are converted to base64 data URIs.
+     """
 -    if src.startswith(("http://", "https://", "data:")):
 +    if src.startswith(("http://", "https://")):
-@@ -111,0 +159,4 @@ def _normalize_source(src: str) -> str:
+         return src
 +    if src.startswith("data:image/"):
-+        return src
++        return _validated_data_uri(src)
 +    if src.startswith("data:"):
 +        raise ValueError("Only data:image/* URIs are accepted as image inputs")
-@@ -130,4 +181 @@ def _resolve_api(cfg: Dict[str, Any]) -> str:
+     return _to_data_uri(src)
+
+
+@@ -127,18 +462,12 @@ def _load_config() -> Dict[str, Any]:
+
+
+ def _resolve_api(cfg: Dict[str, Any]) -> str:
 -    """Resolve the API base URL: config > default."""
 -    api = cfg.get("api", "")
 -    if isinstance(api, str) and api.strip():
 -        return api.strip().rstrip("/")
 +    """Return the audited MiniMax endpoint; never redirect bearer credentials."""
-@@ -138,4 +186 @@ def _resolve_key_env(cfg: Dict[str, Any]) -> str:
+     return _DEFAULT_API
+
+
+ def _resolve_key_env(cfg: Dict[str, Any]) -> str:
 -    """Resolve the env var name holding the API key: config > default."""
 -    key_env = cfg.get("key_env", "")
 -    if isinstance(key_env, str) and key_env.strip():
 -        return key_env.strip()
 +    """Use only the audited credential name; never redirect credential selection."""
-@@ -236,6 +281,15 @@ class MiniMaxImageGenProvider(ImageGenProvider):
+     return _DEFAULT_KEY_ENV
+
+
+@@ -233,12 +562,21 @@ class MiniMaxImageGenProvider(ImageGenProvider):
+
+         # Determine modality from source images
+         sources: List[str] = []
 -        if image_url:
 -            sources.append(_normalize_source(image_url))
 -        sources.extend(
@@ -113,7 +452,13 @@ index f84f973..cdcb40c 100644
 +                prompt=prompt,
 +                aspect_ratio=aspect,
 +            )
-@@ -336,9 +390,3 @@ class MiniMaxImageGenProvider(ImageGenProvider):
+         modality = "image" if sources else "text"
+
+         # Image-to-image requires image-01-live model
+@@ -333,15 +671,9 @@ class MiniMaxImageGenProvider(ImageGenProvider):
+                 aspect_ratio=aspect,
+             )
+
 -        # Cache the image locally -- MiniMax URLs expire in 24 hours.
 -        short = model_id.replace(".", "_")
 -        try:
@@ -126,3 +471,6 @@ index f84f973..cdcb40c 100644
 +        # Do not fetch provider-controlled response URLs here. The host's guarded
 +        # media tooling can materialize the URL later without granting this
 +        # plugin an SSRF-capable downloader.
+
+         return success_response(
+             image=image_ref,

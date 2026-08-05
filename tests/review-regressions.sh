@@ -25,10 +25,14 @@ minimax_image_source=$(nix build --no-link --print-out-paths \
   '.#nixosConfigurations.UwU-Server.config.system.build.hermesMinimaxImagePlugin')
 minimax_video_source=$(nix build --no-link --print-out-paths \
   '.#nixosConfigurations.UwU-Server.config.system.build.hermesMinimaxVideoPlugin')
+hermes_extensions_installer=$(nix build --no-link --print-out-paths \
+  '.#nixosConfigurations.UwU-Server.config.system.build.hermesServerExtensionsInstaller')
 hermes_python="$(nix eval --raw \
   '.#nixosConfigurations.UwU-Server.pkgs.hermes-agent.hermesVenv.outPath')/bin/python3"
 "$hermes_python" tests/minimax-plugin-security-runtime.py \
   "$minimax_image_source" "$minimax_video_source"
+python3 tests/hermes-server-installer-runtime.py \
+  "$hermes_extensions_installer/bin/install-hermes-server-extensions"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -46,6 +50,9 @@ metadata=$(nix flake metadata --no-write-lock-file 2>&1)
 if grep -q "override for a non-existent input" <<<"$metadata"; then
   fail "flake metadata still reports a non-existent input override"
 fi
+
+server_bolt=$(nix eval --json '.#nixosConfigurations.UwU-Server.config.services.hardware.bolt.enable')
+assert_eq true "$server_bolt" "UwU-Server persistent Mate SE authorization service"
 
 if git grep -nE 'specialArgs|extraSpecialArgs|_module\.args' -- '*.nix'; then
   fail "Dendritic lower-level argument pass-through is still present"

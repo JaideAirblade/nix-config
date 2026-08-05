@@ -96,39 +96,106 @@
           local_minimax_image_path=${lib.escapeShellArg localMinimaxImagePluginPath}
           local_minimax_video_path=${lib.escapeShellArg localMinimaxVideoPluginPath}
 
-          install_plugin_symlink() {
-            local source="$1"
-            local target="$2"
-            install -d -m 0755 "$(dirname "$target")"
-            if [[ -e "$target" && ! -L "$target" ]]; then
-              printf 'refusing to replace unmanaged Hermes plugin: %s\n' "$target" >&2
-              exit 1
-            fi
-            ln -sfnT "$source" "$target"
+          preflight_target_parent() {
+            local target="$1"
+            local parent
+            parent="$(dirname -- "$target")"
+            while [[ "$parent" != "/" ]]; do
+              if [[ -L "$parent" ]]; then
+                printf 'refusing symlinked parent for managed Hermes target: %s\n' "$target" >&2
+                exit 1
+              fi
+              parent="$(dirname -- "$parent")"
+            done
           }
 
-          install -d -m 0755 "$(dirname "$skill_path")"
-          if [[ -e "$skill_path" && ! -L "$skill_path" ]]; then
-            printf 'refusing to replace unmanaged Hermes skill: %s\n' "$skill_path" >&2
-            exit 1
-          fi
-          ln -sfnT "$skill_source" "$skill_path"
+          managed_store_identity() {
+            local path="$1"
+            local relative
+            local entry
+            local name
+            local tail=""
+            [[ "$path" == /nix/store/* ]] || return 1
+            relative="''${path#/nix/store/}"
+            entry="''${relative%%/*}"
+            [[ "$entry" == *-* ]] || return 1
+            name="''${entry#*-}"
+            if [[ "$relative" == */* ]]; then
+              tail="/''${relative#*/}"
+            fi
+            printf '%s%s\n' "$name" "$tail"
+          }
 
-          install -d -m 0755 "$(dirname "$local_plugin_path")"
-          if [[ -e "$local_plugin_path" && ! -L "$local_plugin_path" ]]; then
-            printf 'refusing to replace unmanaged Hermes plugin: %s\n' "$local_plugin_path" >&2
-            exit 1
-          fi
-          ln -sfnT "$mnemosyne_source" "$local_plugin_path"
+          preflight_managed_symlink() {
+            local source="$1"
+            local target="$2"
+            local label="$3"
+            local current_target
+            local expected_target
+            local current_identity
+            local expected_identity
 
-          install_plugin_symlink "$minimax_image_source" "$minimax_image_path"
-          install_plugin_symlink "$minimax_video_source" "$minimax_video_path"
-          install_plugin_symlink "$minimax_image_source" "$local_minimax_image_path"
-          install_plugin_symlink "$minimax_video_source" "$local_minimax_video_path"
+            preflight_target_parent "$target"
+            expected_target="$(readlink -f -- "$source")"
+            if [[ -L "$target" ]]; then
+              current_target="$(readlink -f -- "$target" || true)"
+              if [[ "$current_target" != "$expected_target" ]]; then
+                current_identity="$(managed_store_identity "$current_target" || true)"
+                expected_identity="$(managed_store_identity "$expected_target" || true)"
+                if [[ -z "$current_identity" || "$current_identity" != "$expected_identity" ]]; then
+                  printf 'refusing to replace unmanaged Hermes %s symlink: %s\n' "$label" "$target" >&2
+                  exit 1
+                fi
+              fi
+            elif [[ -e "$target" ]]; then
+              printf 'refusing to replace unmanaged Hermes %s: %s\n' "$label" "$target" >&2
+              exit 1
+            fi
+          }
 
-          if [[ -f /home/jaide/.hermes/config.yaml ]]; then
-            hermes config set memory.provider mnemosyne
-          fi
+          install_managed_symlink() {
+            local source="$1"
+            local target="$2"
+            local current_target
+            local expected_target
+            local current_identity
+            local expected_identity
+
+            preflight_target_parent "$target"
+            expected_target="$(readlink -f -- "$source")"
+            if [[ -L "$target" ]]; then
+              current_target="$(readlink -f -- "$target" || true)"
+              if [[ "$current_target" == "$expected_target" ]]; then
+                return
+              fi
+              current_identity="$(managed_store_identity "$current_target" || true)"
+              expected_identity="$(managed_store_identity "$expected_target" || true)"
+              [[ "$current_identity" == "$expected_identity" ]]
+              ln -sfnT "$source" "$target"
+              return
+            fi
+            install -d -m 0755 "$(dirname "$target")"
+            preflight_target_parent "$target"
+            ln -sT "$source" "$target"
+          }
+
+          # Preflight every managed target before any filesystem mutation.
+          preflight_managed_symlink "$skill_source" "$skill_path" skill
+          preflight_managed_symlink "$mnemosyne_source" "$local_plugin_path" plugin
+          preflight_managed_symlink "$minimax_image_source" "$minimax_image_path" plugin
+          preflight_managed_symlink "$minimax_video_source" "$minimax_video_path" plugin
+          preflight_managed_symlink "$minimax_image_source" "$local_minimax_image_path" plugin
+          preflight_managed_symlink "$minimax_video_source" "$local_minimax_video_path" plugin
+
+          # Mutate only after every target has passed preflight.
+          install_managed_symlink "$skill_source" "$skill_path"
+          install_managed_symlink "$mnemosyne_source" "$local_plugin_path"
+          install_managed_symlink "$minimax_image_source" "$minimax_image_path"
+          install_managed_symlink "$minimax_video_source" "$minimax_video_path"
+          install_managed_symlink "$minimax_image_source" "$local_minimax_image_path"
+          install_managed_symlink "$minimax_video_source" "$local_minimax_video_path"
+
+          hermes config set memory.provider mnemosyne
 
           configure_minimax_profile() {
             local profile_home="$HERMES_HOME"
@@ -187,10 +254,12 @@
         owner = "hermes-router";
         group = "hermes-router";
         mode = "0400";
+        restartUnits = [ "hermes-router.service" ];
       };
 
       system.build.hermesMinimaxImagePlugin = minimaxImageSource;
       system.build.hermesMinimaxVideoPlugin = minimaxVideoSource;
+      system.build.hermesServerExtensionsInstaller = installHermesServerExtensions;
 
       systemd.services.hermes-router = {
         description = "Hardened local Hermes multi-provider router";
@@ -249,6 +318,7 @@
       systemd.services.hermes-server-extensions = {
         description = "Install pinned extensions for Jaide's server Hermes session";
         after = [ "hermes-local-profile.service" ];
+        requires = [ "hermes-local-profile.service" ];
         wantedBy = [ "multi-user.target" ];
         serviceConfig = {
           Type = "oneshot";
