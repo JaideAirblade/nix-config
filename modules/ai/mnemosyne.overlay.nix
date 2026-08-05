@@ -21,12 +21,12 @@ let
 
   mnemosyne-memory = py.pkgs.buildPythonPackage rec {
     pname = "mnemosyne-memory";
-    version = "3.14.0";
+    version = "3.15.1";
     pyproject = true;
     nativeBuildInputs = with py.pkgs; [ setuptools wheel ];
     src = final.fetchurl {
-      url = "https://files.pythonhosted.org/packages/c1/b1/a3b8a18828aadd4fc7e67fb262294ea0038dbf130c8aac23196e998542d7/mnemosyne_memory-3.14.0.tar.gz";
-      sha256 = "1106e5ec69ac2249dcaded1b7a948d8f5ceec7959a3176cc6efbdd0fa41276eb";
+      url = "https://files.pythonhosted.org/packages/42/58/968d0f74505fdb2db9a7508192720c5faa9a351313f04acd0ba09b553a9f/mnemosyne_memory-3.15.1.tar.gz";
+      sha256 = "96ca54331734a544a485252b35d8a23b9389d4d302fd2f39dc46126a75ed5ca3";
     };
     # pyyaml is in Hermes' sealed venv; don't propagate (collision check).
     # Disable the wheel's runtime-deps + import checks — they'd reject the
@@ -44,12 +44,12 @@ let
 
   mnemosyne-hermes = py.pkgs.buildPythonPackage rec {
     pname = "mnemosyne-hermes";
-    version = "0.4.0";
+    version = "0.5.0";
     pyproject = true;
     nativeBuildInputs = with py.pkgs; [ setuptools wheel ];
     src = final.fetchurl {
-      url = "https://files.pythonhosted.org/packages/45/da/77d0f0cb636b896f1c23449541a0d6a9e3a5301a6dee7a2064082a4d8583/mnemosyne_hermes-0.4.0.tar.gz";
-      sha256 = "7e487e70d5572095ce403c5ff19431412060a7ef56c87fc4456da499b0474eb8";
+      url = "https://files.pythonhosted.org/packages/d2/cb/ceb7afc9ef1e61a78f29446c81b62ec0dd1f101fb62f16a09156ead5007e/mnemosyne_hermes-0.5.0.tar.gz";
+      sha256 = "0b312f9d4c39a0f16d4f96c7410fc605dcb60bf13ba928509f7da2ac84582aac";
     };
     propagatedBuildInputs = with py.pkgs; [ mnemosyne-memory ];
     dontCheckRuntimeDeps = true;

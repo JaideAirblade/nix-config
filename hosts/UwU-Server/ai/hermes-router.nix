@@ -326,6 +326,10 @@
       # approach would be silently ignored.
       environment.etc."pam/environment".text = lib.mkAfter ''
         ROUTER_API_KEY=${config.sops.placeholder.hermes_router_proxy_api_key}
+        MNEMOSYNE_EMBEDDING_API_URL=http://127.0.0.1:8082/v1
+        MNEMOSYNE_EMBEDDING_MODEL=qwen3-embedding-4b
+        MNEMOSYNE_EMBEDDING_DIM=2560
+        MNEMOSYNE_EMBEDDINGS_VIA_API=true
       '';
 
       system.build.hermesMinimaxImagePlugin = minimaxImageSource;
