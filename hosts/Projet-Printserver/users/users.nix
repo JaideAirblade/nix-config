@@ -25,16 +25,22 @@ _:
       };
 
       # Root remains available for isolated-lab bootstrap through Jaide's key.
-      # PAM password auth remains enabled for non-root SSSD/AD identities;
-      # PermitRootLogin keeps those methods unavailable to root.
+      # Default to key-only SSH, including every Tailscale connection. SSSD/AD
+      # password authentication is available only to clients originating from
+      # the isolated 192.168.100.0/24 lab subnet.
       services.openssh = {
         enable = true;
         settings = {
           PermitRootLogin = "prohibit-password";
-          PasswordAuthentication = true;
-          KbdInteractiveAuthentication = true;
+          PasswordAuthentication = false;
+          KbdInteractiveAuthentication = false;
           PermitEmptyPasswords = false;
         };
+        extraConfig = ''
+          Match Address 192.168.100.0/24
+            PasswordAuthentication yes
+            KbdInteractiveAuthentication yes
+        '';
       };
 
       # Open SSH port in the firewall.

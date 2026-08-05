@@ -1,0 +1,33 @@
+{
+  "tagOwners": {
+    "tag:private": ["autogroup:admin"],
+    "tag:work": ["autogroup:admin"],
+    "tag:personal": ["autogroup:admin"],
+    "tag:printserver": ["autogroup:admin"]
+  },
+  "acls": [
+    {
+      "action": "accept",
+      "src": ["tag:private", "tag:work", "tag:personal"],
+      "dst": ["tag:private:22", "tag:work:22", "tag:personal:22", "tag:printserver:22"]
+    }
+  ],
+  "tests": [
+    {
+      "src": "tag:private",
+      "accept": ["tag:work:22", "tag:personal:22", "tag:printserver:22"]
+    },
+    {
+      "src": "tag:work",
+      "accept": ["tag:private:22", "tag:personal:22", "tag:printserver:22"]
+    },
+    {
+      "src": "tag:personal",
+      "accept": ["tag:private:22", "tag:work:22", "tag:printserver:22"]
+    },
+    {
+      "src": "tag:printserver",
+      "deny": ["tag:private:22", "tag:work:22", "tag:personal:22"]
+    }
+  ]
+}

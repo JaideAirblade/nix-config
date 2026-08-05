@@ -12,6 +12,8 @@ python3 tests/ad-lab-name-regressions.py
 python3 tests/register-sops-host-regressions.py
 python3 tests/user-password-regressions.py
 python3 tests/private-accounts-regressions.py
+python3 tests/tailscale-mesh-regressions.py
+python3 tests/user-unit-scope-regressions.py
 bash tests/set-private-password-hash-regressions.sh
 bash tests/private-pam-u2f-regressions.sh
 python3 tests/net-report-wifi-scan-regressions.py
@@ -64,7 +66,10 @@ for host in UwU TSBW-W01800; do
   assert_eq false "$has_awg" "$host unconfigured AWG interface"
 
   ssh=$(nix eval --json ".#nixosConfigurations.\"$host\".config.services.openssh.enable")
-  assert_eq false "$ssh" "$host unconfigured SSH service"
+  assert_eq true "$ssh" "$host mesh SSH service"
+
+  tailscale=$(nix eval --json ".#nixosConfigurations.\"$host\".config.services.tailscale.enable")
+  assert_eq true "$tailscale" "$host Tailscale mesh service"
 
 done
 

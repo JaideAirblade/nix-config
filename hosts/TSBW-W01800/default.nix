@@ -6,6 +6,8 @@
 
     modules = [
       config.nixos.modules.common
+      config.nixos.modules.automationAccounts
+      config.nixos.modules.remoteMesh
       config.nixos.modules.virtualisation
       config.nixos.hosts."TSBW-W01800"
 
@@ -15,6 +17,12 @@
       { nixpkgs.overlays = [ inputs.self.overlays.additions ]; }
       { nixpkgs.overlays = [ inputs.self.overlays.python-package-fixes ]; }
       { nixpkgs.overlays = [ (import ../../overlays/millennium.nix { millennium-input = inputs.millennium; }) ]; }
+      {
+        services.privateMesh = {
+          nodeRole = "work";
+          exposeSshOnLan = false;
+        };
+      }
     ];
   };
 }

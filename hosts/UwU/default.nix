@@ -10,6 +10,7 @@
       inputs.disko.nixosModules.disko
       config.nixos.modules.common
       config.nixos.modules.privateAccounts
+      config.nixos.modules.remoteMesh
       config.nixos.modules.fileManager
       config.nixos.modules.personal
       config.nixos.modules.virtualisation
@@ -25,6 +26,12 @@
       { nixpkgs.overlays = [ inputs.self.overlays.python-package-fixes ]; }
       { nixpkgs.overlays = [ (import ../../overlays/millennium.nix { millennium-input = inputs.millennium; }) ]; }
       { nixpkgs.overlays = [ (import ../../overlays/amneziawg-kernel7-fix.nix) ]; }
+      {
+        services.privateMesh = {
+          nodeRole = "private";
+          exposeSshOnLan = false;
+        };
+      }
     ];
   };
 }

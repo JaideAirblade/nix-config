@@ -11,6 +11,7 @@ UWU = ROOT / "hosts/UwU/default.nix"
 SERVER = ROOT / "hosts/UwU-Server/default.nix"
 WORK = ROOT / "hosts/TSBW-W01800/default.nix"
 UWU_USERS = ROOT / "hosts/UwU/users/users.nix"
+SERVER_USERS = ROOT / "hosts/UwU-Server/users/users.nix"
 PRINTSERVER_USERS = ROOT / "hosts/Projet-Printserver/users/users.nix"
 
 
@@ -25,9 +26,18 @@ uwu = UWU.read_text()
 server = SERVER.read_text()
 work = WORK.read_text()
 uwu_users = UWU_USERS.read_text()
+server_users = SERVER_USERS.read_text()
 printserver_users = PRINTSERVER_USERS.read_text()
 
 require("nixos.modules.privateAccounts" in role, "privateAccounts role is not declared")
+require(
+    "nixos.modules.automationAccounts" in role,
+    "automationAccounts role is not declared separately",
+)
+require(
+    "imports = [ automationAccounts ];" in role,
+    "privateAccounts does not compose the automation account role",
+)
 require(
     'sops.secrets.jaide_password_hash' in role
     and "neededForUsers = true;" in role,
@@ -55,10 +65,35 @@ require(
 )
 require('users.users."luna"' in role, "Luna automation account is missing")
 require(
-    "isSystemUser = true;" in role
-    and 'home = "/var/lib/luna";' in role
-    and "createHome = true;" in role,
-    "Luna is not a hidden system automation account with a persistent home",
+    "isNormalUser = true;" in role
+    and "isSystemUser = true;" not in role
+    and 'home = "/home/luna";' in role
+    and "createHome = true;" in role
+    and 'homeMode = "0700";' in role
+    and "autoSubUidGidRange = false;" in role,
+    "Luna is not a normal automation user with the standard /home/luna home",
+)
+for migration_guard in (
+    'name = "migrate-luna-home";',
+    "/var/backups/luna-home-before-standard-home.tar",
+    'chmod 0600 "$backup"',
+    "rsync -aHAX --numeric-ids",
+    "rsync -aHAXnc --numeric-ids",
+    "legacy Luna home retained for rollback",
+):
+    require(migration_guard in role, f"Luna legacy-home migration lacks: {migration_guard}")
+require(
+    "activationScripts.migrate-luna-home" not in role
+    and "rm -rf /var/lib/luna" not in role
+    and "mv -- /var/lib/luna /home/luna" not in role,
+    "Luna legacy home is moved or deleted during activation",
+)
+require(
+    re.search(
+        r'extraGroups\s*=\s*\[[^]]*"wheel"[^]]*"networkmanager"', role, re.S
+    )
+    is not None,
+    "Luna does not have wheel and NetworkManager access",
 )
 require(
     re.search(
@@ -68,6 +103,12 @@ require(
     )
     is not None,
     "Luna does not have a forwarding-restricted dedicated SSH public key",
+)
+require(
+    role.count("restrict ssh-ed25519") == 2
+    and "luna-agent@UwU" in role
+    and "luna-agent@UwU-Server" in role,
+    "Luna targets do not authorize distinct UwU and UwU-Server fleet identities",
 )
 require(
     re.search(r'extraGroups\s*=\s*\[[^]]*"wheel"', role, re.S) is not None,
@@ -104,8 +145,9 @@ require(
     "privateAccounts is not imported by both private hosts",
 )
 require(
-    "config.nixos.modules.privateAccounts" not in work,
-    "private account policy leaked onto the work host",
+    "config.nixos.modules.privateAccounts" not in work
+    and "config.nixos.modules.automationAccounts" in work,
+    "work host does not select automation access without the private password policy",
 )
 require(
     "sops.secrets.luna_ssh_private_key" in uwu_users
@@ -123,6 +165,17 @@ require(
     )
     is not None,
     "UwU does not publish the newline-safe Luna identity template path",
+)
+require(
+    "secrets/UwU-Server/luna-agent.yaml" in server_users
+    and "sops.secrets.luna_server_ssh_private_key" in server_users
+    and 'key = "luna_ssh_private_key";' in server_users
+    and "sops.templates.luna_server_ssh_identity" in server_users
+    and 'owner = "luna";' in server_users
+    and 'group = "luna";' in server_users
+    and 'mode = "0600";' in server_users
+    and '"L+ /home/luna/.ssh/id_ed25519' in server_users,
+    "UwU-Server does not deploy Luna's distinct fleet identity into /home/luna",
 )
 require(
     "users.mutableUsers = false;" in printserver_users,

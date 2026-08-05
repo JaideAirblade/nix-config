@@ -36,6 +36,7 @@
 
     modules = [
       config.nixos.modules.common
+      config.nixos.modules.remoteMesh
       config.nixos.modules.printServer
       config.nixos.hosts."Projet-Printserver"
 
@@ -43,6 +44,13 @@
       ./hardware-configuration.nix
 
       { nixpkgs.overlays = [ inputs.self.overlays.additions ]; }
+
+      {
+        services.privateMesh = {
+          nodeRole = "printserver";
+          exposeSshOnLan = true;
+        };
+      }
 
       # State version — matches the NixOS release this host was created on.
       { system.stateVersion = "26.05"; }

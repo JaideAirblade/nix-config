@@ -14,6 +14,7 @@
       inputs.disko.nixosModules.disko
       config.nixos.modules.common
       config.nixos.modules.privateAccounts
+      config.nixos.modules.remoteMesh
       config.nixos.modules.fileManager
       config.nixos.modules.disk
       config.nixos.hosts."UwU-Server"
@@ -24,6 +25,12 @@
 
       { nixpkgs.overlays = [ inputs.self.overlays.additions ]; }
       { nixpkgs.overlays = [ (import ../../overlays/millennium.nix { millennium-input = inputs.millennium; }) ]; }
+      {
+        services.privateMesh = {
+          nodeRole = "private";
+          exposeSshOnLan = true;
+        };
+      }
     ];
   };
 }
