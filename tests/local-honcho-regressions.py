@@ -69,8 +69,8 @@ require_pattern(
 )
 require(module, "Nemotron-3-Nano-30B-A3B-UD-Q4_K_XL.gguf", "selected Nemotron quant is missing")
 require(module, "627f5b04aedc97f967332f331bd75b7a4ed2f33ca83e6ee74b44235cc1887890", "Nemotron SHA-256 is missing")
-require(module, "Qwen3-Embedding-0.6B-Q8_0.gguf", "embedding model is missing")
-require(module, "06507c7b42688469c4e7298b0a1e16deff06caf291cf0a5b278c308249c3e439", "embedding SHA-256 is missing")
+require(module, "Qwen3-Embedding-4B-Q8_0.gguf", "embedding model is missing")
+require(module, "b60ae5ce2dd6a0b77f82cadf21def1f310a3e10cde380ad0081b07a9d416949d", "embedding SHA-256 is missing")
 
 # Unsloth's model-specific tool-calling settings. Allow the Nix formatter to
 # place adjacent list elements on separate lines without weakening the check.
@@ -79,8 +79,8 @@ for flag, value in (("ctx-size", "65536"), ("temp", "0.6"), ("top-p", "0.95")):
 require(module, "context_length: 65536", "Hermes local profile must advertise the matching 64K context")
 require(module, '"--jinja"', "Nemotron flag missing: --jinja")
 require_condition(
-    re.search(r'nemotron-local = .*?"--special".*?qwen-embedding-local =', module, re.MULTILINE | re.DOTALL) is None,
-    "Nemotron production API exposes special chat tokens",
+    re.search(r'qwen-embedding-local = .*?"--special"', module, re.MULTILINE | re.DOTALL) is None,
+    "embedding production API exposes special chat tokens",
 )
 reject(module, r'"--prio"\s+"3"', "Nemotron may not request SCHED_FIFO/90 under RestrictRealtime")
 
@@ -124,9 +124,11 @@ require_pattern(
     "model downloader lacks AF_NETLINK required by aria2/c-ares DNS",
 )
 
-# Local embeddings must use immutable 1024-dimensional pgvector bootstrap.
+# Local embeddings must use immutable 2560-dimensional pgvector bootstrap.
+# (Upgraded from 1024 on 2026-08-05 when the local embedder switched from
+# Qwen3-Embedding 0.6B → 4B; same model family, but 4B emits 2560-dim vectors.)
 for setting in (
-    "EMBEDDING_VECTOR_DIMENSIONS=1024",
+    "EMBEDDING_VECTOR_DIMENSIONS=2560",
     "EMBEDDING_MODEL_CONFIG__DIMENSIONS_MODE=never",
     "scripts/configure_embeddings.py --yes",
 ):
@@ -143,15 +145,15 @@ for service in ("local-ai-models", "nemotron-local", "qwen-embedding-local", "ho
 require(module, 'users.users.jaide.extraGroups', "Docker-group exclusion assertion has no evaluated user input")
 require(module, 'assertion = !(builtins.elem "docker"', "Jaide Docker-group exclusion assertion is missing")
 require(module, 'pkgs.llama-cpp-vulkan', "Vulkan llama.cpp package is not selected")
-require(module, 'default: ${nemotronAlias}', "managed Hermes profile does not select Nemotron")
+require(module, "qwen3-embedding-4b", "managed local profile is not repointed to the 4B alias")
 require(module, 'provider: mnemosyne', "managed Hermes profile does not select Mnemosyne memory")
 reject(module, r'^\s+provider: honcho$', "managed Hermes profile still selects Honcho memory")
 require(module, 'baseUrl = "http://127.0.0.1:8000";', "profile-local Honcho URL is missing")
 require(module, 'hosts.hermes_local', "named Hermes profile has no isolated Honcho host block")
 require(module, 'hermes-local-profile = {', "managed Hermes local profile service is missing")
-require(module, 'ReadWritePaths = [ "/home/jaide/.hermes" ];', "Hermes profile installer is not home-write scoped")
-require(module, '"d /home/jaide/.hermes 0700 jaide users -"', "Hermes profile root is not created declaratively")
-require(module, '"d /home/jaide/.hermes/profiles 0700 jaide users -"', "Hermes profiles root is not created declaratively")
+require(module, 'ReadWritePaths = [ "/home/luna/.hermes" ];', "Hermes profile installer is not home-write scoped")
+require(module, '"d /home/luna/.hermes 0700 luna luna -"', "Hermes profile root is not created declaratively")
+require(module, '"d /home/luna/.hermes/profiles 0700 luna luna -"', "Hermes profiles root is not created declaratively")
 require(module, 'TimeoutStartSec = "2h";', "large model download has no explicit start timeout")
 require_pattern(module, r'local-ai-models = \{.*?RemainAfterExit = true;.*?Restart = "on-failure";', "model downloader is not a retained, retrying prerequisite")
 require(module, 'runtimeInputs = [ pkgs.coreutils pkgs.docker-compose pkgs.findutils ];', "backup does not carry its Compose binary")

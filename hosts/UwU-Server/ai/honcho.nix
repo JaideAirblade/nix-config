@@ -23,7 +23,9 @@
       honchoImage = "uwu-honcho:3.0.12-${builtins.substring 0 12 honchoCommit}";
       modelDirectory = "/var/lib/local-ai/models";
       nemotronFile = "Nemotron-3-Nano-30B-A3B-UD-Q4_K_XL.gguf";
-      embeddingFile = "Qwen3-Embedding-0.6B-Q8_0.gguf";
+      embeddingFile = "Qwen3-Embedding-4B-Q8_0.gguf";
+      # Upgraded from 0.6B on 2026-08-05 after bake-off (0.6B 12-18ms / 4B 58-62ms;
+      # 4B quality preferred for Mnemosyne recall at this latency budget).
       nemotronAlias = "unsloth/Nemotron-3-Nano-30B-A3B";
       embeddingAlias = "qwen3-embedding-0.6b";
       containerModelBaseUrl = "http://host.docker.internal:8080/v1";
@@ -104,9 +106,9 @@
 
           download_model \
             ${lib.escapeShellArg embeddingFile} \
-            ${lib.escapeShellArg "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF/resolve/370f27d7550e0def9b39c1f16d3fbaa13aa67728/${embeddingFile}?download=true"} \
-            06507c7b42688469c4e7298b0a1e16deff06caf291cf0a5b278c308249c3e439 \
-            639150592
+            ${lib.escapeShellArg "https://huggingface.co/Qwen/Qwen3-Embedding-4B-GGUF/resolve/f4602530db1d980e16da9d7d3a70294cf5c190be/${embeddingFile}?download=true"} \
+            b60ae5ce2dd6a0b77f82cadf21def1f310a3e10cde380ad0081b07a9d416949d \
+            4279660224
         '';
       };
 
@@ -204,7 +206,7 @@
         "DB_CONNECTION_URI=postgresql+psycopg://postgres:${dbPasswordRef}@database:5432/postgres"
         "DB_CONNECT_TIMEOUT_SECONDS=2"
         "EMBED_MESSAGES=true"
-        "EMBEDDING_VECTOR_DIMENSIONS=1024"
+        "EMBEDDING_VECTOR_DIMENSIONS=2560"
         "EMBEDDING_MAX_INPUT_TOKENS=8192"
         "EMBEDDING_MODEL_CONFIG__TRANSPORT=openai"
         "EMBEDDING_MODEL_CONFIG__MODEL=${embeddingAlias}"
@@ -362,7 +364,7 @@
         runtimeInputs = [ pkgs.coreutils pkgs.hermes-agent ];
         text = ''
           set -euo pipefail
-          profile_dir=/home/jaide/.hermes/profiles/local
+          profile_dir=/home/luna/.hermes/profiles/local
 
           if [[ ! -e "$profile_dir/SOUL.md" ]]; then
             if [[ -e "$profile_dir" ]]; then
@@ -490,11 +492,11 @@
       networking.firewall.interfaces.honcho0.allowedTCPPorts = [ 8080 8082 ];
 
       # ReadWritePaths requires its target to exist before systemd constructs
-      # the service namespace. Create only the managed profile roots; Jaide
+      # the service namespace. Create only the managed profile roots; Luna
       # still owns the files and the rest of ~/.hermes.
       systemd.tmpfiles.rules = [
-        "d /home/jaide/.hermes 0700 jaide users -"
-        "d /home/jaide/.hermes/profiles 0700 jaide users -"
+        "d /home/luna/.hermes 0700 luna luna -"
+        "d /home/luna/.hermes/profiles 0700 luna luna -"
       ];
 
       systemd.services = {
@@ -569,13 +571,13 @@
         };
 
         qwen-embedding-local = lib.recursiveUpdate commonLlamaService {
-          description = "Local Qwen3 0.6B embedding OpenAI API";
+          description = "Local Qwen3 Embedding 4B OpenAI API";
           serviceConfig.ExecStart = lib.escapeShellArgs [
             "${pkgs.llama-cpp-vulkan}/bin/llama-server"
             "--model"
             "${modelDirectory}/${embeddingFile}"
             "--alias"
-            embeddingAlias
+            "qwen3-embedding-4b"
             "--host"
             "0.0.0.0"
             "--port"
@@ -603,16 +605,16 @@
           serviceConfig = {
             Type = "oneshot";
             RemainAfterExit = true;
-            User = "jaide";
-            Group = "users";
-            Environment = "HOME=/home/jaide";
+            User = "luna";
+            Group = "luna";
+            Environment = "HOME=/home/luna";
             ExecStart = lib.getExe installHermesLocalProfile;
             UMask = "0077";
             NoNewPrivileges = true;
             PrivateTmp = true;
             ProtectSystem = "strict";
             ProtectHome = "read-only";
-            ReadWritePaths = [ "/home/jaide/.hermes" ];
+            ReadWritePaths = [ "/home/luna/.hermes" ];
             ProtectKernelTunables = true;
             ProtectKernelModules = true;
             ProtectKernelLogs = true;
@@ -630,6 +632,9 @@
 
         honcho-local = {
           description = "Fully local Honcho v3 memory service";
+          # Disabled 2026-08-05: Honcho is unused — Mnemosyne is the memory
+          # provider. Nemotron/qwen-embedding services stay up (router backup
+          # + embeddings). Code retained; no wantedBy, so it never starts.
           after = [
             "docker.service"
             "nemotron-local.service"
@@ -640,7 +645,6 @@
             "nemotron-local.service"
             "qwen-embedding-local.service"
           ];
-          wantedBy = [ "multi-user.target" ];
           path = [ pkgs.docker pkgs.docker-buildx pkgs.docker-compose ];
           serviceConfig = {
             Type = "oneshot";
@@ -711,7 +715,7 @@
 
       systemd.timers.honcho-backup = {
         description = "Daily Honcho database backup";
-        wantedBy = [ "timers.target" ];
+        # Disabled 2026-08-05 alongside honcho-local (unused memory stack).
         timerConfig = {
           OnCalendar = "daily";
           RandomizedDelaySec = "30m";

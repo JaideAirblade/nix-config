@@ -15,7 +15,10 @@
       hermesRouterSource = pkgs.applyPatches {
         name = "hermes-router-reviewed-source";
         src = hermesRouterUpstream;
-        patches = [ ./patches/hermes-router-disable-admin-surfaces.patch ];
+        patches = [
+          ./patches/hermes-router-disable-admin-surfaces.patch
+          ./patches/hermes-router-minimax-provider.patch
+        ];
       };
 
       mathViaCodeUpstream = pkgs.fetchFromGitHub {
@@ -74,12 +77,12 @@
         '';
       };
 
-      mathSkillPath = "/home/jaide/.hermes/skills/software-development/math-via-code";
-      localMnemosynePluginPath = "/home/jaide/.hermes/profiles/local/plugins/mnemosyne";
-      minimaxImagePluginPath = "/home/jaide/.hermes/plugins/minimax-image";
-      minimaxVideoPluginPath = "/home/jaide/.hermes/plugins/minimax-video";
-      localMinimaxImagePluginPath = "/home/jaide/.hermes/profiles/local/plugins/minimax-image";
-      localMinimaxVideoPluginPath = "/home/jaide/.hermes/profiles/local/plugins/minimax-video";
+      mathSkillPath = "/home/luna/.hermes/skills/software-development/math-via-code";
+      localMnemosynePluginPath = "/home/luna/.hermes/profiles/local/plugins/mnemosyne";
+      minimaxImagePluginPath = "/home/luna/.hermes/plugins/minimax-image";
+      minimaxVideoPluginPath = "/home/luna/.hermes/plugins/minimax-video";
+      localMinimaxImagePluginPath = "/home/luna/.hermes/profiles/local/plugins/minimax-image";
+      localMinimaxVideoPluginPath = "/home/luna/.hermes/profiles/local/plugins/minimax-video";
       installHermesServerExtensions = pkgs.writeShellApplication {
         name = "install-hermes-server-extensions";
         runtimeInputs = [ pkgs.coreutils pkgs.hermes-agent ];
@@ -129,7 +132,7 @@
           # Record every managed symlink target in a manifest so upgrades
           # can verify provenance from installer-owned state rather than
           # inferring ownership from Nix-store output names alone.
-          manifest_file="/home/jaide/.hermes/.hermes-server-managed-extensions"
+          manifest_file="/home/luna/.hermes/.hermes-server-managed-extensions"
           record_managed_targets() {
             local tmp
             tmp="$(mktemp)"
@@ -242,8 +245,8 @@
             env HERMES_HOME="$profile_home" hermes config set video_gen.minimax.model MiniMax-Hailuo-2.3 >/dev/null
           }
 
-          HERMES_HOME=/home/jaide/.hermes configure_minimax_profile
-          HERMES_HOME=/home/jaide/.hermes/profiles/local configure_minimax_profile
+          HERMES_HOME=/home/luna/.hermes configure_minimax_profile
+          HERMES_HOME=/home/luna/.hermes/profiles/local configure_minimax_profile
         '';
       };
     in
@@ -296,8 +299,8 @@
 
       systemd.services.hermes-router = {
         description = "Hardened local Hermes multi-provider router";
-        after = [ "network-online.target" ];
-        wants = [ "network-online.target" ];
+        after = [ "network-online.target" "nemotron-local.service" ];
+        wants = [ "network-online.target" "nemotron-local.service" ];
         wantedBy = [ "multi-user.target" ];
         environment = {
           HOST = "127.0.0.1";
@@ -311,8 +314,18 @@
           ROUTER_AUTH_FILE = "/var/lib/hermes-router/auth.json";
           ROUTER_STATE_FILE = "/var/lib/hermes-router/router_state.json";
           HERMES_INSTANCES_FILE = "/var/lib/hermes-router/instances.json";
+          # NOTE: router.py only ever loads ".env" from its working directory;
+          # HR_ENV_FILE is used by the upstream `hr` CLI, not the router
+          # itself. Provider pool credentials live in
+          # /var/lib/hermes-router/auth.json (zai, kimi) and extra provider
+          # slots (e.g. Ollama Cloud via LOCAL_BASE_URL) in
+          # /var/lib/hermes-router/.env — both 0600 hermes-router.
           HR_ENV_FILE = "/var/lib/hermes-router/runtime.env";
           CODEX_MODEL = "gpt-5.6-sol";
+          # On-box last-resort provider (llama.cpp Nemotron), rank 99 in the
+          # patch — only used when every cloud provider is unreachable.
+          NEMOTRON_BASE_URL = "http://127.0.0.1:8080/v1";
+          NEMOTRON_MODEL = "unsloth/Nemotron-3-Nano-30B-A3B";
         };
         serviceConfig = {
           User = "hermes-router";
@@ -349,16 +362,16 @@
       };
 
       systemd.services.hermes-server-extensions = {
-        description = "Install pinned extensions for Jaide's server Hermes session";
+        description = "Install pinned extensions for Luna's server Hermes session";
         after = [ "hermes-local-profile.service" ];
         requires = [ "hermes-local-profile.service" ];
         wantedBy = [ "multi-user.target" ];
         serviceConfig = {
           Type = "oneshot";
           RemainAfterExit = true;
-          User = "jaide";
-          Group = "users";
-          Environment = "HOME=/home/jaide";
+          User = "luna";
+          Group = "luna";
+          Environment = "HOME=/home/luna";
           ExecStart = lib.getExe installHermesServerExtensions;
           UMask = "0022";
           NoNewPrivileges = true;
@@ -372,7 +385,7 @@
           ProtectKernelModules = true;
           ProtectKernelTunables = true;
           ProtectSystem = "strict";
-          ReadWritePaths = [ "/home/jaide/.hermes" ];
+          ReadWritePaths = [ "/home/luna/.hermes" ];
           RestrictAddressFamilies = [ "AF_UNIX" ];
           RestrictNamespaces = true;
           RestrictRealtime = true;

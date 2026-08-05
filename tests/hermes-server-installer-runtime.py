@@ -100,7 +100,7 @@ def main() -> None:
         fake_hermes.chmod(0o700)
 
         script_text = realized.read_text(encoding="utf-8")
-        script_text = script_text.replace("/home/jaide/.hermes", str(fake_home))
+        script_text = script_text.replace("/home/luna/.hermes", str(fake_home))
         script_text = script_text.replace("/nix/store", str(fake_store))
         script_text = re.sub(
             r"(?<![A-Za-z0-9_-])hermes(?=\s)",

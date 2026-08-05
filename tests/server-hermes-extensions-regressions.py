@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / "hosts/UwU-Server/ai/hermes-router.nix"
 LOCAL_STACK = ROOT / "hosts/UwU-Server/ai/honcho.nix"
 ROUTER_PATCH = ROOT / "hosts/UwU-Server/ai/patches/hermes-router-disable-admin-surfaces.patch"
+ROUTER_MINIMAX_PATCH = ROOT / "hosts/UwU-Server/ai/patches/hermes-router-minimax-provider.patch"
 MATH_PATCH = ROOT / "hosts/UwU-Server/ai/patches/math-via-code-secure-tempdir.patch"
 MINIMAX_IMAGE_PATCH = ROOT / "hosts/UwU-Server/ai/patches/minimax-image-managed-media-only.patch"
 MINIMAX_VIDEO_PATCH = ROOT / "hosts/UwU-Server/ai/patches/minimax-video-managed-media-only.patch"
@@ -19,6 +20,7 @@ def require(condition: bool, message: str) -> None:
 
 require(MODULE.exists(), "UwU-Server Hermes Router module is missing")
 require(ROUTER_PATCH.exists(), "reviewed router admin-surface patch is missing")
+require(ROUTER_MINIMAX_PATCH.exists(), "router MiniMax provider patch is missing")
 require(MATH_PATCH.exists(), "reviewed math skill temp-directory patch is missing")
 require(MINIMAX_IMAGE_PATCH.exists(), "reviewed MiniMax image plugin patch is missing")
 require(MINIMAX_VIDEO_PATCH.exists(), "reviewed MiniMax video plugin patch is missing")
@@ -77,6 +79,7 @@ require("allowedTCPPorts = [ 8319 ]" not in source, "router port must not be ope
 for needle in (
     "pkgs.applyPatches",
     "./patches/hermes-router-disable-admin-surfaces.patch",
+    "./patches/hermes-router-minimax-provider.patch",
     "./patches/math-via-code-secure-tempdir.patch",
     "./patches/minimax-image-managed-media-only.patch",
     "./patches/minimax-video-managed-media-only.patch",
@@ -91,6 +94,20 @@ for needle in (
     'request.path == "/dashboard"',
 ):
     require(needle in router_patch, f"router patch does not fail-close an unsafe surface: {needle}")
+
+minimax_provider_patch = ROUTER_MINIMAX_PATCH.read_text(encoding="utf-8")
+for needle in (
+    '"name":     "minimax",',
+    'os.environ.get("MINIMAX_BASE_URL", "https://api.minimax.io/v1")',
+    'os.environ.get("MINIMAX_MODEL", "MiniMax-M3")',
+    '_keys_for("minimax", "MINIMAX_API_KEYS")',
+    '"minimax": 68, "nemotron": 99,',
+    '"minimax",\n',
+    '"name":     "nemotron",',
+    'os.environ.get("NEMOTRON_BASE_URL", "http://127.0.0.1:8080/v1")',
+    'os.environ.get("NEMOTRON_MODEL", "unsloth/Nemotron-3-Nano-30B-A3B")',
+):
+    require(needle in minimax_provider_patch, f"router MiniMax provider patch incomplete: {needle}")
 
 math_patch = MATH_PATCH.read_text(encoding="utf-8")
 for needle in ("TemporaryDirectory", "chmod(0o600)", "subprocess.run"):
@@ -144,7 +161,7 @@ require("save_url_image(" not in image_added, "image plugin must not auto-downlo
 require("save_url_video(" not in video_added, "video plugin must not auto-download untrusted response URLs")
 
 for needle in (
-    'mathSkillPath = "/home/jaide/.hermes/skills/software-development/math-via-code";',
+    'mathSkillPath = "/home/luna/.hermes/skills/software-development/math-via-code";',
     '"${mathViaCodeSource}/skills/math-via-code"',
     "preflight_managed_symlink() {",
     "preflight_target_parent() {",
@@ -158,9 +175,9 @@ for needle in (
     "# Mutate only after every target has passed preflight.",
     'systemd.services.hermes-server-extensions = {',
     "system.build.hermesServerExtensionsInstaller = installHermesServerExtensions;",
-    'User = "jaide";',
-    'Environment = "HOME=/home/jaide";',
-    'ReadWritePaths = [ "/home/jaide/.hermes" ];',
+    'User = "luna";',
+    'Environment = "HOME=/home/luna";',
+    'ReadWritePaths = [ "/home/luna/.hermes" ];',
 ):
     require(needle in source, f"missing server extension deployment behavior: {needle}")
 
@@ -169,15 +186,15 @@ mutation_marker = source.index("# Mutate only after every target has passed pref
 require(preflight_marker < mutation_marker, "all managed targets must be preflighted before mutation")
 
 for needle in (
-    'minimaxImagePluginPath = "/home/jaide/.hermes/plugins/minimax-image";',
-    'minimaxVideoPluginPath = "/home/jaide/.hermes/plugins/minimax-video";',
-    'localMinimaxImagePluginPath = "/home/jaide/.hermes/profiles/local/plugins/minimax-image";',
-    'localMinimaxVideoPluginPath = "/home/jaide/.hermes/profiles/local/plugins/minimax-video";',
+    'minimaxImagePluginPath = "/home/luna/.hermes/plugins/minimax-image";',
+    'minimaxVideoPluginPath = "/home/luna/.hermes/plugins/minimax-video";',
+    'localMinimaxImagePluginPath = "/home/luna/.hermes/profiles/local/plugins/minimax-image";',
+    'localMinimaxVideoPluginPath = "/home/luna/.hermes/profiles/local/plugins/minimax-video";',
     'hermes plugins enable minimax-image',
     'hermes plugins enable minimax-video',
     'hermes config set image_gen.minimax.key_env MINIMAX_API_KEY',
     'hermes config set video_gen.minimax.key_env MINIMAX_API_KEY',
-    'HERMES_HOME=/home/jaide/.hermes/profiles/local',
+    'HERMES_HOME=/home/luna/.hermes/profiles/local',
 ):
     require(needle in source, f"missing declarative server MiniMax plugin behavior: {needle}")
 
@@ -192,7 +209,7 @@ require(
 
 for needle in (
     "mnemosynePluginSource",
-    'localMnemosynePluginPath = "/home/jaide/.hermes/profiles/local/plugins/mnemosyne";',
+    'localMnemosynePluginPath = "/home/luna/.hermes/profiles/local/plugins/mnemosyne";',
     'hermes config set memory.provider mnemosyne',
     'after = [ "hermes-local-profile.service" ];',
     'requires = [ "hermes-local-profile.service" ];',
@@ -200,7 +217,7 @@ for needle in (
     require(needle in source, f"missing declarative server Mnemosyne behavior: {needle}")
 
 require(
-    'if [[ -f /home/jaide/.hermes/config.yaml ]]; then' not in source,
+    'if [[ -f /home/luna/.hermes/config.yaml ]]; then' not in source,
     "default Mnemosyne selection must not be skipped on a fresh Hermes home",
 )
 
