@@ -1,18 +1,36 @@
 #!/usr/bin/env python3
-"""Regressions for server-only Hermes WebUI pinning and hardening."""
+"""Regressions for server-only Hermes WebUI pinning and hardening.
 
+The flake substitutes the actual on-disk path of the nixos-secrets input
+into the SOPS_ROOT environment variable before invoking this script; the
+test asserts that secrets/UwU-Server/hermes-webui.yaml exists there with
+the hermes_webui_password key. Outside `nix build` (e.g. running the
+script directly), fall back to scanning /nix/store for the same."""
+
+import os
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / "hosts/UwU-Server/ai/hermes-webui.nix"
 FLAKE = ROOT / "flake.nix"
-SECRETS_PATH = "/nix/store"
-SECRETS_TEST_FILE = "secrets/UwU-Server/hermes-webui.yaml"
+SECRETS_REL = "secrets/UwU-Server/hermes-webui.yaml"
 
 
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise SystemExit(f"FAIL: {message}")
+
+
+def resolve_sops_root() -> Path | None:
+    """Return the secrets repo root, prefer the value injected via env."""
+    sops_env = os.environ.get("SOPS_ROOT")
+    if sops_env:
+        return Path(sops_env)
+    for d in Path("/nix/store").glob("*-source"):
+        if (d / SECRETS_REL).exists():
+            return d
+    return None
 
 
 require(MODULE.exists(), "UwU-Server Hermes WebUI module is missing")
@@ -127,25 +145,27 @@ require(
     "WebUI must not use world-writable permissions",
 )
 
-# The nixos-secrets repo MUST contain a hermes-webui.yaml with the
-# hermes_webui_password key — otherwise the systemd unit's
-# EnvironmentFile=/run/secrets/rendered/hermes-webui-password will fail
-# to render and the service will silently fail to start. We check the
-# nix-store snapshot of the locked input here, which is the same file
-# the build sees.
+# Inversely — the file has to be present in the nixos-secrets repo,
+# otherwise the rendered env file the service depends on will fail to
+# materialize at boot and the service will silently fail to start.
+# The flake exposes the secret repo under `inputs.nixos-secrets`, so
+# its on-disk path is reachable via the SOPS_ROOT env var (set in the
+# regressions check in flake.nix). When running this script directly,
+# fall back to scanning /nix/store.
+sops_root = resolve_sops_root()
 require(
-    any(
-        Path(p).is_dir()
-        and "secrets/UwU-Server/hermes-webui.yaml" in [str(f.relative_to(p))
-                                                       for f in Path(p).rglob("secrets/UwU-Server/hermes-webui.yaml")]
-        for p in [SECRETS_PATH]
-    )
-    or any(
-        Path(p).joinpath("secrets/UwU-Server/hermes-webui.yaml").exists()
-        for p in Path(SECRETS_PATH).glob("*-source")
-        if p.is_dir()
-    ),
+    sops_root is not None,
+    "nixos-secrets input not found; SOPS_ROOT env var unset and no /nix/store/*-source contains hermes-webui.yaml",
+)
+assert sops_root is not None  # require() exits on False; narrow the type for LSP
+password_file = sops_root / SECRETS_REL
+require(
+    password_file.exists(),
     "nixos-secrets must contain secrets/UwU-Server/hermes-webui.yaml",
 )
+require(
+    "hermes_webui_password" in password_file.read_text(),
+    "secrets/UwU-Server/hermes-webui.yaml must contain the hermes_webui_password key",
+)
 
-print("OK: hermes-webui module passes all regressions")
+print("OK: hermes-webui module passes all regressions", file=sys.stderr)
