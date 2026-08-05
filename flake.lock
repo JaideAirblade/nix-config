@@ -274,6 +274,27 @@
         "type": "github"
       }
     },
+    "hermes-webui": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1785971510,
+        "narHash": "sha256-dRBkJgJHpqcWXhdOrTIKhUx+uvnsD2mOoS8rORKxsSQ=",
+        "owner": "nesquena",
+        "repo": "hermes-webui",
+        "rev": "c35b0659fec1d0656c5fa069826ac545f13b5654",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nesquena",
+        "repo": "hermes-webui",
+        "rev": "c35b0659fec1d0656c5fa069826ac545f13b5654",
+        "type": "github"
+      }
+    },
     "honcho": {
       "flake": false,
       "locked": {
@@ -688,6 +709,7 @@
         "dms": "dms",
         "flake-parts": "flake-parts",
         "hermes-agent": "hermes-agent",
+        "hermes-webui": "hermes-webui",
         "honcho": "honcho",
         "mangowm": "mangowm",
         "millennium": "millennium",

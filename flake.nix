@@ -49,6 +49,15 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Hermes WebUI — community web UI for Hermes Agent (browser-based,
+    # mobile-friendly, Tailscale-reachable). Wires through the upstream
+    # NixOS module from `nix/nixosModules.nix` of the same repo; pinned to
+    # a known-good commit so upstream refactors don't break the build.
+    hermes-webui = {
+      url = "github:nesquena/hermes-webui/c35b0659fec1d0656c5fa069826ac545f13b5654";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # Honcho v3 — local AI-native memory backend for Hermes on UwU-Server.
     # Kept as source because upstream's supported self-host path builds its
     # locked Docker image from the repository checkout.
