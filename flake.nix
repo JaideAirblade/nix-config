@@ -5,6 +5,10 @@
     # Main package source: the unstable channel.
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
+    # Stable channel — used by the LaptopAP standalone installer ISO to
+    # avoid unstable kernel/initrd regressions. Auto-updated monthly.
+    nixpkgs-stable.url = "github:NixOS/nixpkgs/nixos-26.05";
+
 
     # Mango — Wayland compositor (dwl-based). Provides nixosModules.mango
     # (programs.mango.enable) and hmModules.mango.
@@ -126,6 +130,7 @@
         ./hosts/UwU-Server/default.nix
         ./hosts/TSBW-W01800/default.nix
         ./hosts/Projet-Printserver/default.nix
+        ./hosts/LaptopAP/default.nix
       ];
 
       systems = [ "x86_64-linux" ];
@@ -211,6 +216,8 @@
           # The overlay and standalone outputs use the same nixpkgs revision.
           packages = (import ./pkgs packagePkgs) // {
             nixos-anywhere = inputs.nixos-anywhere.packages.${system}.default;
+            # Bootable ISO for the LaptopAP unattended installer.
+            laptopAP-iso = self.nixosConfigurations.LaptopAP.config.system.build.isoImage;
           };
         };
 

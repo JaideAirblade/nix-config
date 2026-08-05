@@ -247,12 +247,18 @@ require(
 )
 
 violations: list[str] = []
+# hosts/LaptopAP is a standalone throwaway installer ISO, not a private
+# device — its baked-in yescrypt hash is an explicit tradeoff (no SOPS on
+# the installed system). Exempt it from the no-literal-hash policy.
+EXEMPT_HASH_HOSTS = {Path("hosts/LaptopAP/installed/default.nix")}
 for path in ROOT.rglob("*.nix"):
     text = path.read_text()
     if re.search(r'\binitialPassword\s*=', text):
         violations.append(f"{path.relative_to(ROOT)}: initialPassword")
     if re.search(r'\bpassword\s*=\s*"', text):
         violations.append(f"{path.relative_to(ROOT)}: plaintext password")
+    if path.relative_to(ROOT) in EXEMPT_HASH_HOSTS:
+        continue
     for match in re.finditer(r'\bhashedPassword\s*=\s*"([^"]*)"', text):
         if match.group(1) != "!":
             violations.append(f"{path.relative_to(ROOT)}: literal password hash")
