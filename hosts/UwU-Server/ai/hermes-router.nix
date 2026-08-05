@@ -126,23 +126,57 @@
             printf '%s%s\n' "$name" "$tail"
           }
 
+          # Record every managed symlink target in a manifest so upgrades
+          # can verify provenance from installer-owned state rather than
+          # inferring ownership from Nix-store output names alone.
+          manifest_file="/home/jaide/.hermes/.hermes-server-managed-extensions"
+          record_managed_targets() {
+            local tmp
+            tmp="$(mktemp)"
+            for entry in \
+              "skill|''${skill_path}|''${skill_source}" \
+              "plugin|''${local_plugin_path}|''${mnemosyne_source}" \
+              "plugin|''${minimax_image_path}|''${minimax_image_source}" \
+              "plugin|''${minimax_video_path}|''${minimax_video_source}" \
+              "plugin|''${local_minimax_image_path}|''${minimax_image_source}" \
+              "plugin|''${local_minimax_video_path}|''${minimax_video_source}"; do
+              printf '%s\n' "$entry" >> "$tmp"
+            done
+            mv "$tmp" "$manifest_file"
+          }
+
+          is_manifested_target() {
+            # Return 0 if the resolved target appears in the manifest as a
+            # prior source for this target path.
+            local target_path="$1"
+            local resolved="$2"
+            [[ -f "$manifest_file" ]] || return 1
+            local _kind _tpath _source
+            while IFS='|' read -r _kind _tpath _source; do
+              if [[ "$_tpath" == "$target_path" ]]; then
+                local recorded_resolved
+                recorded_resolved="$(readlink -f -- "$_source" 2>/dev/null || true)"
+                if [[ "$recorded_resolved" == "$resolved" ]]; then
+                  return 0
+                fi
+              fi
+            done < "$manifest_file"
+            return 1
+          }
+
           preflight_managed_symlink() {
             local source="$1"
             local target="$2"
             local label="$3"
             local current_target
             local expected_target
-            local current_identity
-            local expected_identity
 
             preflight_target_parent "$target"
             expected_target="$(readlink -f -- "$source")"
             if [[ -L "$target" ]]; then
               current_target="$(readlink -f -- "$target" || true)"
               if [[ "$current_target" != "$expected_target" ]]; then
-                current_identity="$(managed_store_identity "$current_target" || true)"
-                expected_identity="$(managed_store_identity "$expected_target" || true)"
-                if [[ -z "$current_identity" || "$current_identity" != "$expected_identity" ]]; then
+                if ! is_manifested_target "$target" "$current_target"; then
                   printf 'refusing to replace unmanaged Hermes %s symlink: %s\n' "$label" "$target" >&2
                   exit 1
                 fi
@@ -158,8 +192,6 @@
             local target="$2"
             local current_target
             local expected_target
-            local current_identity
-            local expected_identity
 
             preflight_target_parent "$target"
             expected_target="$(readlink -f -- "$source")"
@@ -168,9 +200,7 @@
               if [[ "$current_target" == "$expected_target" ]]; then
                 return
               fi
-              current_identity="$(managed_store_identity "$current_target" || true)"
-              expected_identity="$(managed_store_identity "$expected_target" || true)"
-              [[ "$current_identity" == "$expected_identity" ]]
+              is_manifested_target "$target" "$current_target"
               ln -sfnT "$source" "$target"
               return
             fi
@@ -194,6 +224,9 @@
           install_managed_symlink "$minimax_video_source" "$minimax_video_path"
           install_managed_symlink "$minimax_image_source" "$local_minimax_image_path"
           install_managed_symlink "$minimax_video_source" "$local_minimax_video_path"
+
+          # Record all managed targets so the next run can verify provenance.
+          record_managed_targets
 
           hermes config set memory.provider mnemosyne
 

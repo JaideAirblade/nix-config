@@ -1,5 +1,5 @@
 diff --git a/__init__.py b/__init__.py
-index f84f973..5041790 100644
+index f84f973..66a4ab5 100644
 --- a/__init__.py
 +++ b/__init__.py
 @@ -26,11 +26,15 @@ API: POST {api}/v1/image_generation
@@ -26,7 +26,7 @@ index f84f973..5041790 100644
      success_response,
  )
 
-@@ -75,6 +78,316 @@ _DEFAULT_KEY_ENV = "MINIMAX_API_KEY"
+@@ -75,6 +78,321 @@ _DEFAULT_KEY_ENV = "MINIMAX_API_KEY"
 
  # Max file size for base64 inline encoding (10 MB).
  _MAX_INLINE_BYTES = 10 * 1024 * 1024
@@ -332,6 +332,11 @@ index f84f973..5041790 100644
 +    declared_mime = declared_mime.lower()
 +    if encoding.lower() != "base64" or declared_mime not in _IMAGE_MIME_BY_FORMAT.values():
 +        raise ValueError("Only base64 JPEG, PNG, GIF, or WebP data URIs are accepted")
++    # Reject encoded payloads that would exceed the decoded limit before
++    # allocating the decoded buffer, preventing unbounded memory use.
++    _MAX_ENCODED_LEN = ((_MAX_INLINE_BYTES + 2) // 3) * 4
++    if len(encoded) > _MAX_ENCODED_LEN:
++        raise ValueError("Image data URI exceeds the inline size limit")
 +    try:
 +        data = base64.b64decode(encoded, validate=True)
 +    except (binascii.Error, ValueError) as exc:
@@ -343,7 +348,7 @@ index f84f973..5041790 100644
 
 
  def _to_data_uri(path: str) -> str:
-@@ -86,19 +399,37 @@ def _to_data_uri(path: str) -> str:
+@@ -86,19 +404,37 @@ def _to_data_uri(path: str) -> str:
 
      Raises ``ValueError`` for missing files or unsupported sizes.
      """
@@ -376,8 +381,8 @@ index f84f973..5041790 100644
 +            raise ValueError("Local image must not be a hardlinked file")
 +        if metadata.st_uid != os.getuid():
 +            raise ValueError("Local image must be owned by the Hermes user")
-+        if stat.S_IMODE(metadata.st_mode) & 0o077:
-+            raise ValueError("Local image must not be accessible by group or other users")
++        if stat.S_IMODE(metadata.st_mode) & 0o022:
++            raise ValueError("Local image must not be writable by group or other users")
 +        data = image_file.read(_MAX_INLINE_BYTES + 1)
 +    if len(data) > _MAX_INLINE_BYTES:
 +        raise ValueError(
@@ -392,7 +397,7 @@ index f84f973..5041790 100644
 
 
  def _normalize_source(src: str) -> str:
-@@ -107,8 +438,12 @@ def _normalize_source(src: str) -> str:
+@@ -107,8 +443,12 @@ def _normalize_source(src: str) -> str:
      - http/https URLs and data URIs pass through unchanged.
      - Local file paths are converted to base64 data URIs.
      """
@@ -406,7 +411,7 @@ index f84f973..5041790 100644
      return _to_data_uri(src)
 
 
-@@ -127,18 +462,12 @@ def _load_config() -> Dict[str, Any]:
+@@ -127,18 +467,12 @@ def _load_config() -> Dict[str, Any]:
 
 
  def _resolve_api(cfg: Dict[str, Any]) -> str:
@@ -427,7 +432,7 @@ index f84f973..5041790 100644
      return _DEFAULT_KEY_ENV
 
 
-@@ -233,12 +562,21 @@ class MiniMaxImageGenProvider(ImageGenProvider):
+@@ -233,12 +567,21 @@ class MiniMaxImageGenProvider(ImageGenProvider):
 
          # Determine modality from source images
          sources: List[str] = []
@@ -455,7 +460,7 @@ index f84f973..5041790 100644
          modality = "image" if sources else "text"
 
          # Image-to-image requires image-01-live model
-@@ -333,15 +671,9 @@ class MiniMaxImageGenProvider(ImageGenProvider):
+@@ -333,15 +676,9 @@ class MiniMaxImageGenProvider(ImageGenProvider):
                  aspect_ratio=aspect,
              )
 

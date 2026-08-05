@@ -136,6 +136,9 @@ def exercise(module, home: Path, outside: Path) -> None:
     permissive = cache / "permissive.png"
     permissive.write_bytes(VALID_PNG)
     permissive.chmod(0o644)
+    group_writable = cache / "group-writable.png"
+    group_writable.write_bytes(VALID_PNG)
+    group_writable.chmod(0o664)
     hardlink = cache / "hardlink.png"
     hardlink.unlink(missing_ok=True)
     os.link(outside, hardlink)
@@ -187,9 +190,12 @@ def exercise(module, home: Path, outside: Path) -> None:
         lambda: module._normalize_source(str(hardlink)),
         "hardlink to a file outside managed media roots was accepted",
     )
+    # A 0644 file is acceptable (readable by group/other but not writable).
+    assert module._normalize_source(str(permissive)).startswith("data:image/png;base64,"), \
+        "0644 managed image was rejected but group/other-read is acceptable"
     require_raises_value_error(
-        lambda: module._normalize_source(str(permissive)),
-        "group/world-readable managed image was accepted",
+        lambda: module._normalize_source(str(group_writable)),
+        "group/other-writable managed image was accepted",
     )
     require_raises_value_error(
         lambda: module._normalize_source(str(invalid_type)),
@@ -224,6 +230,14 @@ def exercise(module, home: Path, outside: Path) -> None:
     require_raises_value_error(
         lambda: module._normalize_source(trailed_data_uri),
         "image data URI with trailing non-image content was accepted",
+    )
+    # Reject an encoded data URI that would decode above the inline limit
+    # before the full decoded buffer is allocated.
+    oversized_encoded = "A" * (module._MAX_INLINE_BYTES * 2)
+    oversized_uri = f"data:image/png;base64,{oversized_encoded}"
+    require_raises_value_error(
+        lambda: module._normalize_source(oversized_uri),
+        "oversized data URI was accepted without pre-decode length check",
     )
 
 

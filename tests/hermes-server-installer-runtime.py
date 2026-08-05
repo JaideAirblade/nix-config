@@ -132,27 +132,34 @@ def main() -> None:
         require(not any(outside_plugins.iterdir()), "installer wrote through a symlinked parent")
         (fake_home / "plugins").unlink()
 
-        # Existing links from a prior Nix generation with the same artifact identity must upgrade.
-        for source_name, target_name in LINKS:
-            source = sources[source_name]
-            target = targets[target_name]
-            previous = prior_store_path(source, fake_store)
-            previous.mkdir(parents=True, exist_ok=True)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.symlink_to(previous, target_is_directory=True)
-
+        # Clean install on a fresh home succeeds and records the manifest.
         run(installer, expect_success=True)
         for source_name, target_name in LINKS:
             source = sources[source_name]
             target = targets[target_name]
             require(target.is_symlink(), f"managed target is not a symlink: {target}")
-            require(target.resolve() == source.resolve(), f"managed target did not upgrade: {target}")
+            require(target.resolve() == source.resolve(), f"managed target did not install: {target}")
+        manifest = fake_home / ".hermes-server-managed-extensions"
+        require(manifest.is_file(), "installer did not record a managed-extensions manifest")
 
         # Same-generation execution must be idempotent.
         before = {target_name: os.readlink(targets[target_name]) for _, target_name in LINKS}
         run(installer, expect_success=True)
         after = {target_name: os.readlink(targets[target_name]) for _, target_name in LINKS}
         require(after == before, "same-generation execution rewrote managed links")
+
+        # An un-manifested same-name store path must be refused as unmanaged.
+        for _, target_name in LINKS:
+            target = targets[target_name]
+            target.unlink()
+            previous = prior_store_path(sources[LINKS[0][0]], fake_store)
+            previous.mkdir(parents=True, exist_ok=True)
+            target.symlink_to(previous, target_is_directory=True)
+        refusal2 = run(installer, expect_success=False)
+        require(
+            "refusing to replace unmanaged" in refusal2.stderr,
+            "installer accepted an un-manifested same-name target as prior generation",
+        )
 
         call_lines = calls.read_text(encoding="utf-8").splitlines()
         require(
