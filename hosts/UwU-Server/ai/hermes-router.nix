@@ -293,6 +293,41 @@
         restartUnits = [ "hermes-router.service" ];
       };
 
+      # Publish the router proxy key as ROUTER_API_KEY so every process that
+      # resolves key_env=ROUTER_API_KEY (hermes custom providers, scripts)
+      # can authenticate against 127.0.0.1:8319 without re-exporting it.
+      # Hermes' agent/secret_scope.py resolves key_env through its scope
+      # machinery with a fall-through to os.environ when multiplexing is off
+      # (the default), so populating os.environ via /etc/pam/environment
+      # (read by sshd's pam_env) and /etc/environment (read by login shells
+      # via pam_env + bashrc) makes the key visible to any process without
+      # exporting it manually. Bare `provider: custom` in hermes' model
+      # config does NOT honor key_env — the named-provider path does — so
+      # the registry at config.yaml uses `providers.hermes_router` + provider
+      # name `hermes_router` for the chat/auxiliary selections.
+      # ROUTER_API_KEY is the proxy key the SOPS hermes-router-env template
+      # already ships to /run/secrets/rendered/hermes-router-env (read by the
+      # router unit itself). For other processes (Hermes custom provider
+      # resolution, scripts), we publish it via /etc/pam/environment (read
+      # by sshd's pam_env on every login) so it lands in os.environ without
+      # requiring every shell to source anything manually.
+      #
+      # Hermes' agent/secret_scope.py resolves key_env through its scope
+      # machinery with a fall-through to os.environ when multiplexing is off
+      # (the default). Bare `provider: custom` in hermes' model config does
+      # NOT honor key_env — the named-provider path does — so the registry at
+      # config.yaml uses `providers.hermes_router` + provider name
+      # `hermes_router` for the chat/auxiliary selections.
+      #
+      # NixOS's system-environment.nix already declares
+      # `environment.etc."pam/environment".text` for the default
+      # XDG_/PATH/LC_ entries; we append our key to that same option so the
+      # etc-builder concatenates both. The standalone sops.template path
+      # approach would be silently ignored.
+      environment.etc."pam/environment".text = lib.mkAfter ''
+        ROUTER_API_KEY=${config.sops.placeholder.hermes_router_proxy_api_key}
+      '';
+
       system.build.hermesMinimaxImagePlugin = minimaxImageSource;
       system.build.hermesMinimaxVideoPlugin = minimaxVideoSource;
       system.build.hermesServerExtensionsInstaller = installHermesServerExtensions;

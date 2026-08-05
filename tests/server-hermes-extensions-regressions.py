@@ -178,6 +178,12 @@ for needle in (
     'User = "luna";',
     'Environment = "HOME=/home/luna";',
     'ReadWritePaths = [ "/home/luna/.hermes" ];',
+    # ROUTER_API_KEY must reach every process that resolves key_env=ROUTER_API_KEY
+    # (Hermes custom providers, scripts). Appended to NixOS's default
+    # /etc/pam/environment via lib.mkAfter so the etc-builder concatenates
+    # both into the final file. The router unit itself uses EnvironmentFile
+    # to /run/secrets/rendered/hermes-router-env; this is for everything else.
+    'environment.etc."pam/environment".text',
 ):
     require(needle in source, f"missing server extension deployment behavior: {needle}")
 
