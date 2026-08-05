@@ -221,6 +221,7 @@
               python3 tests/mnemosyne-activation-regressions.py
               python3 tests/local-honcho-regressions.py
               python3 tests/server-hermes-extensions-regressions.py
+              python3 tests/server-hermes-webui-regressions.py
               touch $out
             '';
           };
