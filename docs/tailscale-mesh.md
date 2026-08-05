@@ -98,3 +98,19 @@ UwU-Server and is authorized only where `automationAccounts` is selected.
 After every enrollment, record and pin the node's OpenSSH host key before Luna
 performs administrative work. Tailscale authenticates the network path, but it
 does not replace OpenSSH host-key verification in this design.
+
+## Troubleshooting (learned 2026-08-05)
+
+- **`requested tags [...] are invalid or not permitted`**: the tailnet policy
+  is not live yet. Push `tailscale-policy.json` first. The admin console's
+  visual rule builder cannot import a policy file; use the API instead:
+  `curl -X POST https://api.tailscale.com/api/v2/tailnet/-/acl
+  -H "Authorization: Bearer <api-token>" -H "Content-Type: application/hujson"
+  --data-binary @modules/network/tailscale-policy.json` (PUT returns 405 on the
+  current API; validate first with POST to `/acl/validate`).
+- **Enrollment succeeds but TCP/22 times out while `tailscale ping` works**:
+  check `ip route get <peer-100.x>` on the source node. If it resolves via the
+  LAN default route instead of `tailscale0`, tailscaled started before its
+  first netmap and never programmed the per-peer table-52 routes. Restart
+  `tailscaled.service` on the source node and re-check the route. Ping uses
+  TSMP inside tailscaled, so it works even when no host routes exist.
