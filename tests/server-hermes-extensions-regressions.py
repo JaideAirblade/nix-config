@@ -8,6 +8,8 @@ MODULE = ROOT / "hosts/UwU-Server/ai/hermes-router.nix"
 LOCAL_STACK = ROOT / "hosts/UwU-Server/ai/honcho.nix"
 ROUTER_PATCH = ROOT / "hosts/UwU-Server/ai/patches/hermes-router-disable-admin-surfaces.patch"
 MATH_PATCH = ROOT / "hosts/UwU-Server/ai/patches/math-via-code-secure-tempdir.patch"
+MINIMAX_IMAGE_PATCH = ROOT / "hosts/UwU-Server/ai/patches/minimax-image-managed-media-only.patch"
+MINIMAX_VIDEO_PATCH = ROOT / "hosts/UwU-Server/ai/patches/minimax-video-managed-media-only.patch"
 
 
 def require(condition: bool, message: str) -> None:
@@ -18,6 +20,8 @@ def require(condition: bool, message: str) -> None:
 require(MODULE.exists(), "UwU-Server Hermes Router module is missing")
 require(ROUTER_PATCH.exists(), "reviewed router admin-surface patch is missing")
 require(MATH_PATCH.exists(), "reviewed math skill temp-directory patch is missing")
+require(MINIMAX_IMAGE_PATCH.exists(), "reviewed MiniMax image plugin patch is missing")
+require(MINIMAX_VIDEO_PATCH.exists(), "reviewed MiniMax video plugin patch is missing")
 source = MODULE.read_text(encoding="utf-8")
 
 for needle in (
@@ -27,6 +31,12 @@ for needle in (
     'repo = "hermes-skill-math-via-code";',
     'rev = "35ad332ae18aea7623df2829df9c4003cba88ba4";',
     'hash = "sha256-qJJxQ+E8RkYwEPX93tG783Ixq+gqYwpW7mYjXLp1o04=";',
+    'repo = "hermes-plugin-minimax-image";',
+    'rev = "5a07a0f67d74a67ac426d7b901f8bfc60f28951c";',
+    'hash = "sha256-Tj8m243EmV8legIQyfGvGkfIze5l7bAtbCWQ5gyqhxA=";',
+    'repo = "hermes-plugin-minimax-video";',
+    'rev = "759bec0f124c50e868facc8da5e6cf054403d761";',
+    'hash = "sha256-fWwmtBubTvxQ2LZyftGwWD0IzC1nY6EIl0kBqUrtKd0=";',
 ):
     require(needle in source, f"missing immutable source pin: {needle}")
 
@@ -67,6 +77,8 @@ for needle in (
     "pkgs.applyPatches",
     "./patches/hermes-router-disable-admin-surfaces.patch",
     "./patches/math-via-code-secure-tempdir.patch",
+    "./patches/minimax-image-managed-media-only.patch",
+    "./patches/minimax-video-managed-media-only.patch",
 ):
     require(needle in source, f"missing reviewed source patch wiring: {needle}")
 
@@ -87,6 +99,43 @@ math_added = "\n".join(
 )
 require("tempfile.gettempdir()" not in math_added, "math skill patch must not add predictable shared temp paths")
 
+for plugin_patch_path in (MINIMAX_IMAGE_PATCH, MINIMAX_VIDEO_PATCH):
+    plugin_patch = plugin_patch_path.read_text(encoding="utf-8")
+    for needle in (
+        "get_hermes_home",
+        "_managed_media_roots",
+        ".resolve()",
+        ".relative_to(",
+        "st_nlink != 1",
+        'src.startswith("data:image/")',
+        "Unsupported local image type",
+        "Unsupported local image content",
+    ):
+        require(needle in plugin_patch, f"{plugin_patch_path.name} lacks local-upload hardening: {needle}")
+
+video_patch = MINIMAX_VIDEO_PATCH.read_text(encoding="utf-8")
+video_added = "\n".join(
+    line[1:] for line in video_patch.splitlines() if line.startswith("+") and not line.startswith("+++")
+)
+require("MINIMAX_PAYG_KEY" not in video_added, "video plugin patch must not preserve the mismatched credential name")
+require("MINIMAX_API_KEY" in video_added, "video plugin patch must standardize on MINIMAX_API_KEY")
+
+image_patch = MINIMAX_IMAGE_PATCH.read_text(encoding="utf-8")
+image_added = "\n".join(
+    line[1:] for line in image_patch.splitlines() if line.startswith("+") and not line.startswith("+++")
+)
+for label, added in (("image", image_added), ("video", video_added)):
+    require(
+        "never redirect bearer credentials" in added,
+        f"{label} plugin must force the official MiniMax API endpoint",
+    )
+    require(
+        "never redirect credential selection" in added,
+        f"{label} plugin must force MINIMAX_API_KEY credential selection",
+    )
+require("save_url_image(" not in image_added, "image plugin must not auto-download untrusted response URLs")
+require("save_url_video(" not in video_added, "video plugin must not auto-download untrusted response URLs")
+
 for needle in (
     'mathSkillPath = "/home/jaide/.hermes/skills/software-development/math-via-code";',
     '"${mathViaCodeSource}/skills/math-via-code"',
@@ -98,6 +147,28 @@ for needle in (
     'ReadWritePaths = [ "/home/jaide/.hermes" ];',
 ):
     require(needle in source, f"missing server math skill deployment behavior: {needle}")
+
+for needle in (
+    'minimaxImagePluginPath = "/home/jaide/.hermes/plugins/minimax-image";',
+    'minimaxVideoPluginPath = "/home/jaide/.hermes/plugins/minimax-video";',
+    'localMinimaxImagePluginPath = "/home/jaide/.hermes/profiles/local/plugins/minimax-image";',
+    'localMinimaxVideoPluginPath = "/home/jaide/.hermes/profiles/local/plugins/minimax-video";',
+    'hermes plugins enable minimax-image',
+    'hermes plugins enable minimax-video',
+    'hermes config set image_gen.minimax.key_env MINIMAX_API_KEY',
+    'hermes config set video_gen.minimax.key_env MINIMAX_API_KEY',
+    'HERMES_HOME=/home/jaide/.hermes/profiles/local',
+):
+    require(needle in source, f"missing declarative server MiniMax plugin behavior: {needle}")
+
+require(
+    "hermes config set image_gen.provider minimax" not in source,
+    "MiniMax installation must not replace the selected image provider",
+)
+require(
+    "hermes config set video_gen.provider minimax" not in source,
+    "MiniMax installation must not select an unavailable video provider",
+)
 
 for needle in (
     "mnemosynePluginSource",
@@ -112,4 +183,4 @@ require("provider: mnemosyne" in local_stack, "managed local profile must select
 require("provider: honcho" not in local_stack, "managed local profile must not revert to Honcho")
 require("http://127.0.0.1:8319" not in source, "default Hermes inference must not switch to the unprovisioned router")
 
-print("server Hermes pins, hardened router, math skill, and Mnemosyne persistence: PASS")
+print("server Hermes pins, hardened router, reviewed skills/plugins, and Mnemosyne persistence: PASS")

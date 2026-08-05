@@ -1,0 +1,128 @@
+diff --git a/README.md b/README.md
+index 0ef2f5f..4881eb0 100644
+--- a/README.md
++++ b/README.md
+@@ -24 +24 @@ hermes plugins install rriggs/hermes-plugin-minimax-image
+-hermes plugins enable minimax
++hermes plugins enable minimax-image
+diff --git a/__init__.py b/__init__.py
+index f84f973..cdcb40c 100644
+--- a/__init__.py
++++ b/__init__.py
+@@ -41 +40,0 @@ from agent.image_gen_provider import (
+-    save_url_image,
+@@ -79,0 +79,29 @@ _MAX_INLINE_BYTES = 10 * 1024 * 1024
++def _managed_media_roots() -> List[Path]:
++    """Return the host media roots Hermes itself manages for attachments."""
++    from hermes_constants import get_hermes_home
++
++    home = get_hermes_home()
++    return [
++        home / "cache",
++        home / "images",
++        home / "image_cache",
++        home / "audio_cache",
++        home / "video_cache",
++        home / "temp_vision_images",
++        home / "temp_video_files",
++    ]
++
++
++def _detected_image_mime(data: bytes) -> Optional[str]:
++    """Identify the small set of image formats accepted by MiniMax inputs."""
++    if data.startswith(b"\x89PNG\r\n\x1a\n"):
++        return "image/png"
++    if data.startswith(b"\xff\xd8\xff"):
++        return "image/jpeg"
++    if data.startswith((b"GIF87a", b"GIF89a")):
++        return "image/gif"
++    if len(data) >= 12 and data.startswith(b"RIFF") and data[8:12] == b"WEBP":
++        return "image/webp"
++    return None
++
++
+@@ -89 +117,4 @@ def _to_data_uri(path: str) -> str:
+-    p = Path(path).expanduser()
++    try:
++        p = Path(path).expanduser().resolve(strict=True)
++    except (OSError, RuntimeError) as exc:
++        raise ValueError(f"Image file not found: {path}") from exc
+@@ -91,0 +123,12 @@ def _to_data_uri(path: str) -> str:
++    if p.stat().st_nlink != 1:
++        raise ValueError("Local image must not be a hardlinked file")
++    for root in _managed_media_roots():
++        try:
++            p.relative_to(root.resolve())
++            break
++        except ValueError:
++            continue
++    else:
++        raise ValueError(
++            "Local image path must be inside a Hermes-managed media directory"
++        )
+@@ -99,3 +142,7 @@ def _to_data_uri(path: str) -> str:
+-        mime = "image/png"  # safe fallback
+-    b64 = base64.b64encode(p.read_bytes()).decode("ascii")
+-    return f"data:{mime};base64,{b64}"
++        raise ValueError(f"Unsupported local image type: {p.suffix or 'unknown'}")
++    data = p.read_bytes()
++    detected_mime = _detected_image_mime(data)
++    if detected_mime is None or detected_mime != mime:
++        raise ValueError("Unsupported local image content; expected JPEG, PNG, GIF, or WebP")
++    b64 = base64.b64encode(data).decode("ascii")
++    return f"data:{detected_mime};base64,{b64}"
+@@ -110 +157 @@ def _normalize_source(src: str) -> str:
+-    if src.startswith(("http://", "https://", "data:")):
++    if src.startswith(("http://", "https://")):
+@@ -111,0 +159,4 @@ def _normalize_source(src: str) -> str:
++    if src.startswith("data:image/"):
++        return src
++    if src.startswith("data:"):
++        raise ValueError("Only data:image/* URIs are accepted as image inputs")
+@@ -130,4 +181 @@ def _resolve_api(cfg: Dict[str, Any]) -> str:
+-    """Resolve the API base URL: config > default."""
+-    api = cfg.get("api", "")
+-    if isinstance(api, str) and api.strip():
+-        return api.strip().rstrip("/")
++    """Return the audited MiniMax endpoint; never redirect bearer credentials."""
+@@ -138,4 +186 @@ def _resolve_key_env(cfg: Dict[str, Any]) -> str:
+-    """Resolve the env var name holding the API key: config > default."""
+-    key_env = cfg.get("key_env", "")
+-    if isinstance(key_env, str) and key_env.strip():
+-        return key_env.strip()
++    """Use only the audited credential name; never redirect credential selection."""
+@@ -236,6 +281,15 @@ class MiniMaxImageGenProvider(ImageGenProvider):
+-        if image_url:
+-            sources.append(_normalize_source(image_url))
+-        sources.extend(
+-            _normalize_source(s)
+-            for s in (normalize_reference_images(reference_image_urls) or [])
+-        )
++        try:
++            if image_url:
++                sources.append(_normalize_source(image_url))
++            sources.extend(
++                _normalize_source(s)
++                for s in (normalize_reference_images(reference_image_urls) or [])
++            )
++        except ValueError as exc:
++            return error_response(
++                error=str(exc),
++                error_type="invalid_input",
++                provider=self.name,
++                prompt=prompt,
++                aspect_ratio=aspect,
++            )
+@@ -336,9 +390,3 @@ class MiniMaxImageGenProvider(ImageGenProvider):
+-        # Cache the image locally -- MiniMax URLs expire in 24 hours.
+-        short = model_id.replace(".", "_")
+-        try:
+-            saved_path = save_url_image(image_ref, prefix=f"minimax_{short}")
+-            image_ref = str(saved_path)
+-        except Exception as exc:
+-            logger.debug(
+-                "MiniMax: caching image URL failed (%s); returning URL", exc
+-            )
++        # Do not fetch provider-controlled response URLs here. The host's guarded
++        # media tooling can materialize the URL later without granting this
++        # plugin an SSRF-capable downloader.

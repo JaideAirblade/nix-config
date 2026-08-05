@@ -1,0 +1,156 @@
+diff --git a/README.md b/README.md
+index 26881a0..2e711b8 100644
+--- a/README.md
++++ b/README.md
+@@ -34 +34 @@ video_gen:
+-    key_env: MINIMAX_PAYG_KEY
++    key_env: MINIMAX_API_KEY
+@@ -53 +53 @@ Set the API key in your `.env` file:
+-MINIMAX_PAYG_KEY=***
++MINIMAX_API_KEY=***
+diff --git a/__init__.py b/__init__.py
+index 037eabe..393344b 100644
+--- a/__init__.py
++++ b/__init__.py
+@@ -23 +23 @@ Configuration (config.yaml):
+-        key_env: MINIMAX_PAYG_KEY
++        key_env: MINIMAX_API_KEY
+@@ -60 +59,0 @@ from agent.video_gen_provider import (
+-    save_url_video,
+@@ -129,0 +129,29 @@ _MAX_INLINE_BYTES = 10 * 1024 * 1024
++def _managed_media_roots() -> List[Path]:
++    """Return the host media roots Hermes itself manages for attachments."""
++    from hermes_constants import get_hermes_home
++
++    home = get_hermes_home()
++    return [
++        home / "cache",
++        home / "images",
++        home / "image_cache",
++        home / "audio_cache",
++        home / "video_cache",
++        home / "temp_vision_images",
++        home / "temp_video_files",
++    ]
++
++
++def _detected_image_mime(data: bytes) -> Optional[str]:
++    """Identify the small set of image formats accepted by MiniMax inputs."""
++    if data.startswith(b"\x89PNG\r\n\x1a\n"):
++        return "image/png"
++    if data.startswith(b"\xff\xd8\xff"):
++        return "image/jpeg"
++    if data.startswith((b"GIF87a", b"GIF89a")):
++        return "image/gif"
++    if len(data) >= 12 and data.startswith(b"RIFF") and data[8:12] == b"WEBP":
++        return "image/webp"
++    return None
++
++
+@@ -139 +167,4 @@ def _to_data_uri(path: str) -> str:
+-    p = Path(path).expanduser()
++    try:
++        p = Path(path).expanduser().resolve(strict=True)
++    except (OSError, RuntimeError) as exc:
++        raise ValueError(f"Image file not found: {path}") from exc
+@@ -141,0 +173,12 @@ def _to_data_uri(path: str) -> str:
++    if p.stat().st_nlink != 1:
++        raise ValueError("Local image must not be a hardlinked file")
++    for root in _managed_media_roots():
++        try:
++            p.relative_to(root.resolve())
++            break
++        except ValueError:
++            continue
++    else:
++        raise ValueError(
++            "Local image path must be inside a Hermes-managed media directory"
++        )
+@@ -149,3 +192,7 @@ def _to_data_uri(path: str) -> str:
+-        mime = "image/png"  # safe fallback
+-    b64 = base64.b64encode(p.read_bytes()).decode("ascii")
+-    return f"data:{mime};base64,{b64}"
++        raise ValueError(f"Unsupported local image type: {p.suffix or 'unknown'}")
++    data = p.read_bytes()
++    detected_mime = _detected_image_mime(data)
++    if detected_mime is None or detected_mime != mime:
++        raise ValueError("Unsupported local image content; expected JPEG, PNG, GIF, or WebP")
++    b64 = base64.b64encode(data).decode("ascii")
++    return f"data:{detected_mime};base64,{b64}"
+@@ -160 +207 @@ def _normalize_source(src: str) -> str:
+-    if src.startswith(("http://", "https://", "data:")):
++    if src.startswith(("http://", "https://")):
+@@ -161,0 +209,4 @@ def _normalize_source(src: str) -> str:
++    if src.startswith("data:image/"):
++        return src
++    if src.startswith("data:"):
++        raise ValueError("Only data:image/* URIs are accepted as image inputs")
+@@ -185,4 +236 @@ def _resolve_api(cfg: Dict[str, Any]) -> str:
+-    """Resolve the API base URL: config > default."""
+-    api = cfg.get("api", "")
+-    if isinstance(api, str) and api.strip():
+-        return api.strip().rstrip("/")
++    """Return the audited MiniMax endpoint; never redirect bearer credentials."""
+@@ -193,4 +241 @@ def _resolve_key_env(cfg: Dict[str, Any]) -> str:
+-    """Resolve the env var name holding the API key: config > default."""
+-    key_env = cfg.get("key_env", "")
+-    if isinstance(key_env, str) and key_env.strip():
+-        return key_env.strip()
++    """Use only the audited credential name; never redirect credential selection."""
+@@ -251 +296 @@ class MiniMaxVideoGenProvider(VideoGenProvider):
+-                    "key": "MINIMAX_PAYG_KEY",
++                    "key": "MINIMAX_API_KEY",
+@@ -373,11 +418,20 @@ class MiniMaxVideoGenProvider(VideoGenProvider):
+-        if mode == "i2v" and image_url:
+-            payload["first_frame_image"] = _normalize_source(image_url)
+-        elif mode == "s2v" and reference_image_urls:
+-            # S2V uses subject_reference array with nested image arrays
+-            refs = []
+-            for src in reference_image_urls:
+-                refs.append({
+-                    "type": "character",
+-                    "image": [_normalize_source(src)],
+-                })
+-            payload["subject_reference"] = refs
++        try:
++            if mode == "i2v" and image_url:
++                payload["first_frame_image"] = _normalize_source(image_url)
++            elif mode == "s2v" and reference_image_urls:
++                # S2V uses subject_reference array with nested image arrays
++                refs = []
++                for src in reference_image_urls:
++                    refs.append({
++                        "type": "character",
++                        "image": [_normalize_source(src)],
++                    })
++                payload["subject_reference"] = refs
++        except ValueError as exc:
++            return error_response(
++                error=str(exc),
++                error_type="invalid_input",
++                provider=self.name,
++                model=model_id,
++                prompt=prompt,
++            )
+@@ -534,8 +588,4 @@ class MiniMaxVideoGenProvider(VideoGenProvider):
+-        # Step 4: Download and cache locally (URLs are ephemeral)
+-        short = model_id.replace(".", "_").replace("-", "_")
+-        try:
+-            saved_path = save_url_video(download_url, prefix=f"minimax_{short}")
+-            video_ref = str(saved_path)
+-        except Exception as exc:
+-            logger.debug("MiniMax: caching video URL failed (%s); returning URL", exc)
+-            video_ref = download_url
++        # Do not fetch provider-controlled response URLs here. The host's guarded
++        # media tooling can materialize the URL later without granting this
++        # plugin an SSRF-capable downloader.
++        video_ref = download_url
+diff --git a/plugin.yaml b/plugin.yaml
+index 6293bf9..7260c73 100644
+--- a/plugin.yaml
++++ b/plugin.yaml
+@@ -7 +7 @@ requires_env:
+-  - MINIMAX_PAYG_KEY
+\ No newline at end of file
++  - MINIMAX_API_KEY
+\ No newline at end of file

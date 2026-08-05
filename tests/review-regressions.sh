@@ -21,6 +21,15 @@ python3 tests/mnemosyne-activation-regressions.py
 python3 tests/local-honcho-regressions.py
 python3 tests/server-hermes-extensions-regressions.py
 
+minimax_image_source=$(nix build --no-link --print-out-paths \
+  '.#nixosConfigurations.UwU-Server.config.system.build.hermesMinimaxImagePlugin')
+minimax_video_source=$(nix build --no-link --print-out-paths \
+  '.#nixosConfigurations.UwU-Server.config.system.build.hermesMinimaxVideoPlugin')
+hermes_python="$(nix eval --raw \
+  '.#nixosConfigurations.UwU-Server.pkgs.hermes-agent.hermesVenv.outPath')/bin/python3"
+"$hermes_python" tests/minimax-plugin-security-runtime.py \
+  "$minimax_image_source" "$minimax_video_source"
+
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
   exit 1
