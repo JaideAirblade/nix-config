@@ -13,7 +13,7 @@
 _:
 {
   nixos.modules.common =
-    { pkgs, ... }:
+    { pkgs, lib, ... }:
 
     let
       # The mnemosyne-hermes Python package, built by the overlay. We read it
@@ -23,10 +23,12 @@ _:
       mnemosyne-hermes = pkgs.python312Packages.mnemosyne-hermes;
       mnemosyne-hermes-dir = "${mnemosyne-hermes}/lib/python3.12/site-packages/mnemosyne_hermes";
 
-      # Hermes home (~/.hermes by default, $HERMES_HOME if set). We don't read
-      # $HERMES_HOME here because activationScripts run as root at switch time;
-      # the user's ~/.hermes is the right target for a single-user install.
-      hermes-plugins = "/home/jaide/.hermes/plugins/mnemosyne";
+      # Hermes plugin discovery paths for every Hermes user on this host.
+      # On UwU the user is jaide; on UwU-Server the user is luna. We link
+      # the plugin into every existing ~/.hermes/plugins/mnemosyne/ so
+      # both single-user and server-side installs discover it.
+      hermes-users = [ "jaide" "luna" ];
+      hermes-plugins-for = user: "/home/${user}/.hermes/plugins/mnemosyne";
     in
     {
       # Symlink the installed mnemosyne_hermes package into Hermes' plugin
@@ -35,15 +37,20 @@ _:
       # profile is activated so the new store path exists. Skipped silently
       # if the user's ~/.hermes doesn't exist yet (first login creates it).
       system.activationScripts.mnemosyne-plugin = ''
-        if [ ! -d /home/jaide/.hermes ]; then
-          echo "mnemosyne-plugin: ~/.hermes missing, skipping (will link on next rebuild)"
-        else
-          mkdir -p ${hermes-plugins}
-          find ${hermes-plugins} -maxdepth 1 -type l -delete
+        for user in ${lib.concatMapStringsSep " " (u: u) hermes-users}; do
+          hermes_home="/home/$user/.hermes"
+          if [ ! -d "$hermes_home" ]; then
+            echo "mnemosyne-plugin: $hermes_home missing, skipping $user (will link on next rebuild)"
+            continue
+          fi
+          plugins_dir="$hermes_home/plugins/mnemosyne"
+          mkdir -p "$plugins_dir"
+          find "$plugins_dir" -maxdepth 1 -type l -delete
           for f in ${mnemosyne-hermes-dir}/*; do
-            ln -sfn "$f" ${hermes-plugins}/"$(basename "$f")"
+            ln -sfn "$f" "$plugins_dir/$(basename "$f")"
           done
-        fi
+          echo "mnemosyne-plugin: linked for $user"
+        done
       '';
     }
   ;

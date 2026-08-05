@@ -21,7 +21,16 @@ if re.search(r"^\s*exit(?:\s|$)", snippet, re.MULTILINE):
     raise SystemExit(
         "FAIL: Mnemosyne activation snippet exits the shared NixOS activation script"
     )
-if "else" not in snippet:
+# The activation script must skip missing ~/.hermes dirs (first-install safety)
+# instead of crashing or creating empty plugin dirs for non-existent users.
+if "continue" not in snippet and "else" not in snippet:
     raise SystemExit("FAIL: first-install skip is not scoped to the Mnemosyne snippet")
+
+# The module must link the plugin for both jaide (UwU) and luna (UwU-Server).
+# These appear in the hermes-users list, not in the bash snippet itself.
+if '"jaide"' not in text:
+    raise SystemExit("FAIL: module does not handle jaide's home")
+if '"luna"' not in text:
+    raise SystemExit("FAIL: module does not handle luna's home (UwU-Server)")
 
 print("mnemosyne activation regressions: PASS")
