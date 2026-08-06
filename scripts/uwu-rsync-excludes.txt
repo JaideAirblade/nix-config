@@ -1,17 +1,3 @@
-# UwU → UwU-Server rsync exclude list.
-#
-# Used by the sister-sync-from-uwu.sh script to copy jaide's home directory
-# from the UwU desktop (100.119.53.51) onto UwU-Server. The rules skip
-# anything that's a game, a download cache, a rebuildable artifact, or
-# anything that wouldn't be useful on the headless server.
-#
-# Edit with care — adding 'Downloads/' would let scripts/ leak into the
-# server, and removing the Steam excludes would copy 300GB of games.
-#
-# Pattern format: rsync's --exclude-from accepts one pattern per line.
-# Lines starting with '#' are comments (rsync ignores them).
-# Trailing '/' matters: it makes the pattern match a directory specifically.
-
 # UwU → UwU-Server rsync excludes
 # Pattern matches are rsync-side, applied to the SOURCE tree.
 # Rules: skip anything that's a game, a download, a cache, a rebuildable
@@ -75,6 +61,15 @@
 - .config/user-dirs.dirs
 - .config/user-dirs.locale
 - .config/mimeapps.list
+
+# ── 1Password (live SQLite+WAL — must be skipped while 1Password GUI is open) ──
+- .config/1Password/
+- .config/BraveSoftware/Brave-Browser/**/NativeMessagingHosts/com.1password.1password.json
+- .config/chromium/**/NativeMessagingHosts/com.1password.1password.json
+- .config/net.imput.helium/**/NativeMessagingHosts/com.1password.1password.json
+- .config/google-chrome*/**/NativeMessagingHosts/com.1password.1password.json
+- .config/1Password-BrowserSupport.sock
+- .mozilla/native-messaging-hosts/com.1password.1password.json
 
 # ── Other games / launchers / game data ────────────────────────────
 - .local/share/Heroic/
