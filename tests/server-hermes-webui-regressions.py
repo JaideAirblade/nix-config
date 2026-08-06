@@ -7,7 +7,9 @@ test asserts that secrets/UwU-Server/hermes-webui.yaml exists there with
 the hermes_webui_password key. Outside `nix build` (e.g. running the
 script directly), fall back to scanning /nix/store for the same."""
 
+import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -55,22 +57,42 @@ require(
     "hermes-webui flake input must be pinned to a known-good commit",
 )
 
-# Network binding: must bind to the Tailscale IP only, never 0.0.0.0 or
-# [::]. The whole point of this module is to keep the WebUI on the
-# tailnet only — a 0.0.0.0 bind exposes it to whatever the firewall
-# might let through.
+# Network binding: port 8080 is reachable only through the Tailscale
+# mesh. The NixOS firewall (modules/network/tailscale-mesh.nix) and the
+# tailnet ACL (modules/network/tailscale-policy.json) jointly control
+# access; the WebUI itself binds 0.0.0.0 so a future reverse-proxy
+# (Caddy/Traefik) can sit in front without per-service re-binding.
+# openFirewall stays false because the firewall is managed centrally,
+# not by this service module.
 require(
-    'host = "100.102.183.94";' in source,
-    "WebUI must be bound to the Tailscale IP of UwU-Server",
+    'host = "0.0.0.0";' in source,
+    "WebUI must bind to 0.0.0.0 (access control delegated to NixOS firewall + tailnet ACL)",
 )
 require(
     "openFirewall = false;" in source,
-    "WebUI port must not be exposed via the NixOS firewall",
+    "WebUI module must not call openFirewall (firewall is managed centrally)",
 )
 require(
-    '"0.0.0.0"' not in source and '"::"' not in source,
-    "WebUI must not bind to 0.0.0.0 or ::",
+    'port = 8080;' in source,
+    "WebUI must listen on port 8080 (see 2026-08-06 port-rearchitecture)",
 )
+# Inverse: the tailscale0 firewall rule MUST admit port 8080 (otherwise
+# the WebUI is reachable on the LAN/public interfaces but invisible on
+# the Tailscale path). Mirror check on tailscale-mesh.nix + policy.json.
+mesh = (ROOT / "modules/network/tailscale-mesh.nix").read_text(encoding="utf-8")
+require(
+    re.search(r"networking\.firewall\.interfaces\.tailscale0\.allowedTCPPorts\s*=\s*\[\s*22\s*8080\s*\]\s*;", mesh)
+    is not None,
+    "tailscale0 mesh firewall must allow TCP/8080 alongside TCP/22 for the WebUI",
+)
+policy = json.loads((ROOT / "modules/network/tailscale-policy.json").read_text(encoding="utf-8"))
+mesh_rule = next(
+    (r for r in policy.get("acls", [])
+     if set(r.get("src", [])) == {"tag:private", "tag:work", "tag:personal"}),
+    None,
+)
+require(mesh_rule is not None and "tag:private:8080" in mesh_rule.get("dst", []),
+        "tailnet policy must allow tag:private:8080 for the WebUI")
 
 # Hermes state sharing: must reuse the system's hermes-agent (so it picks
 # up the hermes-router provider and Mnemosyne memory) and read the same

@@ -30,7 +30,7 @@
 +    if os.environ.get("NEMOTRON_BASE_URL") or os.environ.get("NEMOTRON_MODEL"):
 +        providers.append({
 +            "name":     "nemotron",
-+            "base_url": os.environ.get("NEMOTRON_BASE_URL", "http://127.0.0.1:8080/v1"),
++            "base_url": os.environ.get("NEMOTRON_BASE_URL", "http://127.0.0.1:9001/v1"),
 +            "model":    os.environ.get("NEMOTRON_MODEL", "unsloth/Nemotron-3-Nano-30B-A3B"),
 +            "keys":     [os.environ.get("NEMOTRON_API_KEY", "local")],
 +        })

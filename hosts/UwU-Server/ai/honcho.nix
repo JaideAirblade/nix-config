@@ -7,7 +7,7 @@
 # - Honcho API is published only on 127.0.0.1:8000.
 # - PostgreSQL and Redis remain inside the private Compose network.
 # - llama.cpp listens on all host interfaces so Docker can reach it, but the
-#   firewall permits 8080/8082 only through honcho0 (loopback remains local).
+#   firewall permits 9001/9002 (llama-server Nemotron + embedding) only
 # - Jaide is deliberately not placed in the root-equivalent docker group.
 # - Model artifacts are downloaded outside the Nix store and verified against
 #   immutable upstream revisions and SHA-256 digests before activation.
@@ -28,8 +28,8 @@
       # 4B quality preferred for Mnemosyne recall at this latency budget).
       nemotronAlias = "unsloth/Nemotron-3-Nano-30B-A3B";
       embeddingAlias = "qwen3-embedding-0.6b";
-      containerModelBaseUrl = "http://host.docker.internal:8080/v1";
-      containerEmbeddingBaseUrl = "http://host.docker.internal:8082/v1";
+      containerModelBaseUrl = "http://host.docker.internal:9001/v1";
+      containerEmbeddingBaseUrl = "http://host.docker.internal:9002/v1";
       envRef = name: "$" + "{${name}}";
       dbPasswordRef = envRef "HONCHO_DB_PASSWORD";
 
@@ -334,7 +334,7 @@
         model:
           default: ${nemotronAlias}
           provider: custom
-          base_url: http://127.0.0.1:8080/v1
+          base_url: http://127.0.0.1:9001/v1
           api_key: ""
           context_length: 65536
         memory:
@@ -412,7 +412,7 @@
         runtimeInputs = [ pkgs.coreutils pkgs.curl ];
         text = ''
           set -euo pipefail
-          for endpoint in http://127.0.0.1:8080/health http://127.0.0.1:8082/health; do
+          for endpoint in http://127.0.0.1:9001/health http://127.0.0.1:9002/health; do
             ready=false
             for _ in $(seq 1 360); do
               if curl --fail --silent --show-error --max-time 3 "$endpoint" >/dev/null; then
@@ -489,7 +489,7 @@
         honchoBackup
       ];
 
-      networking.firewall.interfaces.honcho0.allowedTCPPorts = [ 8080 8082 ];
+      networking.firewall.interfaces.honcho0.allowedTCPPorts = [ 9001 9002 ];
 
       # ReadWritePaths requires its target to exist before systemd constructs
       # the service namespace. Create only the managed profile roots; Luna
@@ -550,7 +550,7 @@
             "--host"
             "0.0.0.0"
             "--port"
-            "8080"
+            "9001"
             "--ctx-size"
             "65536"
             "--temp"
@@ -581,7 +581,7 @@
             "--host"
             "0.0.0.0"
             "--port"
-            "8082"
+            "9002"
             "--ctx-size"
             "8192"
             "--batch-size"

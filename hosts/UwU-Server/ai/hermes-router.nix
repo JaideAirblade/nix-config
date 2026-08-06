@@ -326,7 +326,7 @@
       # approach would be silently ignored.
       environment.etc."pam/environment".text = lib.mkAfter ''
         ROUTER_API_KEY=${config.sops.placeholder.hermes_router_proxy_api_key}
-        MNEMOSYNE_EMBEDDING_API_URL=http://127.0.0.1:8082/v1
+        MNEMOSYNE_EMBEDDING_API_URL=http://127.0.0.1:9002/v1
         MNEMOSYNE_EMBEDDING_MODEL=qwen3-embedding-4b
         MNEMOSYNE_EMBEDDING_DIM=2560
         MNEMOSYNE_EMBEDDINGS_VIA_API=true
@@ -363,7 +363,7 @@
           CODEX_MODEL = "gpt-5.6-sol";
           # On-box last-resort provider (llama.cpp Nemotron), rank 99 in the
           # patch — only used when every cloud provider is unreachable.
-          NEMOTRON_BASE_URL = "http://127.0.0.1:8080/v1";
+          NEMOTRON_BASE_URL = "http://127.0.0.1:9001/v1";
           NEMOTRON_MODEL = "unsloth/Nemotron-3-Nano-30B-A3B";
         };
         serviceConfig = {

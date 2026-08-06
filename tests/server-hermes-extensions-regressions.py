@@ -104,7 +104,7 @@ for needle in (
     '"minimax": 68, "nemotron": 99,',
     '"minimax",\n',
     '"name":     "nemotron",',
-    'os.environ.get("NEMOTRON_BASE_URL", "http://127.0.0.1:8080/v1")',
+    'os.environ.get("NEMOTRON_BASE_URL", "http://127.0.0.1:9001/v1")',
     'os.environ.get("NEMOTRON_MODEL", "unsloth/Nemotron-3-Nano-30B-A3B")',
 ):
     require(needle in minimax_provider_patch, f"router MiniMax provider patch incomplete: {needle}")

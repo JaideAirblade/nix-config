@@ -86,7 +86,7 @@ reject(module, r'"--prio"\s+"3"', "Nemotron may not request SCHED_FIFO/90 under 
 
 # Local-only network boundary. Database and Redis must not publish host ports.
 require(module, '"127.0.0.1:8000:8000"', "Honcho API is not loopback-bound")
-require(module, 'networking.firewall.interfaces.honcho0.allowedTCPPorts = [ 8080 8082 ];', "Honcho-bridge-only LLM firewall rule is missing")
+require(module, 'networking.firewall.interfaces.honcho0.allowedTCPPorts = [ 9001 9002 ];', "Honcho-bridge-only LLM firewall rule is missing")
 require(module, 'driver_opts."com.docker.network.bridge.name" = "honcho0";', "deterministic Honcho bridge name is missing")
 for exposed in ('"5432:5432"', '"6379:6379"', '"0.0.0.0:8000:8000"'):
     reject(module, re.escape(exposed), f"forbidden host exposure present: {exposed}")

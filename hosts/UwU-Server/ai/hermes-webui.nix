@@ -1,9 +1,13 @@
 # Hermes WebUI — community web UI for Hermes Agent (nesquena/hermes-webui).
 #
-# Provides a browser-based chat interface that mirrors the Hermes CLI. Runs
-# bound to the Tailscale IP only — not on 0.0.0.0 — so it is reachable from
-# any device on the user's tailnet (phone, work laptop) but never from the
-# public internet, regardless of any NAT or router configuration.
+# Provides a browser-based chat interface that mirrors the Hermes CLI. Listens
+# on 0.0.0.0:8080; the NixOS firewall restricts tailscale0 (peer access) and
+# blocks eno1/loopback/public interfaces, so the WebUI is reachable only via
+# the tailnet (matching the existing port-8080 ACL in tailscale-policy.json
+# and the firewall rule in modules/network/tailscale-mesh.nix). This shape
+# keeps future host additions (Caddy reverse-proxy, more services) from
+# bumping against binding-IP state across hosts — access control lives in
+# one place.
 #
 # Runs as user `luna` so it shares the same ~/.hermes/ state as the on-host
 # hermes-agent sessions AND the hermes-router provider. That means the WebUI
@@ -24,9 +28,10 @@
 # "luna" user on UwU-Server benefits, so this module is registered against
 # `nixos.hosts."UwU-Server"` and not `nixos.modules.common`.
 #
-# The Tailscale IP `100.102.183.94` is hardcoded inline below. If Tailscale
-# rotates it, run `tailscale ip -4` on the live host to find the new value
-# and re-build.
+# Port choice: 8080 was previously llama-server (the local AI inference);
+# 2026-08-06 port-rearchitecture moved llama off 8080 to 9001/9002 so
+# the WebUI can take the conventional "primary HTTP UI" port alongside
+# future services (Caddy reverse-proxy, music server). See commit message.
 { inputs, ... }:
 {
   nixos.hosts."UwU-Server" =
@@ -62,12 +67,14 @@
         # (including mnemosyne_hermes from mnemosyne.overlay.nix).
         agent.package = pkgs.hermes-agent;
 
-        # Network binding — Tailscale-only. host = "100.102.183.94"
-        # (the Tailscale IP of UwU-Server) means the listener never hits
-        # 0.0.0.0; nothing outside the tailnet can reach it. No firewall
-        # port-forward needed and openFirewall stays false.
-        host = "100.102.183.94";
-        port = 8787;
+        # Network binding — listen on 0.0.0.0; access control is delegated
+        # to the NixOS firewall (modules/network/tailscale-mesh.nix +
+        # modules/network/tailscale-policy.json). Keeps the host/port
+        # configuration host-agnostic so Caddy/other reverse proxies can
+        # sit in front of multiple services later without per-host
+        # re-binding gymnastics.
+        host = "0.0.0.0";
+        port = 8080;
         openFirewall = false;
 
         # Share Luna's Hermes home directory. Both the hermes-router
