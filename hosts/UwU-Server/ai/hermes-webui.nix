@@ -95,6 +95,20 @@
 
         # Auth — password loaded from the sops template above.
         environmentFiles = [ config.sops.templates.hermes-webui-password.path ];
+
+        # Workspace — pin to a luna-owned path OUTSIDE /var. The upstream
+        # WebUI's _discover_default_workspace() walks:
+        #   1. HERMES_WEBUI_DEFAULT_WORKSPACE env var (this)
+        #   2. ~/workspace (existing)
+        #   3. ~/work (existing)
+        #   4. ~/workspace (create)
+        #   5. <stateDir>/workspace   ← BUG: stateDir is /var/lib/hermes-webui,
+        #                                workspace.py's deny-list rejects /var/*
+        # Setting this env var short-circuits the discovery to step 1, so
+        # the upstream bug never fires. This env var is NOT in the upstream
+        # NixOS module's protectedEnvironment list, so extraEnvironment is
+        # the right channel (not environmentFiles, which would be rejected).
+        extraEnvironment.HERMES_WEBUI_DEFAULT_WORKSPACE = "/home/luna/workspace";
       };
 
       # The upstream module already sets a sensible systemd unit; we layer

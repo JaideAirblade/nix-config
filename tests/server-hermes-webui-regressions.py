@@ -129,6 +129,34 @@ require(
     "WebUI password file must be 0400",
 )
 
+# Workspace discovery — short-circuit the upstream
+# _discover_default_workspace() walk so the WebUI doesn't try to register
+# <stateDir>/workspace. Upstream stateDir = /var/lib/hermes-webui, and
+# workspace.py rejects paths under /var as system directories. Setting
+# HERMES_WEBUI_DEFAULT_WORKSPACE explicitly to a luna-owned path
+# outside /var is the documented escape hatch.
+require(
+    'extraEnvironment.HERMES_WEBUI_DEFAULT_WORKSPACE' in source,
+    "WebUI must pin HERMES_WEBUI_DEFAULT_WORKSPACE via extraEnvironment "
+    "(otherwise upstream falls back to <stateDir>/workspace which trips "
+    "the /var deny-list)",
+)
+require(
+    "/home/luna/workspace" in source,
+    "HERMES_WEBUI_DEFAULT_WORKSPACE must point at a luna-owned path outside /var",
+)
+# Sanity: should NOT be in environmentFiles (the upstream module rejects
+# non-protected keys from env files at boot with a hard error). Use a
+# non-greedy probe that checks only the actual environmentFiles line.
+_env_files_block = ""
+if "environmentFiles = " in source:
+    _env_files_block = source.split("environmentFiles = ", 1)[1].split(";", 1)[0]
+require(
+    "HERMES_WEBUI_DEFAULT_WORKSPACE" not in _env_files_block,
+    "HERMES_WEBUI_DEFAULT_WORKSPACE must NOT be set via environmentFiles "
+    "(upstream rejects non-protected keys there; use extraEnvironment)",
+)
+
 # Hardening: must apply the same template as hermes-router. Keeps the
 # service from reaching anything outside its own Hermes state.
 require(
