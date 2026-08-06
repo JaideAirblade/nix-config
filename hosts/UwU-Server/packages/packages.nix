@@ -1,8 +1,13 @@
 # UwU-Server host-specific packages.
 #
-# Currently a small list of GUI apps jaide wants when she uses this machine
-# remotely (e.g. during the trip to the parents'). The rest of the package
-# set comes from the shared modules imported by the entry point.
+# A small list of GUI apps jaide wants when she uses this machine remotely
+# (e.g. during the trip to the parents'). The rest of the package set
+# comes from the shared modules imported by the entry point.
+#
+# The box is headless — no display server, no DM. The GUI binaries are
+# available so they can be invoked via X-forwarding, `nix run`, or a remote
+# desktop session if one is ever set up. They don't auto-start because
+# nothing in the desktop session depends on them.
 
 _:
 {
@@ -15,6 +20,9 @@ _:
         # experience on UwU/TSBW so the 1Password integration, profile, and
         # extensions are consistent across machines.
         helium-bin
+
+        # Readest — modern ebook reader. Same as on UwU.
+        readest
       ];
 
       # Opt out of the shared Firefox enable (modules/packages/packages.nix).
