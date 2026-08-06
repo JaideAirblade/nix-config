@@ -38,11 +38,18 @@
 
 stdenv.mkDerivation (finalAttrs: {
   pname = "octarine";
-  version = "0.49.0";
+  # Pin to the current upstream release. The CDN URL embeds the version
+  # (no `latest` symlink is published), so `nix flake update` will NOT pick
+  # up new releases automatically — this version string needs bumping by
+  # hand when octarine.app/changelog lists a newer one. The hash still
+  # defends against silent URL rotation: if the file at this exact URL
+  # changes without a version bump here, nix build fails with a hash
+  # mismatch.
+  version = "0.49.1";
 
   src = fetchurl {
     url = "https://pub-3d35bc018fc54f11bde129e3e73e8002.r2.dev/${finalAttrs.version}/linux/Octarine-bin-${finalAttrs.version}-1-x86_64.pkg.tar.zst";
-    hash = "sha256-hUiKn0mGVDj3yoi6ITM+ffoN36ok5Ak9Oiukk6tbFD0=";
+    hash = "sha256-waU1NohGzcTKRWcZucw5lWyI/lTAqVOCMgez2zvmuxI=";
   };
 
   nativeBuildInputs = [
