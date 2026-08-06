@@ -54,23 +54,29 @@ if [ "$target" != "$cur" ]; then
     printf '\n'
     printf 'Type YES (capital letters) to confirm deploy of %s config to %s machine: ' \
         "$target" "$cur"
-
-    if ! read -r ans </dev/tty 2>/dev/null; then
-        printf '\n[refusing: deploy requires a real terminal for confirmation]\n' >&2
-        printf '[hint: use "just deploy-remote <host> <ip>" if running non-interactively]\n' >&2
-        exit 1
-    fi
-
-    if [ "$ans" != "YES" ]; then
-        printf 'Aborted. You typed: "%s" (must be exactly YES)\n' "$ans" >&2
-        exit 1
-    fi
 else
-    # ── MATCH case — print a short safe-line and proceed ────────────
-    # The mismatch path is where the real danger is. When the target
-    # matches the local hostname, this is the normal `just deploy`
-    # flow (local rebuild + activate) and the human doesn't need to
-    # type YES every time. The mismatch warning above is the gate that
-    # catches wrong-host deploys.
-    printf '>>> deploy %s (matches hostname, proceeding)\n' "$target"
+    # ── MATCH case — short safe-line, then prompt for YES ──────────
+    # The host key being valid is NOT sufficient safety on its own:
+    # 2026-08-06 the Beelink's hostname was wrongly set to "UwU",
+    # so target=="UwU" matched the wrong host and the deploy silently
+    # applied UwU's config to the server. The mismatch banner cannot
+    # catch this if hostname itself is wrong. So ALWAYS require YES,
+    # even on match. The friction is intentional.
+    printf 'About to deploy %s (matches hostname).\n' "$target"
+    printf 'Type YES to confirm: '
 fi
+
+# Read from /dev/tty so we get the real terminal even when just's stdin is piped.
+# If /dev/tty is not available, refuse rather than risk an auto-confirm from CI.
+if ! read -r ans </dev/tty 2>/dev/null; then
+    printf '\n[refusing: deploy requires a real terminal for confirmation]\n' >&2
+    printf '[hint: use "just deploy-remote <host> <ip>" if running non-interactively]\n' >&2
+    exit 1
+fi
+
+if [ "$ans" != "YES" ]; then
+    printf 'Aborted. You typed: "%s" (must be exactly YES)\n' "$ans" >&2
+    exit 1
+fi
+
+echo ">>> confirmed: proceeding with deploy of $target on $cur"
