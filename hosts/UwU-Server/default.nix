@@ -37,6 +37,17 @@
       # module so regeneration tools can replace it safely.
       ./hardware-configuration.nix
 
+      # UEFI boot-order cleanup (declared in this directory).
+      # Imports go into the NixOS module list (not the flake-parts module
+      # walker), because the boot-order module uses NixOS module idioms
+      # ({pkgs, ...}: {...}) and merges via lib.mkMerge, which the
+      # flake-parts walker doesn't do for nested functions.
+      ./boot-order.nix
+
+      # ./disk-layout.nix is auto-imported by `flake.nix`'s `collectModules`
+      # walker. See the comment at the top of this file for the full
+      # linkage explanation.
+
       { nixpkgs.overlays = [ inputs.self.overlays.additions ]; }
       { nixpkgs.overlays = [ (import ../../overlays/millennium.nix { millennium-input = inputs.millennium; }) ]; }
       {

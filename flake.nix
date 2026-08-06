@@ -123,6 +123,7 @@
               excluded =
                 name == "default.nix"
                 || name == "hardware-configuration.nix"
+                || name == "boot-order.nix"
                 || builtins.match ".*\\.overlay\\.nix" name != null;
             in
             if type == "directory" then collectModules path
@@ -223,6 +224,7 @@
               python3 tests/server-hermes-extensions-regressions.py
               SOPS_ROOT=${inputs.nixos-secrets} python3 tests/server-hermes-webui-regressions.py
               python3 tests/data-pool-layout-regressions.py
+              python3 tests/boot-order-cleanup-regressions.py
               touch $out
             '';
           };
