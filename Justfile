@@ -4,14 +4,26 @@
 # Host is auto-detected from the system hostname, so `just deploy` works
 # on any machine in the flake without specifying the target. Override with a
 # positional argument, for example `just deploy TSBW-W01800`.
+#
+# IMPORTANT (2026-08-06): every local deploy recipe calls
+# scripts/confirm-local-deploy.sh, which (1) prints a loud warning if the
+# target host arg does NOT match the local hostname, and (2) requires an
+# explicit "YES" typed at a real terminal before proceeding. This guard
+# exists because `just deploy` is a LOCAL deploy — running it on the wrong
+# machine applies that machine's config here, not remotely. Use
+# `just deploy-remote <host> <ip>` to push a config to a different machine.
 host := `hostname`
 
 # ── deploy / build ──────────────────────────────────────────────
-# Deploy the current host (auto-detected). Override: `just deploy TSBW-W01800`
+# Deploy the current host (auto-detected). Override: `just deploy TSBW-W01800`.
+# Guarded by scripts/confirm-local-deploy.sh — requires "YES" at a tty and
+# warns loudly if target != hostname.
 deploy $host=host:
+    ./scripts/confirm-local-deploy.sh "$host"
     nixos-rebuild switch --flake ".#$host" --elevate=sudo
 
 # Build the full system closure without activating — safest pre-check.
+# Non-activating, so no confirm gate needed.
 dry $host=host:
     nixos-rebuild dry-build --flake ".#$host"
 
@@ -20,17 +32,23 @@ vm $host=host:
     nixos-rebuild build-vm --flake ".#$host"
 
 # Verbose deploy with full trace + build logs (for debugging eval errors).
+# Guarded the same way as `deploy`.
 debug $host=host:
+    ./scripts/confirm-local-deploy.sh "$host"
     nixos-rebuild switch --flake ".#$host" --elevate=sudo --show-trace --print-build-logs --verbose
 
 # ── flake inputs ──────────────────────────────────────────────────
 # Update all flake inputs, then deploy the current host.
+# Guarded the same way as `deploy`.
 up $host=host:
+    ./scripts/confirm-local-deploy.sh "$host"
     nix flake update
     nixos-rebuild switch --flake ".#$host" --elevate=sudo
 
 # Update one required input, then deploy. Usage: `just upp hermes-agent UwU`
+# Guarded the same way as `deploy`.
 upp $i $host=host:
+    ./scripts/confirm-local-deploy.sh "$host"
     nix flake update "$i"
     nixos-rebuild switch --flake ".#$host" --elevate=sudo
 
