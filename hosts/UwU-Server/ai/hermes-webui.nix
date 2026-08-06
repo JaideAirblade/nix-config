@@ -128,6 +128,19 @@
       systemd.services.hermes-webui = {
         serviceConfig = {
           EnvironmentFile = [ config.sops.templates.hermes-webui-password.path ];
+
+          # The upstream hermes-webui NixOS module sets Restart=on-failure,
+          # which only restarts on a non-zero exit. The WebUI exits 0 on
+          # SIGTERM from ctl.sh AND on graceful shutdown from the SIGTERM
+          # handler in server.py (an `atexit` audit, not a crash), so a
+          # `systemctl stop` or any future clean-exit path left the service
+          # permanently down until manual intervention. Switch to
+          # Restart=always with a small RestartSec so the service self-heals
+          # regardless of how it exits, while still throttling tight crash
+          # loops. Same shape as hermes-gateway.nix.
+          Restart = lib.mkForce "always";
+          RestartSec = lib.mkForce "10s";
+
           NoNewPrivileges = true;
           PrivateDevices = true;
           PrivateTmp = true;
