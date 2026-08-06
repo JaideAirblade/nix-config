@@ -102,6 +102,10 @@ require(
     "private/work/personal nodes cannot SSH to every approved destination",
 )
 require(
+    "tag:private:8080" in mesh_destinations,
+    "tag:private peers must be allowed to reach Hermes WebUI on TCP/8080",
+)
+require(
     all("tag:printserver" not in rule.get("src", []) for rule in acls),
     "print server is allowed to initiate tailnet traffic",
 )
