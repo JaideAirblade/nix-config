@@ -64,9 +64,15 @@ require(
     "RestrictAddressFamilies must include AF_INET + AF_INET6 (gateway reaches Telegram/Discord/etc.)",
 )
 
-# 5. Does NOT set MemoryDenyWriteExecute (would break Python/node children)
+# 5. Does NOT set MemoryDenyWriteExecute (would break Python/node children).
+# Strip line-comments first so the explanatory comment in the .nix file
+# doesn't trip the test.
+non_comment_source = "\n".join(
+    line for line in source.split("\n")
+    if not line.lstrip().startswith("#")
+)
 require(
-    re.search(r"MemoryDenyWriteExecute\s*=\s*true", source) is None,
+    re.search(r"MemoryDenyWriteExecute\s*=\s*true", non_comment_source) is None,
     "MemoryDenyWriteExecute=true would crash hermes CLI's Python+node subprocesses",
 )
 
