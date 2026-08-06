@@ -140,6 +140,24 @@
         "d /home/luna/.ssh 0700 luna luna -"
         "L+ /home/luna/.ssh/id_ed25519 - - - - ${config.sops.templates.luna_server_ssh_identity.path}"
         "L+ /home/luna/.ssh/config - - - - /etc/luna/ssh_config"
+
+        # ── Sister-sync: jaide's Games directory lives on the dedicated games
+        # volume (/media/games, btrfs subvol on /dev/nvme2n1p1) so SEBNS's 54G
+        # Wine prefix and Steam library don't bloat the root pool's @/home
+        # subvol. /home/jaide/Games is a managed symlink into that volume —
+        # Heroic / Steam / Lutris resolve the canonical path
+        # /home/jaide/Games/Heroic/Prefixes/SEBNS the same way they would on
+        # UwU, where Games lives directly under /home.
+        #
+        # The symlink is idempotent and survives redeploys: tmpfiles.d treats
+        # an already-present file/symlink as a no-op for 'L+' entries when
+        # the target path resolves correctly. Initial creation requires the
+        # target directory to exist; disko + a jaide-writable /media/games
+        # provide that.
+        "d /media/games/jaide/Games 0750 jaide jaide -"
+        "d /media/games/jaide/Games/Heroic 0750 jaide jaide -"
+        "d /media/games/jaide/Games/Heroic/Prefixes 0750 jaide jaide -"
+        "L+ /home/jaide/Games - - - - /media/games/jaide/Games"
       ];
     };
 }
