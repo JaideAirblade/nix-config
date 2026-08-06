@@ -67,6 +67,10 @@ _:
         direnv # per-directory env vars — load nix shells, set vars per project
       ];
 
+      # Firefox is enabled by default for all hosts. Hosts that don't want
+      # Firefox (e.g. UwU-Server, which uses Helium as its primary browser
+      # and doesn't need a second) opt out via the per-host config:
+      #   programs.firefox.enable = lib.mkForce false;
       programs.firefox.enable = true;
 
       # NOTE: Previously used `gh auth git-credential` as a git credential helper
