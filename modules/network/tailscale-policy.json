@@ -9,7 +9,7 @@
     {
       "action": "accept",
       "src": ["tag:private", "tag:work", "tag:personal"],
-      "dst": ["tag:private:22", "tag:private:8080", "tag:work:22", "tag:personal:22", "tag:printserver:22"]    
+      "dst": ["tag:private:22", "tag:private:8080", "tag:work:22", "tag:work:8080", "tag:personal:22", "tag:personal:8080", "tag:printserver:22"]
     }
   ],
   "tests": [
@@ -24,6 +24,18 @@
     {
       "src": "tag:personal",
       "accept": ["tag:private:22", "tag:work:22", "tag:printserver:22"]
+    },
+    {
+      "src": "tag:private",
+      "accept": ["tag:private:22", "tag:private:8080", "tag:work:8080", "tag:personal:8080"]
+    },
+    {
+      "src": "tag:work",
+      "accept": ["tag:private:8080"]
+    },
+    {
+      "src": "tag:personal",
+      "accept": ["tag:private:8080"]
     },
     {
       "src": "tag:printserver",

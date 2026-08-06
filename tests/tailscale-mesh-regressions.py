@@ -106,6 +106,10 @@ require(
     "tag:private peers must be allowed to reach Hermes WebUI on TCP/8080",
 )
 require(
+    {"tag:work:8080", "tag:personal:8080"}.issubset(mesh_destinations),
+    "work and personal peers must also reach Hermes WebUI on TCP/8080 (phone + work laptop)",
+)
+require(
     all("tag:printserver" not in rule.get("src", []) for rule in acls),
     "print server is allowed to initiate tailnet traffic",
 )
