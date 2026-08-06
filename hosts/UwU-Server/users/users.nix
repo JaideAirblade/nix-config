@@ -6,13 +6,59 @@
 
     {
       users.users."jaide" = {
+        # Dedicated primary group for jaide's home so luna (a member of the
+        # `jaide` group) can read wallpapers and .config for the sister-sync
+        # use case. Switching from the system `users` group to a dedicated
+        # `jaide` group keeps the trust boundary explicit and avoids polluting
+        # the shared `users` group with personal-account membership.
+        group = "jaide";
         extraGroups = [
           "networkmanager"
           "wheel"
         ];
+        # Group-readable so luna can read /home/jaide. The home contains
+        # sensitive material (.ssh, .local/share/keyring, browser profile,
+        # .gnupg) — luna is a trusted fleet identity, not a sandboxed agent,
+        # and the access is read-only in practice (luna never writes here as
+        # part of normal operation).
+        homeMode = "0750";
         # The authorized SSH key is the only bootstrap credential. Set a login
         # password with `passwd` over that authenticated session if remote sudo is
         # needed; never put a plaintext bootstrap password in the Nix store.
+      };
+
+      # luna is a member of the `jaide` group so group-read on /home/jaide
+      # (mode 0750, primary group `jaide`) actually admits her. This is the
+      # NixOS-idiomatic way to share home access between two human accounts
+      # without either account touching the other's primary group.
+      users.groups.jaide.members = [ "luna" ];
+
+      # One-shot activation: migrate existing files in /home/jaide from the
+      # old primary group (the system `users` group, gid 100, on NixOS
+      # defaults) to the new `jaide` group so group-read mode 0750 actually
+      # admits luna on existing files too. Idempotent — `--from-group users`
+      # is a no-op once everything is migrated.
+      systemd.services.migrate-jaide-home-group = {
+        description = "Migrate /home/jaide file ownership to the jaide group";
+        wantedBy = [ "multi-user.target" ];
+        after = [ "local-fs.target" ];
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+          User = "root";
+          ExecStart = pkgs.writeShellScript "migrate-jaide-home-group" ''
+            set -euo pipefail
+            target=/home/jaide
+            [[ -d "$target" ]] || { echo "no $target, skipping"; exit 0; }
+            # Only chown files whose group is still the old `users` group
+            # (gid 100 on NixOS defaults). Leave everything else alone —
+            # this is a one-shot migration, not a recurring chown.
+            ${pkgs.findutils}/bin/find "$target" -xdev \
+              ! -group users -prune -o \
+              -group 100 -exec ${pkgs.coreutils}/bin/chown :jaide {} +
+            echo "migrate-jaide-home-group: complete"
+          '';
+        };
       };
 
       # Distinct central-agent fleet identity. The encrypted private key is
