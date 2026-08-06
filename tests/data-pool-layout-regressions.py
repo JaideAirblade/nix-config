@@ -184,57 +184,57 @@ if data_media_block is not None:
         re.search(r'100%FREE', code) is None,
     )
     check(
-        "dataMedia mounts at /media (not at /, /home, or any system path)",
-        re.search(r'mountpoint\s*=\s*"/media"\s*;', code) is not None,
+        "dataMedia mounts at /media/l1 (sibling of /media/l2, both under /media/)",
+        re.search(r'mountpoint\s*=\s*"/media/l1"\s*;', code) is not None,
     )
     check(
         "dataMedia mountpoint is not required for boot (`nofail` in mountOptions)",
         re.search(r'"nofail"', code) is not None,
     )
 
-# ── dataBackup pool invariants ────────────────────────────────────
+# ── dataMedia2 pool invariants ───────────────────────────────────
 data_backup_block = re.search(
-    r'disko\.devices\.disk\.dataBackup\s*=\s*\{(.*?)\n      \};',
+    r'disko\.devices\.disk\.dataMedia2\s*=\s*\{(.*?)\n      \};',
     text,
     re.DOTALL,
 )
 check(
-    "dataBackup disko block is present",
+    "dataMedia2 disko block is present",
     data_backup_block is not None,
 )
 if data_backup_block is not None:
     body = non_comment_lines(data_backup_block.group(1))
     code = "\n".join(body)
     check(
-        "dataBackup addresses the drive by /dev/disk/by-id/ (PCI-bus-stable)",
+        "dataMedia2 addresses the drive by /dev/disk/by-id/ (PCI-bus-stable)",
         "/dev/disk/by-id/nvme-Lexar" in code,
     )
     check(
-        "dataBackup declares destroy = false (disko destroy stage is no-op)",
+        "dataMedia2 declares destroy = false (disko destroy stage is no-op)",
         re.search(r"destroy\s*=\s*false\s*;", code) is not None,
     )
     check(
-        "dataBackup btrfs does NOT pass -f (no force-overwrite of existing btrfs)",
+        "dataMedia2 btrfs does NOT pass -f (no force-overwrite of existing btrfs)",
         re.search(r'extraArgs\s*=\s*\[\s*"-f"\s*\]', code) is None,
     )
     check(
-        "dataBackup btrfs has extraArgs = [ ] (explicit empty list)",
+        "dataMedia2 btrfs has extraArgs = [ ] (explicit empty list)",
         re.search(r"extraArgs\s*=\s*\[\s*\]", code) is not None,
     )
     check(
-        "dataBackup partition uses size = \"100%\" (disko's special enum for rest-of-disk)",
+        "dataMedia2 partition uses size = \"100%\" (disko's special enum for rest-of-disk)",
         re.search(r'size\s*=\s*"100%"', code) is not None,
     )
     check(
-        "dataBackup partition does NOT use the rejected \"100%FREE\" string",
+        "dataMedia2 partition does NOT use the rejected \"100%FREE\" string",
         re.search(r'100%FREE', code) is None,
     )
     check(
-        "dataBackup mounts at /backup (not at /, /home, or any system path)",
-        re.search(r'mountpoint\s*=\s*"/backup"\s*;', code) is not None,
+        "dataMedia2 mounts at /media/l2 (sibling of /media/l1, both under /media/)",
+        re.search(r'mountpoint\s*=\s*"/media/l2"\s*;', code) is not None,
     )
     check(
-        "dataBackup mountpoint is not required for boot (`nofail` in mountOptions)",
+        "dataMedia2 mountpoint is not required for boot (`nofail` in mountOptions)",
         re.search(r'"nofail"', code) is not None,
     )
 
@@ -245,11 +245,43 @@ if data_media_block and data_backup_block:
     media_serial = re.search(r"nvme-Lexar_SSD_NM790_4TB_(\w+)", media_text)
     backup_serial = re.search(r"nvme-Lexar_SSD_NM790_4TB_(\w+)", backup_text)
     check(
-        "dataMedia and dataBackup point at different physical serials",
+        "dataMedia and dataMedia2 point at different physical serials",
         bool(media_serial and backup_serial and media_serial.group(1) != backup_serial.group(1)),
         f"media={media_serial.group(1) if media_serial else '?'} "
-        f"backup={backup_serial.group(1) if backup_serial else '?'}",
+        f"media2={backup_serial.group(1) if backup_serial else '?'}",
     )
+
+# ── Both data pools share /media/ as a parent directory ──────────
+# dataMedia mounts at /media/l1; dataMedia2 mounts at /media/l2. /media/
+# is a directory (not a mount). Both mounts use X-mount.mkdir via the
+# subvolume mountOptions to create their respective leaf dirs.
+if data_media_block and data_backup_block:
+    media_text = data_media_block.group(0)
+    media2_text = data_backup_block.group(0)
+    media_mp = re.search(r'mountpoint\s*=\s*"([^"]+)"', media_text)
+    media2_mp = re.search(r'mountpoint\s*=\s*"([^"]+)"', media2_text)
+    if media_mp and media2_mp:
+        m1, m2 = media_mp.group(1), media2_mp.group(1)
+        check(
+            "dataMedia mounts at /media/l1",
+            m1 == "/media/l1", f"actual: {m1}",
+        )
+        check(
+            "dataMedia2 mounts at /media/l2",
+            m2 == "/media/l2", f"actual: {m2}",
+        )
+        # Both mountpoints share /media/ as a parent
+        check(
+            "both data pools share /media/ as parent directory",
+            m1.startswith("/media/") and m2.startswith("/media/")
+            and m1 != m2,
+            f"media={m1}, media2={m2}",
+        )
+        check(
+            "no data pool mounts at /backup (the old /backup mountpoint is gone)",
+            "/backup" not in text,
+            "the dataBackup block was renamed to dataMedia2 with mountpoint /media/l2",
+        )
 
 # ── Linkage: hosts/UwU-Server/default.nix references disk-layout.nix ──
 check(

@@ -6,18 +6,17 @@
 # or the system will lose its root filesystem on next rebuild.
 #
 # Drive inventory (as of 2026-08-06):
-#   - nvme1n1  Crucial E100 931GB      → root pool (btrfs with @, @/nix,
+#   - Crucial E100 931GB (any /dev/nvmeN) → root pool (btrfs with @, @/nix,
 #                                       @/home, @/var, @/snapshots + 1G ESP)
-#   - nvme0n1  Lexar NM790 3.7TB       → data-media pool (single btrfs @,
-#                                       mounted at /media, label data-media)
-#   - nvme2n1  Lexar NM790 3.7TB       → data-backup pool (single btrfs @,
-#                                       mounted at /backup, label data-backup)
+#   - Lexar NM790 3.7TB (QGW076R00...02202) → data-media pool #1, mounted at
+#                                       /media/l1 (single btrfs @)
+#   - Lexar NM790 3.7TB (QGW076R00...01702) → data-media pool #2, mounted at
+#                                       /media/l2 (single btrfs @)
 #
 # Each data pool is an INDEPENDENT single-device btrfs filesystem. They are
 # NOT joined into a multi-device pool (no RAID0/RAID1 across the two Lexars).
-# Reason: data-media (Pleias panel, drone footage, seanime library) and
-# data-backup (uwu desktop → server backup target) have isolated failure
-# domains — losing one Lexar must not take out the other.
+# Reason: the two Lexars carry related bulk-media data, but each is its own
+# failure domain — losing one must not take out the other.
 #
 # IMPORTANT — adding more data drives later:
 #   - Each new drive gets its own `disko.devices.disk.<name>` block.
@@ -34,8 +33,10 @@
 #      a btrfs signature is already present (see disko lib/types/btrfs.nix
 #      `_create`: the `blkid TYPE=` check is the "skip if exists" gate).
 #   3. `extraArgs = []` on every data btrfs — no `-f` flag, no force-overwrite.
-#   4. Each data partition uses `size = "100%FREE"` — no chance of disko
-#      deciding to shrink an existing partition.
+#   4. Each data partition uses `size = "100%"` (disko's special enum for
+#      "rest of disk") — no chance of disko deciding to shrink an
+#      existing partition. Note: the sgdisk-style `"100%FREE"` string is
+#      rejected by disko's type validator (see commit 77ff242).
 #   5. `mountOptions` of each data pool's `@` subvolume includes
 #      `"nofail"` — generated fstab entry has `nofail`, so a missing
 #      data drive does not block boot.
@@ -110,8 +111,8 @@
         };
       };
 
-      # ── DATA-MEDIA POOL — Lexar NM790 3.7TB (nvme0n1) ───────────
-      # Mounted at /media. Bulk storage for media library, drone
+      # ── DATA-MEDIA POOL #1 — Lexar NM790 3.7TB (QGW...2202) ───────
+      # Mounted at /media/l1. Bulk storage for media library, drone
       # footage, Pleias panel data, etc. Independent btrfs pool.
       disko.devices.disk.dataMedia = {
         type = "disk";
@@ -145,7 +146,7 @@
                 mountOptions = [ "compress=zstd" "noatime" ];
                 subvolumes = {
                   "@" = {
-                    mountpoint = "/media";
+                    mountpoint = "/media/l1";
                     mountOptions = [
                       "compress=zstd"
                       "noatime"
@@ -159,10 +160,15 @@
         };
       };
 
-      # ── DATA-BACKUP POOL — Lexar NM790 3.7TB (nvme2n1) ──────────
-      # Mounted at /backup. Backup target for the uwu desktop.
-      # Independent btrfs pool — never joined with dataMedia.
-      disko.devices.disk.dataBackup = {
+      # ── DATA-MEDIA POOL #2 — Lexar NM790 3.7TB (QGW...1702) ───────
+      # Mounted at /media/l2. Same purpose as dataMedia #1 — bulk media
+      # storage. Both drives sit under a shared /media/ parent so the
+      # directory tree groups them as related pools, but each is its own
+      # single-device btrfs filesystem. Independent failure domains: a
+      # dying Lexar takes out only its own subvolume tree, not the
+      # sibling's. NEVER joined into a multi-device pool (no btrfs
+      # device add).
+      disko.devices.disk.dataMedia2 = {
         type = "disk";
         device = "/dev/disk/by-id/nvme-Lexar_SSD_NM790_4TB_QGW076R008817P2202";
         destroy = false;
@@ -178,7 +184,7 @@
                 mountOptions = [ "compress=zstd" "noatime" ];
                 subvolumes = {
                   "@" = {
-                    mountpoint = "/backup";
+                    mountpoint = "/media/l2";
                     mountOptions = [
                       "compress=zstd"
                       "noatime"
