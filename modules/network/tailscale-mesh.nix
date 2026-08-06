@@ -45,7 +45,10 @@ _:
         # UwU and TSBW keep port 22 closed on LAN/public interfaces; all mesh
         # nodes accept it only on tailscale0. Hosts that deliberately retain a
         # LAN SSH path opt in with exposeSshOnLan.
-        networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 22 ];
+        # Port 8080 is the Hermes WebUI, only exposed over the Tailscale mesh
+        # (not LAN, not public internet). See tests/tailscale-mesh-regressions.py
+        # for the allow-list invariant guard.
+        networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 22 8080 ];
 
         # Jaide's established fleet key remains the human recovery/admin path
         # on every mesh destination. The private half never enters this repo.

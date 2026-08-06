@@ -37,11 +37,11 @@ require("services.openssh" in module and "enable = true;" in module, "traditiona
 require("openFirewall = cfg.exposeSshOnLan;" in module, "LAN SSH exposure is not role-controlled")
 require(
     re.search(
-        r'networking\.firewall\.interfaces\.tailscale0\.allowedTCPPorts\s*=\s*\[\s*22\s*\];',
+        r'networking\.firewall\.interfaces\.tailscale0\.allowedTCPPorts\s*=\s*\[\s*22\s*8080\s*\]\s*;',
         module,
     )
     is not None,
-    "TCP/22 is not explicitly allowed only on tailscale0",
+    "tailscale0 mesh firewall must allow only TCP/22 (SSH) and TCP/8080 (Hermes WebUI)",
 )
 require("PasswordAuthentication = false;" in module, "mesh SSH password authentication is not disabled")
 require("KbdInteractiveAuthentication = false;" in module, "mesh SSH keyboard authentication is not disabled")
