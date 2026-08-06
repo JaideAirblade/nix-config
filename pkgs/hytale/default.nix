@@ -45,12 +45,20 @@
 ,
 }:
 let
-  version = "2026.07.07-325d709";
+  # Pin to the current upstream build. Hytale rotates their CDN URLs when
+  # they push a new launcher, so this needs bumping whenever `nix build`
+  # fails with 404 on this hash. Fetch the new artifact from
+  # `https://launcher.hytale.com/builds/release/linux/amd64/hytale-launcher-latest.zip`
+  # and run `nix-prefetch-url --unpack <url>` to discover the new sha256.
+  # The build-id string (e.g. `2026.07.29-8228f98`) is embedded in the
+  # binary's strings table — `grep -aoE '20[0-9]{2}\.[0-9]{2}\.[0-9]{2}-[a-f0-9]+'`
+  # on the unpacked launcher reveals the new pin when Hytale rotates.
+  version = "2026.07.29-8228f98";
   pname = "hytale-launcher";
 
   src = fetchurl {
     url = "https://launcher.hytale.com/builds/release/linux/amd64/hytale-launcher-${version}.zip";
-    hash = "sha256-qC5q+5DRkl0jqmPRdWlcZ9n0sYKQdwmPncL/It9FhMw=";
+    hash = "sha256-k2IKxmkFyGAf05YnLW5T0f1dKK/5PcrX7nbN0etzoaA=";
   };
 
   unwrapped = stdenv.mkDerivation {
