@@ -9,15 +9,21 @@
 #         nixos-rebuild switch --flake ".#{{host}}" --elevate=sudo
 #
 # Behavior:
-#   - If $1 != $(hostname): prints a loud mismatch banner, then asks YES
-#   - If $1 == $(hostname): prints "safe" line, then asks YES
-#   - YES must be typed literally (uppercase). Anything else aborts.
-#   - Refuses to run if stdin is not a terminal (prevents piped auto-yes).
+#   - If $1 == $(hostname): prints one safe-line (">>> deploy X (matches
+#     hostname, proceeding)") and returns 0. No prompt, no tty required.
+#     This is the normal `just deploy` flow.
+#   - If $1 != $(hostname): prints a loud boxed warning, then requires
+#     the human to type the literal string "YES" (uppercase) at a real
+#     /dev/tty before proceeding. Refuses non-interactive runs (piped
+#     stdin / CI) so accidental auto-yes cannot bypass the gate.
 #
 # History: added 2026-08-06 after a near-miss where `just deploy UwU` on
 # the Beelink server (whose hostname was wrongly set to "UwU") applied the
 # desktop's flake config to the server and broke hermes-router, docker,
-# fail2ban, and several system users. See Mnemosyne memory ab254215582c2259.
+# fail2ban, and several system users. The mismatch branch catches that.
+# The match branch was simplified later the same day after the user
+# flagged the constant YES-prompt on safe deploys as "scary" — the
+# mismatch warning is the load-bearing safety, the prompt is not.
 
 set -euo pipefail
 
@@ -30,6 +36,7 @@ if [ -z "$target" ]; then
 fi
 
 if [ "$target" != "$cur" ]; then
+    # ── MISMATCH case — require explicit YES, refuse non-tty ───────
     printf '\n'
     printf '================================================================\n'
     printf '  !  HOST MISMATCH  !\n'
@@ -47,22 +54,23 @@ if [ "$target" != "$cur" ]; then
     printf '\n'
     printf 'Type YES (capital letters) to confirm deploy of %s config to %s machine: ' \
         "$target" "$cur"
+
+    if ! read -r ans </dev/tty 2>/dev/null; then
+        printf '\n[refusing: deploy requires a real terminal for confirmation]\n' >&2
+        printf '[hint: use "just deploy-remote <host> <ip>" if running non-interactively]\n' >&2
+        exit 1
+    fi
+
+    if [ "$ans" != "YES" ]; then
+        printf 'Aborted. You typed: "%s" (must be exactly YES)\n' "$ans" >&2
+        exit 1
+    fi
 else
-    printf 'About to deploy %s (matches hostname, safe).\n' "$target"
-    printf 'Type YES to confirm: '
+    # ── MATCH case — print a short safe-line and proceed ────────────
+    # The mismatch path is where the real danger is. When the target
+    # matches the local hostname, this is the normal `just deploy`
+    # flow (local rebuild + activate) and the human doesn't need to
+    # type YES every time. The mismatch warning above is the gate that
+    # catches wrong-host deploys.
+    printf '>>> deploy %s (matches hostname, proceeding)\n' "$target"
 fi
-
-# Read from /dev/tty so we get the real terminal even when just's stdin is piped.
-# If /dev/tty is not available, refuse rather than risk an auto-confirm from CI.
-if ! read -r ans </dev/tty 2>/dev/null; then
-    printf '\n[refusing: deploy requires a real terminal for confirmation]\n' >&2
-    printf '[hint: use "just deploy-remote <host> <ip>" if running non-interactively]\n' >&2
-    exit 1
-fi
-
-if [ "$ans" != "YES" ]; then
-    printf 'Aborted. You typed: "%s" (must be exactly YES)\n' "$ans" >&2
-    exit 1
-fi
-
-echo ">>> confirmed: proceeding with deploy of $target on $cur"

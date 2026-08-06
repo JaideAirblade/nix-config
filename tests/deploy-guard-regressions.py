@@ -134,12 +134,18 @@ if GUARD_SCRIPT.exists():
         "compares target arg to hostname",
     )
     check(
-        "guard script requires typing 'YES' (not just y/yes)",
-        '"YES"' in content,
-        "exact YES match",
+        "guard script YES-confirmation is only in the MISMATCH branch",
+        # The literal "YES" check should exist, but only inside the if-block
+        content.count('"$ans" != "YES"') == 1,
+        "exactly one YES comparison (only the mismatch branch prompts)",
     )
     check(
-        "guard script refuses non-interactive runs (no /dev/tty)",
+        "guard script's MATCH branch proceeds without prompt",
+        'matches hostname, proceeding' in content,
+        "match-case prints one safe-line and continues",
+    )
+    check(
+        "guard script refuses non-interactive runs (no /dev/tty) on mismatch",
         "/dev/tty" in content,
         "uses /dev/tty so piped stdin cannot auto-confirm",
     )
