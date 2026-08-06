@@ -183,6 +183,16 @@ require(
     'ReadWritePaths = [' in source and '/home/luna/.hermes' in source,
     "WebUI must have a writable path for /home/luna/.hermes",
 )
+require(
+    '/home/luna/workspace' in source,
+    "WebUI must have /home/luna/workspace in ReadWritePaths or ReadOnlyPaths "
+    "(it's the destination the upstream discovery was supposed to pick)",
+)
+require(
+    'systemd.tmpfiles.rules' in source and '/home/luna/workspace' in source,
+    "WebUI must pre-create /home/luna/workspace via systemd.tmpfiles so the "
+    "hardened unit (ProtectHome=read-only) doesn't block the WebUI's own mkdir",
+)
 
 # Sanity: must NOT have fallen back to writing the password to /etc or
 # anywhere world-writable.

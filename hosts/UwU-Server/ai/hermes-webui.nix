@@ -111,6 +111,16 @@
         extraEnvironment.HERMES_WEBUI_DEFAULT_WORKSPACE = "/home/luna/workspace";
       };
 
+      # Pre-create /home/luna/workspace at boot so the WebUI can write to
+      # it on the very first request, before any user login has happened.
+      # Mode 0700 keeps it luna-private (matches hermes-webui's expected
+      # file-mode strictness). Without this, the systemd hardening layer
+      # (ProtectHome=read-only + ReadWritePaths) blocks the WebUI's
+      # initial `mkdir` and the resolver falls back to /var/lib/.
+      systemd.tmpfiles.rules = [
+        "d /home/luna/workspace 0700 luna users - -"
+      ];
+
       # The upstream module already sets a sensible systemd unit; we layer
       # extra hardening on top so the WebUI is as locked down as
       # hermes-router. NoNewPrivileges + ProtectHome=read-only +
@@ -132,6 +142,7 @@
           ProtectSystem = "strict";
           ReadWritePaths = [
             "/home/luna/.hermes"
+            "/home/luna/workspace"
             "/var/lib/hermes-webui"
           ];
           RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" ];
