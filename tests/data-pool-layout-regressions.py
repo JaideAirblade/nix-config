@@ -176,8 +176,12 @@ if data_media_block is not None:
         re.search(r"extraArgs\s*=\s*\[\s*\]", code) is not None,
     )
     check(
-        "dataMedia partition uses size = \"100%FREE\" (no shrink)",
-        re.search(r'size\s*=\s*"100%FREE"', code) is not None,
+        "dataMedia partition uses size = \"100%\" (disko's special enum for rest-of-disk)",
+        re.search(r'size\s*=\s*"100%"', code) is not None,
+    )
+    check(
+        "dataMedia partition does NOT use the rejected \"100%FREE\" string",
+        re.search(r'100%FREE', code) is None,
     )
     check(
         "dataMedia mounts at /media (not at /, /home, or any system path)",
@@ -218,8 +222,12 @@ if data_backup_block is not None:
         re.search(r"extraArgs\s*=\s*\[\s*\]", code) is not None,
     )
     check(
-        "dataBackup partition uses size = \"100%FREE\" (no shrink)",
-        re.search(r'size\s*=\s*"100%FREE"', code) is not None,
+        "dataBackup partition uses size = \"100%\" (disko's special enum for rest-of-disk)",
+        re.search(r'size\s*=\s*"100%"', code) is not None,
+    )
+    check(
+        "dataBackup partition does NOT use the rejected \"100%FREE\" string",
+        re.search(r'100%FREE', code) is None,
     )
     check(
         "dataBackup mounts at /backup (not at /, /home, or any system path)",

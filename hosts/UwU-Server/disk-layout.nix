@@ -126,7 +126,14 @@
           type = "gpt";
           partitions = {
             data = {
-              size = "100%FREE";
+              # disko's `size` accepts either the literal string "100%"
+              # (a special enum meaning "use the rest of the disk") or a
+              # size string matching `[0-9]+[KMGTP]?` like "1G", "2T".
+              # It does NOT accept sgdisk's "100%FREE" — that string is
+              # rejected by the type validator, see the format dry-run
+              # that surfaced this on 2026-08-06. tests/data-pool-layout-
+              # regressions.py asserts this is exactly "100%".
+              size = "100%";
               content = {
                 type = "btrfs";
                 # IMPORTANT: no `-f` here. If a future edit adds
@@ -163,7 +170,8 @@
           type = "gpt";
           partitions = {
             data = {
-              size = "100%FREE";
+              # See dataMedia above for why "100%" not "100%FREE".
+              size = "100%";
               content = {
                 type = "btrfs";
                 extraArgs = [ ];
