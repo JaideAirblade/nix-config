@@ -1,0 +1,133 @@
+# UwU → UwU-Server rsync exclude list.
+#
+# Used by the sister-sync-from-uwu.sh script to copy jaide's home directory
+# from the UwU desktop (100.119.53.51) onto UwU-Server. The rules skip
+# anything that's a game, a download cache, a rebuildable artifact, or
+# anything that wouldn't be useful on the headless server.
+#
+# Edit with care — adding 'Downloads/' would let scripts/ leak into the
+# server, and removing the Steam excludes would copy 300GB of games.
+#
+# Pattern format: rsync's --exclude-from accepts one pattern per line.
+# Lines starting with '#' are comments (rsync ignores them).
+# Trailing '/' matters: it makes the pattern match a directory specifically.
+
+# UwU → UwU-Server rsync excludes
+# Pattern matches are rsync-side, applied to the SOURCE tree.
+# Rules: skip anything that's a game, a download, a cache, a rebuildable
+# build artifact, or anything that wouldn't be useful on a headless server.
+
+# ── OS / user state that's per-host ────────────────────────────────
+- .ssh/
+- .gnupg/
+- .cache/
+- .npm/
+- .cargo/registry/
+- .debug/
+- .local/state/nix/
+- .local/state/flatpak/
+- .local/share/nix/
+- .local/share/Trash/
+- .nix-defexpr
+- .nix-profile
+- .steam/
+- .steampath
+- .steampid
+
+# ── Steam itself (entire tree) ────────────────────────────────────
+- .local/share/Steam/
+
+# ── Browser user data (only firefox is installed on this server) ─
+- .config/Helium/
+- .config/helium/
+- .config/net.imput.helium/
+- .config/BraveSoftware/
+- .config/chromium/
+- .config/google-chrome*/
+- .config/microsoft-edge*/
+- .config/vivaldi*/
+- .config/zen/
+- .config/VSCodium/
+- .config/Code/
+- .config/discord/
+- .config/legcord/
+- .config/equibop/
+- .config/Seanime/
+- .config/IVPN/
+- .config/YouTube Music/
+- .config/itch/
+- .config/gh/
+- .config/lsp/
+- .config/enchant/
+- .config/FeeBay/
+- .config/pulse/
+- .config/dconf/
+- .config/gnome-session/
+- .config/evolution/
+- .config/evolution-data-server/
+- .config/evolution-*
+- .config/goa-*
+- .config/glib-2.0/
+- .config/gtk-3.0/
+- .config/gtk-4.0/
+- .config/kdeglobals
+- .config/kcminputrc
+- .config/user-dirs.dirs
+- .config/user-dirs.locale
+- .config/mimeapps.list
+
+# ── Other games / launchers / game data ────────────────────────────
+- .local/share/Heroic/
+- .local/share/HeroicLib/
+- .local/share/PrismLauncher/
+- .local/share/Hytale/
+- .local/share/octarine/
+- .local/share/Octarine.app/
+- .local/share/com.bilingify.readest/
+- .local/share/umu/
+- .local/share/flatpak/
+- .local/share/Sir, We Have an Orc Problem/
+- .var/app/app.twintaillauncher.ttl/
+- .wine/
+- .var/app/org.vinegarhq.Sober/
+
+# ── Game screenshots and large media files ────────────────────────
+- Backups/bns-genesis-launcher-*/
+- BnS/ui_screenshots/
+- Pictures/Screenshots/
+- Pictures/wallpapers/  # intentional: we EXCLUDE these and let it download fresh
+                        # (you said Pictures/Wallpapers is 634M but I want to
+                        # copy the rest of Pictures)
+
+# ── Rebuildable build/checkout dirs ─────────────────────────────────
+- Projects/
+- Games/
+- a/
+- bnspatch-work/
+- calibre-plugins/
+- htgb-btrfs-recovery-*/
+- nixos-beelink-server-iso/
+- nixos-secrets/
+
+# ── Hermes (keep ONLY skills/plugins/cron/mnemosyne, drop everything else) ──
+- .hermes/sessions/
+- .hermes/cache/
+- .hermes/lsp/
+- .hermes/models/
+- .hermes/voice-memos/
+- .hermes/audio_cache/
+- .hermes/desktop/
+- .hermes/profiles/local/cache/
+- .hermes/auth.lock
+- .hermes/auth.json
+- .hermes/gateway.lock
+- .hermes/gateway.pid
+- .hermes/gateway_state.json
+- .hermes/.env
+- .hermes/.hermes_history
+- .hermes/.hermes-server-managed-extensions
+- .hermes/channel_directory.json
+- .hermes/config.yaml.bak.*
+- .hermes/profiles/*/config.yaml.bak.*
+# Mnemosyne memories ARE shared - keep them on both machines
+- nixos/
