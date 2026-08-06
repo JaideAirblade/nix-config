@@ -222,6 +222,7 @@
               python3 tests/local-honcho-regressions.py
               python3 tests/server-hermes-extensions-regressions.py
               SOPS_ROOT=${inputs.nixos-secrets} python3 tests/server-hermes-webui-regressions.py
+              python3 tests/data-pool-layout-regressions.py
               touch $out
             '';
           };
