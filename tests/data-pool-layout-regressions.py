@@ -279,8 +279,10 @@ if data_media_block and data_backup_block:
         )
         check(
             "no data pool mounts at /backup (the old /backup mountpoint is gone)",
-            "/backup" not in text,
-            "the dataBackup block was renamed to dataMedia2 with mountpoint /media/l2",
+            not re.search(r'mountpoint\s*=\s*"/backup"', text),
+            "the dataBackup block was renamed to dataMedia2 with mountpoint /media/l2; "
+            "the new /media/backup mountpoint is on the GIGABYTE 1TB drive, not a 'backup' "
+            "sibling of /media/l1",
         )
 
 # ── Linkage: hosts/UwU-Server/default.nix references disk-layout.nix ──
@@ -288,6 +290,140 @@ check(
     "hosts/UwU-Server/default.nix mentions disk-layout.nix (linkage is documented)",
     "disk-layout.nix" in default_text,
     "the host entry point should reference its disk layout file by name",
+)
+
+# ── gamesAndBackup pool invariants (GIGABYTE 1TB, added 2026-08-06) ──
+# Single physical disk split into two btrfs partitions (games + backup).
+# Each partition is its own single-device btrfs (no multi-device pool).
+# Critical safety properties:
+#   - The GIGABYTE 1TB is NOT the OS drive. The OS is the Crucial E100
+#     (by-id nvme-CT1000E100SSD8). A copy-paste mistake that swaps the
+#     GIGABYTE's by-id into the root pool would wipe the OS — caught
+#     by the OS-by-id-exactly-one check above. This block just enforces
+#     the pool's own invariants.
+#   - destroy = false so disko's destroy stage doesn't touch the disk's
+#     existing partition table (the ext4 "Files" partition on it).
+#   - extraArgs = [] (no -f) so the btrfs format step can't force-overwrite
+#     an existing btrfs on re-runs.
+#   - nofail in mountOptions so boot doesn't block if the drive is missing.
+games_backup_block = re.search(
+    r'disko\.devices\.disk\.gamesAndBackup\s*=\s*\{(.*?)\n      \};',
+    text,
+    re.DOTALL,
+)
+check(
+    "gamesAndBackup disko block is present",
+    games_backup_block is not None,
+)
+if games_backup_block is not None:
+    body = non_comment_lines(games_backup_block.group(1))
+    code = "\n".join(body)
+    check(
+        "gamesAndBackup addresses the drive by /dev/disk/by-id/ (PCI-bus-stable)",
+        "/dev/disk/by-id/nvme-GIGABYTE" in code,
+    )
+    check(
+        "gamesAndBackup declares destroy = false (disko destroy stage is no-op)",
+        re.search(r"destroy\s*=\s*false\s*;", code) is not None,
+    )
+    # Both partitions must satisfy the btrfs safety contract.
+    # Each partition is its own btrfs, so each must:
+    #   - have extraArgs = [ ] (no -f)
+    #   - not contain size = "100%FREE"
+    #   - include "nofail" in mountOptions
+    games_partition_match = re.search(
+        r'games\s*=\s*\{',
+        code,
+    )
+    backup_partition_match = re.search(
+        r'backup\s*=\s*\{',
+        code,
+    )
+    check(
+        "gamesAndBackup has both 'games' and 'backup' partitions",
+        games_partition_match is not None and backup_partition_match is not None,
+    )
+    if games_partition_match is not None:
+        # Extract the body of the games partition by slicing from the
+        # match position to the next sibling ('backup' partition). The
+        # body's full content lives between the opening `{` of `games`
+        # and the closing `}` followed by `\n            },` (the end of
+        # the partition block at the disko-nested indent).
+        g_start = games_partition_match.end()
+        next_part = re.search(r'\n            \}\s*,\s*\n\s*backup\s*=\s*\{', code[g_start:])
+        if next_part is not None:
+            gp_code = code[g_start:g_start + next_part.start()]
+        else:
+            gp_code = code[g_start:]
+        check(
+            "games partition btrfs does NOT pass -f",
+            re.search(r'extraArgs\s*=\s*\[\s*"-f"\s*\]', gp_code) is None,
+        )
+        check(
+            "games partition btrfs has extraArgs = [ ]",
+            re.search(r"extraArgs\s*=\s*\[\s*\]", gp_code) is not None,
+        )
+        check(
+            "games partition btrfs has nofail in mountOptions",
+            '"nofail"' in gp_code,
+        )
+        check(
+            "games partition does NOT use the rejected '100%FREE' string",
+            "100%FREE" not in gp_code,
+        )
+    if backup_partition_match is not None:
+        b_start = backup_partition_match.end()
+        # The backup partition is the LAST sibling before the closing
+        # `};` of the gamesAndBackup block.
+        end_match = re.search(r'\n            \}', code[b_start:])
+        if end_match is not None:
+            bp_code = code[b_start:b_start + end_match.start()]
+        else:
+            bp_code = code[b_start:]
+        check(
+            "backup partition btrfs does NOT pass -f",
+            re.search(r'extraArgs\s*=\s*\[\s*"-f"\s*\]', bp_code) is None,
+        )
+        check(
+            "backup partition btrfs has extraArgs = [ ]",
+            re.search(r"extraArgs\s*=\s*\[\s*\]", bp_code) is not None,
+        )
+        check(
+            "backup partition btrfs has nofail in mountOptions",
+            '"nofail"' in bp_code,
+        )
+        check(
+            "backup partition does NOT use the rejected '100%FREE' string",
+            "100%FREE" not in bp_code,
+        )
+
+# ── gamesAndBackup pool mountpoints ──
+# Both partitions live under /media/ (sibling of /media/l1, /media/l2).
+if games_backup_block is not None:
+    gbp_code = "\n".join(non_comment_lines(games_backup_block.group(1)))
+    check(
+        "gamesAndBackup games partition mounts at /media/games",
+        re.search(r'mountpoint\s*=\s*"/media/games"\s*;', gbp_code) is not None,
+    )
+    check(
+        "gamesAndBackup backup partition mounts at /media/backup",
+        re.search(r'mountpoint\s*=\s*"/media/backup"\s*;', gbp_code) is not None,
+    )
+
+# ── The GIGABYTE 1TB by-id is referenced exactly once in the file ──
+# Same defensive pattern as the Crucial E100: one by-id reference per
+# physical disk. Two `device = "...GIGABYTE..."` lines would mean two
+# disko.devices.disk blocks for the same physical disk, which is
+# invalid (one disk, one block).
+gigabyte_by_id_lines = [
+    line.strip() for line in text.splitlines()
+    if "device = \"/dev/disk/by-id/nvme-GIGABYTE" in line
+]
+check(
+    "GIGABYTE 1TB by-id path appears in exactly one device = line "
+    "(one disko block per physical disk)",
+    len(gigabyte_by_id_lines) == 1,
+    f"found {len(gigabyte_by_id_lines)} reference(s): {gigabyte_by_id_lines}",
 )
 
 # ── Summary ───────────────────────────────────────────────────────

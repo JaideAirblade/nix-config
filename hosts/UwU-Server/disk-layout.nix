@@ -12,6 +12,14 @@
 #                                       /media/l1 (single btrfs @)
 #   - Lexar NM790 3.7TB (QGW076R00...01702) → data-media pool #2, mounted at
 #                                       /media/l2 (single btrfs @)
+#   - GIGABYTE GP-GSM2NE3100TNTD 1TB → games + backup pool, split into
+#                                       two partitions on the same disk:
+#                                       - games partition (300G) → /media/games
+#                                       - backup partition (~631G) → /media/backup
+#                                       Each partition is its own single-device
+#                                       btrfs (one disk, two filesystem-bearing
+#                                       partitions). Single disko.devices.disk
+#                                       block with two partitions inside.
 #
 # Each data pool is an INDEPENDENT single-device btrfs filesystem. They are
 # NOT joined into a multi-device pool (no RAID0/RAID1 across the two Lexars).
@@ -44,8 +52,14 @@
 # NOTE (2026-08-03): when the 2x Maxio MAP1602 4TB NVMes were first seen
 # they trained at Gen1 x1 and dropped off the bus (pciehp Slot(0): Link Down).
 # The current Lexar NM790 4TBs are stable on the bus per `journalctl -k
-# -g nvme` (last drop: 2026-08-05 22:45, recovered by 22:45:15). A future
-# 1TB ZFS-labelled NVMe from uwu is planned to join as a third pool.
+# -g nvme` (last drop: 2026-08-05 22:45, recovered by 22:45:15).
+#
+# The 1TB GIGABYTE GP-GSM2NE3100TNTD (SN214308905996) was added on 2026-08-06
+# for the games + backup pool. It shipped with an ext4 partition labeled
+# "Files" (empty aside from lost+found) — the actual payload was already
+# saved on UwU, so we wipe the ext4 and reformat as two btrfs partitions
+# (games + backup). The disko config handles the wipe on first deploy via
+# the format stage.
 {
   nixos.hosts."UwU-Server" =
     _:
@@ -189,6 +203,86 @@
                       "compress=zstd"
                       "noatime"
                       "nofail" # boot must not block on a missing data drive
+                    ];
+                  };
+                };
+              };
+            };
+          };
+        };
+      };
+
+      # ── GAMES + BACKUP POOLS — GIGABYTE GP-GSM2NE3100TNTD 1TB ───
+      # Single 1TB NVMe split into two btrfs partitions (one disk,
+      # two partitions, each its own btrfs filesystem). NOT joined into
+      # a multi-device pool — each partition is its own single-device
+      # btrfs with its own UUID and failure domain. The blkid TYPE=
+      # skip gate on btrfs's _create means re-runs are idempotent
+      # (existing btrfs signatures are preserved).
+      #
+      #   - games partition (300G) → /media/games — Steam/Heroic
+      #     library target. zstd compression is consistent with the
+      #     other data pools; Steam reads through it fine on this
+      #     hardware, and the dedup module (btrfs-dedup.nix) covers
+      #     identical-asset games automatically.
+      #   - backup partition (~631G) → /media/backup — btrfs snapshots
+      #     and rsync backups of the root pool + the other data pools.
+      #
+      # Wipes an existing ext4 partition on the drive (label "Files",
+      # owner jaide:users, just the empty lost+found dir — user
+      # confirmed the actual file payload is saved on UwU). disko's
+      # `destroy = false` means the existing partition table is
+      # untouched by the destroy stage; the format stage WILL create
+      # the new btrfs (because we wipe the ext4 first), then on
+      # subsequent runs it will skip the format step.
+      disko.devices.disk.gamesAndBackup = {
+        type = "disk";
+        device = "/dev/disk/by-id/nvme-GIGABYTE_GP-GSM2NE3100TNTD_SN214308905996";
+        destroy = false;
+        content = {
+          type = "gpt";
+          partitions = {
+            games = {
+              # 300G for the games pool. ~931 GiB total usable on a
+              # 1TB NVMe after GPT overhead; 300G + ~631G for backup
+              # = 931. Using a literal "300G" rather than "100%" so
+              # the games pool has a stable size independent of
+              # whatever the backup partition ends up being.
+              size = "300G";
+              content = {
+                type = "btrfs";
+                extraArgs = [ ];
+                mountOptions = [ "compress=zstd" "noatime" ];
+                subvolumes = {
+                  "@" = {
+                    mountpoint = "/media/games";
+                    mountOptions = [
+                      "compress=zstd"
+                      "noatime"
+                      "nofail" # boot must not block on a missing data drive
+                    ];
+                  };
+                };
+              };
+            };
+            backup = {
+              # Rest of the disk (~631G on a 1TB NVMe after the
+              # 300G games partition and GPT overhead). disko's
+              # "100%" enum: "use the rest of the disk". Note: NOT
+              # "100%FREE" — that string is rejected by disko's type
+              # validator, see commit 77ff242.
+              size = "100%";
+              content = {
+                type = "btrfs";
+                extraArgs = [ ];
+                mountOptions = [ "compress=zstd" "noatime" ];
+                subvolumes = {
+                  "@" = {
+                    mountpoint = "/media/backup";
+                    mountOptions = [
+                      "compress=zstd"
+                      "noatime"
+                      "nofail"
                     ];
                   };
                 };
