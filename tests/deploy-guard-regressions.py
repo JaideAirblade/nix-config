@@ -130,16 +130,26 @@ if GUARD_SCRIPT.exists():
     content = GUARD_SCRIPT.read_text()
     check(
         "guard script checks for hostname mismatch",
-        '"$target" != "$cur"' in content or 'target != cur' in content,
+        '"$target" != "$cur"' in content or 'target != cur' in content
+        or '"$target" = "$cur"' in content,
         "compares target arg to hostname",
     )
     check(
-        "guard script requires typing 'YES' (not just y/yes)",
-        '"YES"' in content,
-        "exact YES match",
+        "guard script match-case proceeds without prompt",
+        'matches hostname, proceeding' in content,
+        "match branch returns 0 after one safe-line",
     )
     check(
-        "guard script refuses non-interactive runs (no /dev/tty)",
+        "guard script mismatch case requires a typed token (not just 'yes')",
+        # Old "YES" string should be GONE; new design requires the user to
+        # type the literal target hostname twice.
+        '"YES"' not in content
+        and 'confirm_token' in content
+        and '${target} ${target}' in content,
+        "two-tokens-of-hostname pattern, no plain YES",
+    )
+    check(
+        "guard script refuses non-interactive runs (no /dev/tty) on mismatch",
         "/dev/tty" in content,
         "uses /dev/tty so piped stdin cannot auto-confirm",
     )
@@ -147,6 +157,11 @@ if GUARD_SCRIPT.exists():
         "guard script points user to deploy-remote as the right tool",
         "deploy-remote" in content,
         "remediation hint present",
+    )
+    check(
+        "guard script explains the common 'wrong hostname' cause",
+        "hostnamectl" in content,
+        "tells user to fix hostname if mismatch was a typo",
     )
 
 
