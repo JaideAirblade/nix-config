@@ -361,6 +361,12 @@
           # /var/lib/hermes-router/.env — both 0600 hermes-router.
           HR_ENV_FILE = "/var/lib/hermes-router/runtime.env";
           CODEX_MODEL = "gpt-5.6-sol";
+          # Z.ai GLM endpoint — pin to glm-5.2 (1M context, current-gen).
+          # Router default falls back to glm-4.7-flash if unset; explicit
+          # override keeps the agent's declared window in sync with the
+          # model's true capability, which matters for the bridge's
+          # context_switch_guard and for prompt-cache reuse across sessions.
+          ZAI_MODEL = "glm-5.2";
           # On-box last-resort provider (llama.cpp Nemotron), rank 99 in the
           # patch — only used when every cloud provider is unreachable.
           NEMOTRON_BASE_URL = "http://127.0.0.1:9001/v1";
