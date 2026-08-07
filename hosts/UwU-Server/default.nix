@@ -37,18 +37,16 @@
       # module so regeneration tools can replace it safely.
       ./hardware-configuration.nix
 
-      # UEFI boot-order cleanup (declared in this directory).
-      # Imports go into the NixOS module list (not the flake-parts module
-      # walker), because the boot-order module uses NixOS module idioms
-      # ({pkgs, ...}: {...}) and merges via lib.mkMerge, which the
-      # flake-parts walker doesn't do for nested functions.
+      # UEFI boot-order cleanup — declared in this directory.
+      # The walker excludes it from the auto-imported feature set
+      # (see flake.nix's `dendriticExceptions`); the host entry point
+      # imports the lower-level NixOS module directly because the
+      # walker imports files as flake-parts modules which only see
+      # `{ lib, config, inputs, ... }`, not the NixOS module system's
+      # `{ config, pkgs, lib, ... }`. The structural test
+      # (`tests/dendritic-import-coverage-regressions.py`) enforces
+      # that this direct import matches the manifest entry.
       ./boot-order.nix
-
-      # AOC AG344UXM EDID override — declarative boot-time load of the
-      # custom EDID into /sys/kernel/debug/dri/0000:c5:00.0/HDMI-A-1/edid_override.
-      # Skips if the override node doesn't exist (e.g. running on a host
-      # without the AOC monitor attached).
-      ./display.nix
 
       # ./disk-layout.nix is auto-imported by `flake.nix`'s `collectModules`
       # walker. See the comment at the top of this file for the full

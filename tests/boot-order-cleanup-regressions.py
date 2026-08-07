@@ -48,8 +48,8 @@ def check(name: str, ok: bool, detail: str = "") -> None:
     results.append((name, ok, detail))
 
 
-# ── 1. file presence and default.nix linkage ─────────────────────
-print("── 1. boot-order.nix exists and is referenced ──")
+# ── 1. file presence and host entry point linkage ─────────────────
+print("── 1. boot-order.nix exists and is reached through the host ──")
 check("hosts/UwU-Server/boot-order.nix exists", BOOT_ORDER.exists())
 if BOOT_ORDER.exists():
     text = BOOT_ORDER.read_text()
@@ -58,13 +58,25 @@ if BOOT_ORDER.exists():
 
 default_text = DEFAULT_NIX.read_text()
 check(
-    "default.nix explicitly imports ./boot-order.nix",
+    "default.nix imports ./boot-order.nix directly",
     "./boot-order.nix" in default_text,
+    "lower-level NixOS module is excluded by the walker and consumed "
+    "by the host entry point; the structural test enforces that "
+    "this import is paired with the manifest entry",
 )
 check(
-    "default.nix comments explain the explicit-import reason",
+    "default.nix comments explain the direct-import reason",
     "boot-order.nix" in default_text and "walker" in default_text,
-    "walker exclusion in flake.nix plus explicit import in default.nix",
+    "without the explanation, a future contributor may assume the "
+    "file is auto-imported and break the build",
+)
+check(
+    "default.nix does not select a non-existent merged role",
+    "config.nixos.modules.bootOrderCleanup" not in default_text
+    and "config.nixos.modules.aocEdidOverride" not in default_text,
+    "the upstream Dendritic pattern does not nest options under a "
+    "deferredModule slot; see modules/options.nix and the README "
+    "linked in AGENTS.md for the correct shape",
 )
 
 # ── 2. systemd oneshot service declaration ───────────────────────
@@ -175,13 +187,14 @@ print()
 print("── 5. boot-order.nix is excluded from the flake-parts walker ──")
 flake_text = FLAKE_NIX.read_text()
 check(
-    "flake.nix collectModules excludes 'boot-order.nix'",
-    re.search(r'name\s*==\s*"boot-order\.nix"', flake_text) is not None,
-    "without this, the walker would try to import boot-order.nix as a "
-    "flake-parts module and fail with 'attribute pkgs missing'",
+    "flake.nix dendriticExceptions lists 'hosts/UwU-Server/boot-order.nix'",
+    '"hosts/UwU-Server/boot-order.nix"' in flake_text,
+    "the walker otherwise tries to import the file as a top-level "
+    "flake-parts module, which fails because the file needs the "
+    "NixOS module system's `{ config, pkgs, lib, ... }` args",
 )
 
-# ── 6. boot-order.nix does NOT itself define nixos.hosts.UwU-Server
+# ── 6. boot-order.nix does NOT itself define nixos.hosts.<name> ──
 #        (it's a NixOS module, not a flake-parts module)
 print()
 print("── 6. boot-order.nix is a NixOS module, not a flake-parts module ──")
@@ -193,7 +206,7 @@ if BOOT_ORDER.exists():
     )
     check(
         "boot-order.nix does NOT set nixos.hosts.<name> (would conflict with disk-layout.nix)",
-        not re.search(r"nixos\.hosts\.\"?[A-Za-z0-9-]+\"?\s*=", text),
+        not re.search(r"nixos\.hosts\.\\\"?[A-Za-z0-9-]+\\\"?\s*=", text),
         "flake-parts merge would conflict if multiple files defined nixos.hosts.<name>",
     )
 
