@@ -157,7 +157,7 @@
               #    fixed in the module), so the symlink target never
               #    rotates.
               SOPS_RENDERED='/run/secrets/rendered/hermes-mobile-bridge-pairing'
-              CONSUMER='''/pairing.env'''
+              CONSUMER='${herConsoleServices}/pairing.env'
               if [ -f "$SOPS_RENDERED" ]; then
                 ln -sfn "$SOPS_RENDERED" "$CONSUMER"
                 echo "hermes-mobile-bridge: linked pairing.env -> $SOPS_RENDERED"
