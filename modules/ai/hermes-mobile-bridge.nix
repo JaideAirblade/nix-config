@@ -216,7 +216,7 @@
           # app uses it to authenticate the companion channel.
           # The QR the installer prints is the FULL pairing URL; we mirror
           # that format here so the app's QR scanner is happy either way.
-          pair_url="hermes://pair?gateway=http://$gateway_host:$gateway_port&dashboard=http://$gateway_host:$dashboard_port&bridge=http://$gateway_host:$bridge_port&token=$api_token"
+          pair_url="hermes://pair?host=$gateway_host&port=$gateway_port&token=$api_token&dashboard=http://$gateway_host:$dashboard_port&bridge=http://$gateway_host:$bridge_port&bridge_token=$api_token"
 
           echo
           echo "  +--------------------------------------------------------------+"
