@@ -242,6 +242,17 @@
       flake = {
         # Custom packages overlay — exposes pkgs.betterbird, pkgs.octarine, etc.
         overlays = import ./overlays;
+
+        # NixOS module that installs the witr process-tracing CLI on any host
+        # that imports it. Each host's default.nix adds `inputs.self.nixosModules.witr`
+        # to its modules list. witr ships in nixpkgs (both unstable and stable
+        # channels as of 2026-08-07), so no flake-input overlay is required —
+        # `pkgs.witr` resolves directly.
+        nixosModules.witr =
+          { pkgs, ... }:
+          {
+            environment.systemPackages = [ pkgs.witr ];
+          };
       };
     };
 }

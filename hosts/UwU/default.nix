@@ -22,6 +22,9 @@
       # module so regeneration tools can replace it safely.
       ./hardware-configuration.nix
 
+      # witr — process/port/container/file tracing CLI. See flake.nix.
+      inputs.self.nixosModules.witr
+
       { nixpkgs.overlays = [ inputs.self.overlays.additions ]; }
       { nixpkgs.overlays = [ inputs.self.overlays.python-package-fixes ]; }
       { nixpkgs.overlays = [ (import ../../overlays/millennium.nix { millennium-input = inputs.millennium; }) ]; }

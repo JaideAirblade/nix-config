@@ -54,6 +54,12 @@
       # walker. See the comment at the top of this file for the full
       # linkage explanation.
 
+      # witr — process/port/container/file tracing CLI ("why is this
+      # running?"). Module provided by flake.nix's flake.nixosModules.witr
+      # output; overlay below exposes pkgs.witr so the module can reference
+      # it like any other system package.
+      inputs.self.nixosModules.witr
+
       { nixpkgs.overlays = [ inputs.self.overlays.additions ]; }
       { nixpkgs.overlays = [ (import ../../overlays/millennium.nix { millennium-input = inputs.millennium; }) ]; }
       {

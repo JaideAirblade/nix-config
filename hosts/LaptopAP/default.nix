@@ -45,6 +45,13 @@ in
       # Live ISO environment + unattended installer (single module).
       ./live/default.nix
 
+      # witr — process/port/container/file tracing CLI. Ships in both
+      # unstable and stable nixpkgs, so no flake input / overlay is needed.
+      # Useful in the live ISO for diagnosing installation failures.
+      ({ pkgs, ... }: {
+        environment.systemPackages = [ pkgs.witr ];
+      })
+
       # Bake the installed system's full closure into the ISO store so
       # nixos-install can install it without network access.
       {

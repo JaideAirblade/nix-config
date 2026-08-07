@@ -43,6 +43,9 @@
       # Generated lower-level module exception.
       ./hardware-configuration.nix
 
+      # witr — process/port/container/file tracing CLI. See flake.nix.
+      inputs.self.nixosModules.witr
+
       { nixpkgs.overlays = [ inputs.self.overlays.additions ]; }
 
       {
