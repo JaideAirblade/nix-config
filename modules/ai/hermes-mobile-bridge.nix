@@ -147,6 +147,23 @@
                 '${herConsoleServices}/hermes-dashboard.sh' \
                 '${herConsoleServices}/hermes-bridge.sh'
               echo "hermes-mobile-bridge: wrote gateway/dashboard/bridge runners"
+
+              # 3. Mirror the sops-rendered pairing.env into the directory
+              #    the bridge runner expects. The upstream installer wrote
+              #    ~/.hermes/console-services/pairing.env directly; we
+              #    source-of-truth it at /run/secrets/rendered/... via the
+              #    sops template, so symlink rather than copy. The sops
+              #    template path is stable across deploys (filename is
+              #    fixed in the module), so the symlink target never
+              #    rotates.
+              SOPS_RENDERED='/run/secrets/rendered/hermes-mobile-bridge-pairing'
+              CONSUMER='''/pairing.env'''
+              if [ -f "$SOPS_RENDERED" ]; then
+                ln -sfn "$SOPS_RENDERED" "$CONSUMER"
+                echo "hermes-mobile-bridge: linked pairing.env -> $SOPS_RENDERED"
+              else
+                echo "hermes-mobile-bridge: WARNING $SOPS_RENDERED not present yet (sops template may not have rendered); bridge.sh will fail to source pairing.env" >&2
+              fi
         '';
       };
 
@@ -175,9 +192,14 @@
             echo "  remote-friendly URL." >&2
           fi
 
-          api_token="$(${pkgs.coreutils}/bin/cat /run/secrets/rendered/hermes-mobile-bridge-api-key 2>/dev/null || true)"
+          # sops-nix renders secrets to /run/secrets/<name> (no 'rendered/'
+          # prefix), and the name follows the sops.secrets key verbatim
+          # (underscores, not dashes). The pairing.env template lands at
+          # /run/secrets/rendered/<name> because sops.templates adds the
+          # 'rendered' prefix; secrets do not.
+          api_token="$(${pkgs.coreutils}/bin/cat /run/secrets/hermes_mobile_bridge_api_key 2>/dev/null || true)"
           if [ -z "$api_token" ]; then
-            echo "hermes-mobile-bridge-pair-qr: API key not rendered at /run/secrets/rendered/hermes-mobile-bridge-api-key" >&2
+            echo "hermes-mobile-bridge-pair-qr: API key not rendered at /run/secrets/hermes_mobile_bridge_api_key" >&2
             echo "  rebuild has likely not run yet - try 'just deploy' first." >&2
             exit 1
           fi
