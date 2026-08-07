@@ -47,7 +47,7 @@ let
   # it into the nix store rather than readFile'ing (readFile rejects null bytes).
   edidPackage = pkgs.runCommand "aoc-AG344UXM-edid" {} ''
     mkdir -p $out
-    cp ${../firmware/edid/aoc-AG344UXM-100hz.bin} $out/aoc-AG344UXM-100hz.bin
+    cp ${../../firmware/edid/aoc-AG344UXM-100hz.bin} $out/aoc-AG344UXM-100hz.bin
     chmod 0444 $out/aoc-AG344UXM-100hz.bin
   '';
 
@@ -74,59 +74,64 @@ in
       RemainAfterExit = true;
 
       # The override node is root-only (debugfs 0600), and dd needs to write
-      # exactly 256 bytes. Use a small script so the steps are atomic and
-      # the md5 verification is in one place.
-      ExecStart = pkgs.writeShellScript "apply-aoc-edid-override" ''
-        set -euo pipefail
+      # exactly 256 bytes. Use writeShellScriptBin + Environment to ensure
+      # coreutils (dd, md5sum, cut, cp) are on PATH. writeShellScript alone
+      # produces a script whose PATH is bare and can't find coreutils.
+      ExecStart = let
+        script = pkgs.writeShellScriptBin "apply-aoc-edid-override" ''
+          set -euo pipefail
 
-        EDID_SRC="${edidStorePath}"
-        OVERRIDE="${overrideNode}"
-        HOTPLUG="${hotplugNode}"
+          EDID_SRC="${edidStorePath}"
+          OVERRIDE="${overrideNode}"
+          HOTPLUG="${hotplugNode}"
 
-        if [ ! -f "$EDID_SRC" ]; then
-          echo "EDID source not found at $EDID_SRC" >&2
-          exit 1
-        fi
-        if [ ! -w "$OVERRIDE" ]; then
-          echo "Override node $OVERRIDE not writable (check debugfs mount)" >&2
-          exit 1
-        fi
-
-        # Snapshot the current override (for forensics if anything goes wrong)
-        cp "$OVERRIDE" "''${OVERRIDE}.pre-aoc.bak" 2>/dev/null || true
-
-        # Write the EDID. dd is synchronous: returns nonzero on EINVAL.
-        if ! dd if="$EDID_SRC" of="$OVERRIDE" bs=256 count=1 conv=fdatasync,notrunc; then
-          echo "dd to override node failed (likely kernel rejected EDID)" >&2
-          exit 1
-        fi
-
-        # Verify the write landed correctly before triggering anything.
-        SRC_MD5=$(md5sum "$EDID_SRC" | awk '{print $1}')
-        WRITTEN_MD5=$(md5sum "$OVERRIDE" | awk '{print $1}')
-        if [ "$WRITTEN_MD5" != "$SRC_MD5" ]; then
-          echo "Post-write md5 mismatch: got $WRITTEN_MD5, expected $SRC_MD5" >&2
-          echo "Restoring previous override to keep the system in a known state" >&2
-          if [ -f "''${OVERRIDE}.pre-aoc.bak" ]; then
-            cp "''${OVERRIDE}.pre-aoc.bak" "$OVERRIDE" || true
+          if [ ! -f "$EDID_SRC" ]; then
+            echo "EDID source not found at $EDID_SRC" >&2
+            exit 1
           fi
-          exit 1
-        fi
+          if [ ! -w "$OVERRIDE" ]; then
+            echo "Override node $OVERRIDE not writable (check debugfs mount)" >&2
+            exit 1
+          fi
 
-        echo "EDID override written and verified (md5=$WRITTEN_MD5)"
+          # Snapshot the current override (forensics if anything goes wrong)
+          cp "$OVERRIDE" "''${OVERRIDE}.pre-aoc.bak" 2>/dev/null || true
 
-        # Trigger per-connector hotplug. CRITICAL: do NOT use
-        # amdgpu_dm_trigger_hpd_mst — that path crashed the kernel with a
-        # NULL pointer dereference when the override's extension-block
-        # checksum was inconsistent (2026-08-07 incident).
-        if [ -w "$HOTPLUG" ]; then
-          echo 1 > "$HOTPLUG" || echo "trigger_hotplug write failed; not fatal" >&2
-        else
-          echo "hotplug node $HOTPLUG not writable; override loaded but no mode refresh" >&2
-        fi
+          # Write the EDID. dd is synchronous: returns nonzero on EINVAL.
+          # Note: NO fdatasync — debugfs is RAM-backed and fsync returns
+          # EINVAL on it. The data is written as soon as dd completes.
+          if ! dd if="$EDID_SRC" of="$OVERRIDE" bs=256 count=1 conv=notrunc; then
+            echo "dd to override node failed (likely kernel rejected EDID)" >&2
+            exit 1
+          fi
 
-        echo "AOC EDID override applied successfully"
-      '';
+          # Verify the write landed correctly before triggering anything.
+          SRC_MD5=$(md5sum "$EDID_SRC" | cut -d' ' -f1)
+          WRITTEN_MD5=$(md5sum "$OVERRIDE" | cut -d' ' -f1)
+          if [ "$WRITTEN_MD5" != "$SRC_MD5" ]; then
+            echo "Post-write md5 mismatch: got $WRITTEN_MD5, expected $SRC_MD5" >&2
+            echo "Restoring previous override to keep the system in a known state" >&2
+            if [ -f "''${OVERRIDE}.pre-aoc.bak" ]; then
+              cp "''${OVERRIDE}.pre-aoc.bak" "$OVERRIDE" || true
+            fi
+            exit 1
+          fi
+
+          echo "EDID override written and verified (md5=$WRITTEN_MD5)"
+
+          # Trigger per-connector hotplug. CRITICAL: do NOT use
+          # amdgpu_dm_trigger_hpd_mst — that path crashed the kernel with a
+          # NULL pointer dereference when the override's extension-block
+          # checksum was inconsistent (2026-08-07 incident).
+          if [ -w "$HOTPLUG" ]; then
+            echo 1 > "$HOTPLUG" || echo "trigger_hotplug write failed; not fatal" >&2
+          else
+            echo "hotplug node $HOTPLUG not writable; override loaded but no mode refresh" >&2
+          fi
+
+          echo "AOC EDID override applied successfully"
+        '';
+      in "${script}/bin/apply-aoc-edid-override";
 
       # Service hardening — the unit runs as root briefly to write to
       # debugfs. Keep it short-lived; it shouldn't run for more than a few
