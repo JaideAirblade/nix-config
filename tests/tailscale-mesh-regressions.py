@@ -37,11 +37,11 @@ require("services.openssh" in module and "enable = true;" in module, "traditiona
 require("openFirewall = cfg.exposeSshOnLan;" in module, "LAN SSH exposure is not role-controlled")
 require(
     re.search(
-        r'networking\.firewall\.interfaces\.tailscale0\.allowedTCPPorts\s*=\s*\[\s*22\s*8080\s*\]\s*;',
+        r'networking\.firewall\.interfaces\.tailscale0\.allowedTCPPorts\s*=\s*\[\s*22\s*8080\s*8642\s*9119\s*9131\s*\]\s*;',
         module,
     )
     is not None,
-    "tailscale0 mesh firewall must allow only TCP/22 (SSH) and TCP/8080 (Hermes WebUI)",
+    "tailscale0 mesh firewall must allow TCP/22 (SSH) + 8080 (WebUI) + 8642/9119/9131 (Hermes Mobile Bridge)",
 )
 require("PasswordAuthentication = false;" in module, "mesh SSH password authentication is not disabled")
 require("KbdInteractiveAuthentication = false;" in module, "mesh SSH keyboard authentication is not disabled")
@@ -108,6 +108,25 @@ require(
 require(
     {"tag:work:8080", "tag:personal:8080"}.issubset(mesh_destinations),
     "work and personal peers must also reach Hermes WebUI on TCP/8080 (phone + work laptop)",
+)
+# Hermes Mobile Bridge (xP3ta/hermes-setup) — gateway/dashboard/bridge ports
+# must be reachable from every non-printserver tag. The Android "Hermes
+# Console" app needs all three to pair and chatter.
+require(
+    {"tag:private:8642", "tag:private:9119", "tag:private:9131"}.issubset(
+        mesh_destinations
+    ),
+    "tag:private peers must be allowed to reach Hermes Mobile Bridge on 8642/9119/9131",
+)
+require(
+    {"tag:work:8642", "tag:work:9119", "tag:work:9131"}.issubset(mesh_destinations),
+    "work peers must also reach Hermes Mobile Bridge ports (work laptop pairing)",
+)
+require(
+    {"tag:personal:8642", "tag:personal:9119", "tag:personal:9131"}.issubset(
+        mesh_destinations
+    ),
+    "personal peers must also reach Hermes Mobile Bridge ports (phone pairing)",
 )
 require(
     all("tag:printserver" not in rule.get("src", []) for rule in acls),

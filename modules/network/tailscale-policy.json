@@ -9,7 +9,24 @@
     {
       "action": "accept",
       "src": ["tag:private", "tag:work", "tag:personal"],
-      "dst": ["tag:private:22", "tag:private:8080", "tag:work:22", "tag:work:8080", "tag:personal:22", "tag:personal:8080", "tag:printserver:22"]
+      "dst": [
+        "tag:private:22",
+        "tag:private:8080",
+        "tag:private:8642",
+        "tag:private:9119",
+        "tag:private:9131",
+        "tag:work:22",
+        "tag:work:8080",
+        "tag:work:8642",
+        "tag:work:9119",
+        "tag:work:9131",
+        "tag:personal:22",
+        "tag:personal:8080",
+        "tag:personal:8642",
+        "tag:personal:9119",
+        "tag:personal:9131",
+        "tag:printserver:22"
+      ]
     }
   ],
   "tests": [
@@ -27,15 +44,39 @@
     },
     {
       "src": "tag:private",
-      "accept": ["tag:private:22", "tag:private:8080", "tag:work:8080", "tag:personal:8080"]
+      "accept": [
+        "tag:private:22",
+        "tag:private:8080",
+        "tag:private:8642",
+        "tag:private:9119",
+        "tag:private:9131",
+        "tag:work:8080",
+        "tag:work:8642",
+        "tag:work:9119",
+        "tag:work:9131",
+        "tag:personal:8080",
+        "tag:personal:8642",
+        "tag:personal:9119",
+        "tag:personal:9131"
+      ]
     },
     {
       "src": "tag:work",
-      "accept": ["tag:private:8080"]
+      "accept": [
+        "tag:private:8080",
+        "tag:private:8642",
+        "tag:private:9119",
+        "tag:private:9131"
+      ]
     },
     {
       "src": "tag:personal",
-      "accept": ["tag:private:8080"]
+      "accept": [
+        "tag:private:8080",
+        "tag:private:8642",
+        "tag:private:9119",
+        "tag:private:9131"
+      ]
     },
     {
       "src": "tag:printserver",

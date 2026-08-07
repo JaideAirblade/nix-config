@@ -49,9 +49,19 @@ _:
         # (not LAN, not public internet). The mesh itself is WireGuard-encrypted
         # end to end, so plain HTTP on 8080 inside the tailnet is acceptable;
         # clients see "Not secure" in browsers but the data is tunnel-encrypted.
+        # Ports 8642/9119/9131 are the Hermes Mobile Bridge (xP3ta/hermes-setup)
+        # — gateway (OpenAI API), dashboard (web UI), and bridge (Android
+        # companion service). Same exposure rules as 8080: Tailscale-only,
+        # no LAN/public. Mirror ACL in tailscale-policy.json.
         # See tests/tailscale-mesh-regressions.py for the allow-list invariant
         # guard.
-        networking.firewall.interfaces.tailscale0.allowedTCPPorts = [ 22 8080 ];
+        networking.firewall.interfaces.tailscale0.allowedTCPPorts = [
+          22
+          8080
+          8642
+          9119
+          9131
+        ];
 
         # Jaide's established fleet key remains the human recovery/admin path
         # on every mesh destination. The private half never enters this repo.

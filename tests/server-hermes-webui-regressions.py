@@ -81,7 +81,7 @@ require(
 # the Tailscale path). Mirror check on tailscale-mesh.nix + policy.json.
 mesh = (ROOT / "modules/network/tailscale-mesh.nix").read_text(encoding="utf-8")
 require(
-    re.search(r"networking\.firewall\.interfaces\.tailscale0\.allowedTCPPorts\s*=\s*\[\s*22\s*8080\s*\]\s*;", mesh)
+    re.search(r"networking\.firewall\.interfaces\.tailscale0\.allowedTCPPorts\s*=\s*\[\s*22\s*8080\s*8642\s*9119\s*9131\s*\]\s*;", mesh)
     is not None,
     "tailscale0 mesh firewall must allow TCP/8080 alongside TCP/22 for the WebUI",
 )

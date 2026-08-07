@@ -222,6 +222,7 @@
               python3 tests/mnemosyne-activation-regressions.py
               python3 tests/local-honcho-regressions.py
               python3 tests/server-hermes-extensions-regressions.py
+              python3 tests/server-hermes-mobile-bridge-regressions.py
               SOPS_ROOT=${inputs.nixos-secrets} python3 tests/server-hermes-webui-regressions.py
               python3 tests/data-pool-layout-regressions.py
               python3 tests/boot-order-cleanup-regressions.py
