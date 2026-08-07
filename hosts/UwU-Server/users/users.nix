@@ -2,7 +2,7 @@
 { inputs, ... }:
 {
   nixos.hosts."UwU-Server" =
-    { config, pkgs, ... }:
+    { config, pkgs, lib, ... }:
 
     {
       users.users."jaide" = {
@@ -74,6 +74,17 @@
         group = "luna";
         mode = "0600";
       };
+
+      # graphify lives in a per-user pip venv at ~/.local/share/graphify-venv
+      # (system python3, no home-manager, PEP 668 doesn't bite because the
+      # venv is a clean site). The symlink at ~/.local/bin/graphify is what
+      # ~/.local/bin/graphify resolves to, so ~/.local/bin needs to be on
+      # PATH. The lib.mkBefore keeps user overrides ahead of the system
+      # default PATH prefix order so `graphify` here always wins over any
+      # future global install.
+      environment.sessionVariables.PATH = lib.mkBefore [
+        "/home/luna/.local/bin"
+      ];
 
       # Declarative SSH config for Luna's GitHub access. Route through
       # ssh.github.com:443 since port 22 is often blocked.

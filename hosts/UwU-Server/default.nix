@@ -44,6 +44,12 @@
       # flake-parts walker doesn't do for nested functions.
       ./boot-order.nix
 
+      # AOC AG344UXM EDID override — declarative boot-time load of the
+      # custom EDID into /sys/kernel/debug/dri/0000:c5:00.0/HDMI-A-1/edid_override.
+      # Skips if the override node doesn't exist (e.g. running on a host
+      # without the AOC monitor attached).
+      ./display.nix
+
       # ./disk-layout.nix is auto-imported by `flake.nix`'s `collectModules`
       # walker. See the comment at the top of this file for the full
       # linkage explanation.

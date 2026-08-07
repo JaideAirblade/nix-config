@@ -124,6 +124,7 @@
                 name == "default.nix"
                 || name == "hardware-configuration.nix"
                 || name == "boot-order.nix"
+                || name == "display.nix"
                 || builtins.match ".*\\.overlay\\.nix" name != null;
             in
             if type == "directory" then collectModules path
