@@ -140,7 +140,7 @@
           export HERMES_HOME='${herHome}'
           export BRIDGE_HERMES_HOME='${herHome}'
           cd '${herHome}'
-          exec '${pkgs.hermes-agent}/bin/python' -u '${herHome}/hermes_bridge.py' --i-know-what-im-doing
+          exec '${pkgs.python3.withPackages (ps: [ ps.aiohttp ])}/bin/python' -u '${herHome}/hermes_bridge.py' --i-know-what-im-doing
           BRIDGE_RUNNER_BODY
               chmod 0700 \
                 '${herConsoleServices}/hermes-gateway.sh' \
