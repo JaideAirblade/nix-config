@@ -360,7 +360,7 @@
           # slots (e.g. Ollama Cloud via LOCAL_BASE_URL) in
           # /var/lib/hermes-router/.env — both 0600 hermes-router.
           HR_ENV_FILE = "/var/lib/hermes-router/runtime.env";
-          CODEX_MODEL = "gpt-5.6-sol";
+          CODEX_MODEL = "gpt-5.6-sol,gpt-5.6-terra,gpt-5.6-luna";
           # Z.ai GLM endpoint — pin to glm-5.2 (1M context, current-gen).
           # Router default falls back to glm-4.7-flash if unset; explicit
           # override keeps the agent's declared window in sync with the
