@@ -128,6 +128,7 @@
           # without API_SERVER_KEY. Use the bridge token (same sops secret)
           # so a single key authenticates both surfaces.
           export API_SERVER_KEY="$BRIDGE_TOKEN"
+          export API_SERVER_ENABLED=true
           export HERMES_HOME='${herHome}'
           export API_SERVER_HOST='0.0.0.0'
           export API_SERVER_PORT=8642
