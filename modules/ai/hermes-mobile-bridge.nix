@@ -121,6 +121,13 @@
               install -d -m 0700 '${herConsoleServices}'
               cat > '${herConsoleServices}/hermes-gateway.sh' <<'GATEWAY_RUNNER_BODY'
           #!/bin/sh
+          set -a
+          . '${herConsoleServices}/pairing.env'
+          set +a
+          # Hermes security audit blocks binding API server to non-loopback
+          # without API_SERVER_KEY. Use the bridge token (same sops secret)
+          # so a single key authenticates both surfaces.
+          export API_SERVER_KEY="$BRIDGE_TOKEN"
           export HERMES_HOME='${herHome}'
           export API_SERVER_HOST='0.0.0.0'
           export API_SERVER_PORT=8642
