@@ -89,7 +89,7 @@
       # state and only mutates when the destination is missing or stale.
       stageBridge = pkgs.writeShellApplication {
         name = "hermes-mobile-bridge-stage";
-        runtimeInputs = [ pkgs.coreutils pkgs.gnused ];
+        runtimeInputs = [ pkgs.coreutils pkgs.gnused pkgs.hermes-agent ];
         text = ''
               set -euo pipefail
 
@@ -140,7 +140,7 @@
           export HERMES_HOME='${herHome}'
           export BRIDGE_HERMES_HOME='${herHome}'
           cd '${herHome}'
-          exec '${pkgs.python3}/bin/python3' -u '${herHome}/hermes_bridge.py' --i-know-what-im-doing
+          exec '${pkgs.hermes-agent}/bin/python' -u '${herHome}/hermes_bridge.py' --i-know-what-im-doing
           BRIDGE_RUNNER_BODY
               chmod 0700 \
                 '${herConsoleServices}/hermes-gateway.sh' \
