@@ -164,7 +164,6 @@
                 || builtins.match ".*\\.overlay\\.nix" entry != null
                 || isException repoRelPath;
               childPrefix = if prefix == "" then entry else prefix + "/" + entry;
-              _force = builtins.seq (builtins.toString path) null;
             in
             if type == "directory" then collectModules path childPrefix
             else if type == "regular" && isNix && !excluded then

@@ -40,12 +40,6 @@ OPTIONS = REPO / "modules" / "options.nix"
 
 IGNORED_TREES = ("pkgs/", "overlays/")
 
-# Files that the walker itself excludes by *name pattern*. The
-# structural test does not re-validate these; flake-parts will error
-# if any of them are misclassified.
-WALKER_IGNORED_NAMES = {"default.nix", "hardware-configuration.nix"}
-WALKER_IGNORED_SUFFIXES = (".overlay.nix",)
-
 
 def iter_nix_files() -> list[Path]:
     files: list[Path] = []
@@ -193,7 +187,6 @@ check(
 # dependency here.
 options_index = flake_text.find("modules/options.nix")
 collect_modules_index = flake_text.find("collectModules")
-feature_modules_index = flake_text.find("featureModules = collectModules")
 check(
     "modules/options.nix is not imported in a way that violates option ordering",
     options_index < 0 or collect_modules_index < options_index,
