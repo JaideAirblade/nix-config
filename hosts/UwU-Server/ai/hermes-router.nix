@@ -367,6 +367,11 @@
           # model's true capability, which matters for the bridge's
           # context_switch_guard and for prompt-cache reuse across sessions.
           ZAI_MODEL = "glm-5.2";
+          # Kimi coding endpoint — pin to kimi-k3 (1M context). The router's
+          # upstream default is kimi-for-coding which is K2.x (262K). K3 was
+          # the explicit request — keeps the kimi provider competitive with
+          # the other tier-1 models instead of bottlenecking at 256K.
+          KIMI_MODEL = "kimi-k3";
           # On-box last-resort provider (llama.cpp Nemotron), rank 99 in the
           # patch — only used when every cloud provider is unreachable.
           NEMOTRON_BASE_URL = "http://127.0.0.1:9001/v1";
