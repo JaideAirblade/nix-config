@@ -83,6 +83,7 @@
       herUser = "luna";
       herGroup = "users";
       herHermesBin = "${pkgs.hermes-agent}/bin/hermes";
+      hermesAgentVenv = pkgs.hermes-agent.hermesVenv;
 
       # Activation script that stages hermes_bridge.py, the runner scripts,
       # and the systemd user units. Idempotent: every step checks for prior
@@ -140,7 +141,7 @@
           export HERMES_HOME='${herHome}'
           export BRIDGE_HERMES_HOME='${herHome}'
           cd '${herHome}'
-          exec '${pkgs.python3.withPackages (ps: [ ps.aiohttp ])}/bin/python' -u '${herHome}/hermes_bridge.py' --i-know-what-im-doing
+          exec '${hermesAgentVenv}/bin/python' -u '${herHome}/hermes_bridge.py' --i-know-what-im-doing
           BRIDGE_RUNNER_BODY
               chmod 0700 \
                 '${herConsoleServices}/hermes-gateway.sh' \
