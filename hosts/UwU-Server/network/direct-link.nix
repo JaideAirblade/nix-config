@@ -137,7 +137,15 @@ _:
           dns = {
             bind_address = "0.0.0.0";
             listen_port = 53;
+            # Per-domain upstream: route tailnet names (MagicDNS) through
+            # Tailscale's own resolver before falling back to Unbound.
+            # Without this, UwU clients using AdGuard as their system DNS
+            # cannot resolve *.tail542648.ts.net (Unbound is recursive-only
+            # and has no view into the Tailscale coord server) and SSH by
+            # hostname from the direct link silently breaks. Tailscale's
+            # 100.100.100.100 is reachable via tailscale0 on this host.
             upstream_dns = [
+              "[/tail542648.ts.net/]100.100.100.100"
               "127.0.0.1:5335"
             ];
             bootstrap_dns = [
