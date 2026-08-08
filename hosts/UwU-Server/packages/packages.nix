@@ -23,6 +23,11 @@ _:
 
         # Readest — modern ebook reader. Same as on UwU.
         readest
+
+        # OfficeCLI — Office suite for AI agents (.docx/.xlsx/.pptx via CLI).
+        # Single .NET binary, autoPatchelf'd for NixOS. Skill auto-installed
+        # at ~/.hermes/skills/officecli/ by the upstream install script.
+        officecli
       ];
 
       # Opt out of the shared Firefox enable (modules/packages/packages.nix).
