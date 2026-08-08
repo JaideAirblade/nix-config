@@ -73,13 +73,13 @@
         description = "OmniRoute OpenAI-compatible AI router (container)";
         after = [ "docker.service" "network-online.target" ];
         wants = [ "docker.service" "network-online.target" ];
-        # Intentionally NOT wantedBy multi-user.target: the staged
-        # unit is dormant by default after the 2026-08-08 audit
-        # showed OmniRoute v3.8.50's loopback-only middleware
-        # rejects API requests from a different process namespace,
-        # which makes it a non-drop-in for a separate Hermes Router
-        # consumer. Start manually with `systemctl start omniroute-container`
-        # only when intentionally exercising the in-container path.
+        # Auto-start on boot so OmniRoute is reachable on 127.0.0.1:8320
+        # without manual intervention. Hermes Router stays enabled and
+        # primary on 127.0.0.1:8319 — OmniRoute is a parallel router,
+        # not a replacement. The cutover to 8319 happens in a separate
+        # commit only after live-verify of all four OpenAI-compatible
+        # routes against OmniRoute on 8320 succeeds.
+        wantedBy = [ "multi-user.target" ];
         path = [ pkgs.docker ];
         serviceConfig = {
           Type = "exec";
