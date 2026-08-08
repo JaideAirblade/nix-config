@@ -13,4 +13,5 @@ pkgs: {
   omniroute = pkgs.callPackage ./omniroute { };
 
   officecli = pkgs.callPackage ./officecli { };
+  herm-tui = pkgs.callPackage ./herm-tui { };
 }

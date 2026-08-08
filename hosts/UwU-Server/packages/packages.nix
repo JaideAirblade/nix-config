@@ -32,6 +32,11 @@ _:
         # Octarine — private markdown note-taking app (custom package from pkgs/).
         # Same as on UwU and TSBW-W01800. Workspace at ~/Documents/Life/.
         octarine
+
+        # Herm — modern TUI for Hermes Agent (custom package from pkgs/).
+        # Built with OpenTUI + Bun. Provides chat, sessions, skills, cron,
+        # kanban, analytics, and config management in one terminal interface.
+        herm-tui
       ];
 
       # Opt out of the shared Firefox enable (modules/packages/packages.nix).
