@@ -19,6 +19,7 @@
       services.gitea = {
         enable = true;
         appName = "Jaide's Git";
+        user = "git";
 
         stateDir = "/var/lib/gitea";
         repositoryRoot = "/var/lib/gitea/repositories";
@@ -53,11 +54,20 @@
         };
       };
 
+      # Create the `git` system user so SSH clones as git@host work.
+      users.users.git = {
+        isSystemUser = true;
+        group = "git";
+        home = "/var/lib/gitea";
+        useDefaultShell = true;
+      };
+      users.groups.git = {};
+
       # --- Sops secret for gitea internal token --------------------------
       sops.secrets.gitea_internal_token = {
         sopsFile = "${inputs.nixos-secrets}/secrets/UwU-Server/gitea.yaml";
         key = "internal_token";
-        owner = "gitea";
+        owner = "git";
         mode = "0400";
       };
 
