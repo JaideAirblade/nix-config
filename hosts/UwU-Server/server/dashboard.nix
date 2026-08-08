@@ -193,6 +193,8 @@
                         { title = "Hermes Bridge"; url = "https://bridge.${domain}"; alt-status-codes = [ 302 ]; }
                         { title = "Grafana"; url = "https://grafana.${domain}"; icon = "si:grafana"; }
                         { title = "Netdata"; url = "https://netdata.${domain}"; icon = "si:netdata"; alt-status-codes = [ 400 404 ]; }
+                        { title = "Paperless-ngx"; url = "https://paperless.${domain}"; icon = "si:paperless-ngx"; alt-status-codes = [ 302 ]; }
+                        { title = "Gitea"; url = "https://git.${domain}"; icon = "si:gitea"; alt-status-codes = [ 302 ]; }
                       ];
                     }
                   ];
@@ -216,6 +218,13 @@
                           links = [
                             { title = "llama-server"; url = "http://${tsIP}:9001"; }
                             { title = "Embeddings"; url = "http://${tsIP}:9002"; }
+                          ];
+                        }
+                        {
+                          title = "Services";
+                          links = [
+                            { title = "Paperless-ngx"; url = "https://paperless.${domain}"; icon = "si:paperless-ngx"; }
+                            { title = "Gitea"; url = "https://git.${domain}"; icon = "si:gitea"; }
                           ];
                         }
                       ];
