@@ -188,11 +188,11 @@
                       title = "Services";
                       sites = [
                         { title = "AdGuard Home"; url = "https://adguard.${domain}"; icon = "si:adguard"; }
-                        { title = "Hermes WebUI"; url = "https://hermes.${domain}"; icon = "si:openai"; }
-                        { title = "Hermes Gateway"; url = "https://gateway.${domain}"; }
-                        { title = "Hermes Bridge"; url = "https://bridge.${domain}"; }
+                        { title = "Hermes WebUI"; url = "https://hermes.${domain}"; icon = "si:openai"; alt-status-codes = [ 501 ]; }
+                        { title = "Hermes Gateway"; url = "https://gateway.${domain}"; alt-status-codes = [ 404 ]; }
+                        { title = "Hermes Bridge"; url = "https://bridge.${domain}"; alt-status-codes = [ 302 ]; }
                         { title = "Grafana"; url = "https://grafana.${domain}"; icon = "si:grafana"; }
-                        { title = "Netdata"; url = "https://netdata.${domain}"; icon = "si:netdata"; }
+                        { title = "Netdata"; url = "https://netdata.${domain}"; icon = "si:netdata"; alt-status-codes = [ 400 ]; }
                       ];
                     }
                   ];
