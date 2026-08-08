@@ -86,15 +86,30 @@ _:
             do-ip6 = false;
             do-udp = true;
             do-tcp = true;
+            # Aggressive caching for speed.
             cache-min-ttl = 300;
             cache-max-ttl = 86400;
+            # Larger cache — default is 4MB, 64MB covers ~400k entries.
+            msg-cache-size = "64m";
+            rrset-cache-size = "128m";
+            # Prefetch popular records before they expire.
             prefetch = true;
             prefetch-key = true;
+            # Serve expired entries while refreshing in background.
+            serve-expired = true;
+            serve-expired-ttl = 3600;
+            # More threads for parallel resolution.
+            num-threads = 4;
+            # Faster outgoing port range (avoids kernel port allocation overhead).
+            outgoing-range = 4096;
+            # Hardening.
             harden-dnssec-stripped = true;
             harden-glue = true;
             harden-below-nxdomain = true;
             val-clean-additional = true;
+            # Privacy: minimise QNAME to reduce information leakage.
             qname-minimisation = true;
+            # Access control -- localhost only (AdGuard Home forwards here).
             access-control = [ "127.0.0.1/32 allow" ];
           };
         };
