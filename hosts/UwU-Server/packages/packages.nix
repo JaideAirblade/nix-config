@@ -36,7 +36,19 @@ _:
         # Herm — modern TUI for Hermes Agent (custom package from pkgs/).
         # Built with OpenTUI + Bun. Provides chat, sessions, skills, cron,
         # kanban, analytics, and config management in one terminal interface.
-        herm-tui
+        # Wrapped with NixOS-specific HERMES_PYTHON and HERMES_AGENT_ROOT
+        # so herm can find and spawn the tui_gateway subprocess from the
+        # nix store instead of looking for ~/.hermes/hermes-agent/venv/.
+        (symlinkJoin {
+          name = "herm";
+          paths = [ herm-tui ];
+          buildInputs = [ makeWrapper ];
+          postBuild = ''
+            wrapProgram $out/bin/herm \
+              --set HERMES_PYTHON ${lib.getExe' hermes-agent.hermesVenv "python3"} \
+              --set HERMES_AGENT_ROOT ${hermes-agent}/lib/python3.12/site-packages
+          '';
+        })
       ];
 
       # Opt out of the shared Firefox enable (modules/packages/packages.nix).

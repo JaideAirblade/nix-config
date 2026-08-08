@@ -66,7 +66,13 @@ stdenv.mkDerivation (finalAttrs: {
     substituteInPlace $out/lib/herm/bin/herm.cjs \
       --replace '?? "bun"' '?? "${lib.getExe bun}"'
 
-    # Create the bin symlink with a wrapper that sets HOME for HERMES_HOME
+    # Create the bin symlink with a wrapper that sets the NixOS-specific
+    # HERMES_PYTHON and HERMES_AGENT_ROOT env vars. Herm normally looks for
+    # ~/.hermes/hermes-agent/venv/bin/python, but on NixOS the hermes-agent
+    # is a system package. These env vars are set by the host module that
+    # installs herm-tui (it has access to pkgs.hermes-agent via the overlay).
+    # Here we just set the fallback — the host module overrides with the
+    # real nix store paths.
     mkdir -p $out/bin
     makeWrapper ${lib.getExe nodejs} $out/bin/herm \
       --prefix PATH : ${lib.makeBinPath [ bun ]} \
