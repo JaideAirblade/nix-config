@@ -28,6 +28,10 @@ _:
         # Single .NET binary, autoPatchelf'd for NixOS. Skill auto-installed
         # at ~/.hermes/skills/officecli/ by the upstream install script.
         officecli
+
+        # Octarine — private markdown note-taking app (custom package from pkgs/).
+        # Same as on UwU and TSBW-W01800. Workspace at ~/Documents/Life/.
+        octarine
       ];
 
       # Opt out of the shared Firefox enable (modules/packages/packages.nix).
