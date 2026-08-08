@@ -10,4 +10,5 @@ pkgs: {
   net-report = pkgs.callPackage ./net-report { };
   nym-vpnd = pkgs.callPackage ./nym-vpnd { };
   macrotool-gtk4 = pkgs.callPackage ./macrotool-gtk4 { };
+  omniroute = pkgs.callPackage ./omniroute { };
 }
