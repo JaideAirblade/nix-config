@@ -66,7 +66,8 @@ for forbidden in (
             f"OmniRoute module must not touch port 8319 / disable hermes-router: {forbidden!r}")
 
 for needle in (
-    "127.0.0.1:8320:8320",
+    "--network",
+    "host",
     "OMNIROUTE_API_KEY=${config.sops.placeholder.omniroute_api_key}",
     "ROUTER_API_KEY=${config.sops.placeholder.omniroute_api_key}",
     "REQUIRE_API_KEY=true",

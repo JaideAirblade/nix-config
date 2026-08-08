@@ -97,10 +97,17 @@
             "run"
             "--rm"
             "--name" "omniroute"
+            # --network host so the host's loopback (127.0.0.1:8320) IS
+            # the same netns as the container's. OmniRoute's own HOST
+            # env var (127.0.0.1) keeps the application-layer bind
+            # loopback-only, so nothing outside this host can reach it.
+            # The earlier `-p 127.0.0.1:8320:8320` cross-netns mapping
+            # caused OmniRoute v3.8.50's peer-stamp middleware to reject
+            # host-side requests (audit 2026-08-07, routeGuard.ts:30-58).
+            "--network" "host"
             "--user" "984:100"
             "--env-file" config.sops.templates.omniroute-env.path
             "-v" "/var/lib/omniroute:/app/data"
-            "-p" "127.0.0.1:8320:8320"
             "--label" "uwu-server.role=omniroute"
             "diegosouzapw/omniroute@sha256:92c768c56e2de32c51a0621ef182835018b00b288c9bb235c5c5e4514658c1a1"
           ];
