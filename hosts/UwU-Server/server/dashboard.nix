@@ -159,6 +159,7 @@
         enable = true;
         listenPort = 3002;
         openFirewall = false;
+        allowedHosts = domain;
         settings = {
           title = "UwU-Server";
           description = "Server dashboard";
