@@ -1,10 +1,10 @@
-# Dashboard hub: nginx reverse proxy + Homepage Dashboard + Grafana + Netdata.
+# Dashboard hub: nginx reverse proxy + Glance + Grafana + Netdata.
 #
 # All services are behind nginx on jaidechan.moe with SSL via Let's Encrypt
 # (DNS-01 challenge via Porkbun API). The nginx reverse proxy routes by
 # subdomain:
 #
-#   jaidechan.moe          -> Homepage Dashboard (port 3002)
+#   jaidechan.moe          -> Glance dashboard (port 3002)
 #   adguard.jaidechan.moe  -> AdGuard Home web UI (port 3000)
 #   grafana.jaidechan.moe  -> Grafana (port 3030)
 #   netdata.jaidechan.moe  -> Netdata (port 19999)
@@ -39,8 +39,6 @@
         key = "porkbun_secret_key";
       };
 
-      # Render the environment file for lego's Porkbun DNS provider.
-      # Lego expects PORKBUN_API_KEY and PORKBUN_SECRET_API_KEY in the env.
       sops.templates.porkbun-env = {
         content = ''
           PORKBUN_API_KEY=${config.sops.placeholder.porkbun_api_key}
@@ -57,17 +55,12 @@
         defaults.email = "jaide@jaidechan.moe";
         certs.${domain} = {
           domain = "*.${domain}";
-          # Also include the bare domain.
           extraDomainNames = [ domain ];
           dnsProvider = "porkbun";
-          # Lego reads Porkbun credentials from this environment file.
           environmentFile = config.sops.templates.porkbun-env.path;
-          # Wait for DNS propagation before requesting the cert.
           dnsPropagationCheck = true;
           dnsResolver = "1.1.1.1:53";
-          # Disable webroot -- using DNS-01 challenge instead.
           webroot = null;
-          # Allow nginx to read the cert files.
           group = "nginx";
         };
       };
@@ -77,11 +70,8 @@
         enable = true;
         recommendedProxySettings = true;
         recommendedTlsSettings = true;
-
-        # Only listen on the Tailscale IP -- not 0.0.0.0, not the LAN.
         defaultListenAddresses = [ tsIP ];
 
-        # Main domain -> Homepage Dashboard
         virtualHosts.${domain} = {
           useACMEHost = domain;
           forceSSL = true;
@@ -90,7 +80,6 @@
           };
         };
 
-        # AdGuard Home web UI
         virtualHosts."adguard.${domain}" = {
           useACMEHost = domain;
           forceSSL = true;
@@ -99,18 +88,15 @@
           };
         };
 
-        # Grafana
         virtualHosts."grafana.${domain}" = {
           useACMEHost = domain;
           forceSSL = true;
           locations."/" = {
             proxyPass = "http://127.0.0.1:3030";
-            # Grafana needs WebSocket support for live dashboards.
             proxyWebsockets = true;
           };
         };
 
-        # Netdata
         virtualHosts."netdata.${domain}" = {
           useACMEHost = domain;
           forceSSL = true;
@@ -120,7 +106,6 @@
           };
         };
 
-        # Hermes WebUI
         virtualHosts."hermes.${domain}" = {
           useACMEHost = domain;
           forceSSL = true;
@@ -130,7 +115,6 @@
           };
         };
 
-        # Hermes Gateway (OpenAI-compatible API)
         virtualHosts."gateway.${domain}" = {
           useACMEHost = domain;
           forceSSL = true;
@@ -140,7 +124,6 @@
           };
         };
 
-        # Hermes Bridge Dashboard
         virtualHosts."bridge.${domain}" = {
           useACMEHost = domain;
           forceSSL = true;
@@ -150,91 +133,103 @@
         };
       };
 
-      # Open port 443 on the tailnet interface for nginx.
       networking.firewall.interfaces.tailscale0.allowedTCPPorts =
         lib.mkAfter [ 443 ];
 
-      # --- Homepage Dashboard (binds to loopback, nginx proxies) ----------
-      services.homepage-dashboard = {
+      # --- Glance dashboard (replaces Homepage Dashboard) -------------------
+      # Glance is a lightweight, customizable dashboard with widgets for
+      # server stats, DNS stats (AdGuard Home), monitor (service uptime),
+      # bookmarks, clock, calendar, RSS, weather, and more.
+      services.glance = {
         enable = true;
-        listenPort = 3002;
         openFirewall = false;
-        allowedHosts = domain;
         settings = {
-          title = "UwU-Server";
-          description = "Server dashboard";
+          server = {
+            host = "127.0.0.1";
+            port = 3002;
+            proxied = true;
+          };
+          theme = {
+            background-color = "240 8 9";
+            primary-color = "43 50 70";
+            contrast-multiplier = 1.1;
+          };
+          branding = {
+            app-name = "UwU-Server";
+            hide-footer = true;
+          };
+          pages = [
+            {
+              name = "Home";
+              columns = [
+                {
+                  size = "small";
+                  widgets = [
+                    {
+                      type = "clock";
+                      hour-format = "24h";
+                      timezones = [
+                        { timezone = "Europe/Berlin"; label = "Local"; }
+                      ];
+                    }
+                    {
+                      type = "server-stats";
+                      servers = [
+                        { type = "local"; name = "UwU-Server"; }
+                      ];
+                    }
+                  ];
+                }
+                {
+                  size = "full";
+                  widgets = [
+                    {
+                      type = "monitor";
+                      title = "Services";
+                      sites = [
+                        { title = "AdGuard Home"; url = "https://adguard.${domain}"; icon = "si:adguard"; }
+                        { title = "Hermes WebUI"; url = "https://hermes.${domain}"; icon = "si:openai"; }
+                        { title = "Hermes Gateway"; url = "https://gateway.${domain}"; }
+                        { title = "Hermes Bridge"; url = "https://bridge.${domain}"; }
+                        { title = "Grafana"; url = "https://grafana.${domain}"; icon = "si:grafana"; }
+                        { title = "Netdata"; url = "https://netdata.${domain}"; icon = "si:netdata"; }
+                      ];
+                    }
+                  ];
+                }
+                {
+                  size = "small";
+                  widgets = [
+                    {
+                      type = "bookmarks";
+                      groups = [
+                        {
+                          title = "Admin";
+                          links = [
+                            { title = "Tailscale"; url = "https://login.tailscale.com/admin/machines"; icon = "si:tailscale"; }
+                            { title = "GitHub"; url = "https://github.com/JaideAirblade"; icon = "si:github"; }
+                            { title = "NixOS Search"; url = "https://search.nixos.org/packages"; icon = "si:nixos"; }
+                          ];
+                        }
+                        {
+                          title = "AI";
+                          links = [
+                            { title = "llama-server"; url = "http://${tsIP}:9001"; }
+                            { title = "Embeddings"; url = "http://${tsIP}:9002"; }
+                          ];
+                        }
+                      ];
+                    }
+                    {
+                      type = "calendar";
+                      first-day-of-week = "monday";
+                    }
+                  ];
+                }
+              ];
+            }
+          ];
         };
-        services = [
-          {
-            name = "AdGuard Home";
-            description = "DNS ad/tracker blocking";
-            group = "Network";
-            url = "https://adguard.${domain}";
-            icon = "adguard-home.png";
-          }
-          {
-            name = "Hermes WebUI";
-            description = "Hermes Agent chat interface";
-            group = "AI";
-            url = "https://hermes.${domain}";
-            icon = "hermes.png";
-          }
-          {
-            name = "Hermes Gateway";
-            description = "Messaging gateway (Telegram/Discord/etc)";
-            group = "AI";
-            url = "https://gateway.${domain}";
-          }
-          {
-            name = "Hermes Bridge Dashboard";
-            description = "Mobile bridge dashboard";
-            group = "AI";
-            url = "https://bridge.${domain}";
-          }
-          {
-            name = "Grafana";
-            description = "Metrics & dashboards";
-            group = "Monitoring";
-            url = "https://grafana.${domain}";
-            icon = "grafana.png";
-          }
-          {
-            name = "Netdata";
-            description = "Real-time performance monitoring";
-            group = "Monitoring";
-            url = "https://netdata.${domain}";
-            icon = "netdata.png";
-          }
-          {
-            name = "llama-server (Nemotron)";
-            description = "Local LLM inference";
-            group = "AI";
-            url = "http://${tsIP}:9001";
-          }
-          {
-            name = "Embedding server";
-            description = "Text embeddings";
-            group = "AI";
-            url = "http://${tsIP}:9002";
-          }
-        ];
-        bookmarks = [
-          {
-            name = "GitHub";
-            url = "https://github.com/JaideAirblade";
-            icon = "github.png";
-          }
-          {
-            name = "Tailscale Admin";
-            url = "https://login.tailscale.com/admin/machines";
-            icon = "tailscale.png";
-          }
-          {
-            name = "NixOS Search";
-            url = "https://search.nixos.org/packages";
-            icon = "nixos.png";
-          }
-        ];
       };
 
       # --- Grafana (binds to loopback, nginx proxies) ----------------------
