@@ -57,10 +57,17 @@ _:
         # guard.
         networking.firewall.interfaces.tailscale0.allowedTCPPorts = [
           22
+          443
+          3000
+          3001
+          3002
+          3030
           8080
           8642
           9119
           9131
+          19999
+          28981
         ];
 
         # Jaide's established fleet key remains the human recovery/admin path
