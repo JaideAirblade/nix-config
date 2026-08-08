@@ -67,6 +67,8 @@
           dnsResolver = "1.1.1.1:53";
           # Disable webroot -- using DNS-01 challenge instead.
           webroot = null;
+          # Allow nginx to read the cert files.
+          group = "nginx";
         };
       };
 
@@ -81,7 +83,7 @@
 
         # Main domain -> Homepage Dashboard
         virtualHosts.${domain} = {
-          enableACME = true;
+          useACMEHost = domain;
           forceSSL = true;
           locations."/" = {
             proxyPass = "http://127.0.0.1:3002";
@@ -90,7 +92,7 @@
 
         # AdGuard Home web UI
         virtualHosts."adguard.${domain}" = {
-          enableACME = true;
+          useACMEHost = domain;
           forceSSL = true;
           locations."/" = {
             proxyPass = "http://127.0.0.1:3000";
@@ -99,7 +101,7 @@
 
         # Grafana
         virtualHosts."grafana.${domain}" = {
-          enableACME = true;
+          useACMEHost = domain;
           forceSSL = true;
           locations."/" = {
             proxyPass = "http://127.0.0.1:3030";
@@ -110,7 +112,7 @@
 
         # Netdata
         virtualHosts."netdata.${domain}" = {
-          enableACME = true;
+          useACMEHost = domain;
           forceSSL = true;
           locations."/" = {
             proxyPass = "http://127.0.0.1:19999";
@@ -120,7 +122,7 @@
 
         # Hermes WebUI
         virtualHosts."hermes.${domain}" = {
-          enableACME = true;
+          useACMEHost = domain;
           forceSSL = true;
           locations."/" = {
             proxyPass = "http://127.0.0.1:8080";
@@ -130,7 +132,7 @@
 
         # Hermes Gateway (OpenAI-compatible API)
         virtualHosts."gateway.${domain}" = {
-          enableACME = true;
+          useACMEHost = domain;
           forceSSL = true;
           locations."/" = {
             proxyPass = "http://127.0.0.1:8642";
@@ -140,7 +142,7 @@
 
         # Hermes Bridge Dashboard
         virtualHosts."bridge.${domain}" = {
-          enableACME = true;
+          useACMEHost = domain;
           forceSSL = true;
           locations."/" = {
             proxyPass = "http://127.0.0.1:9119";
