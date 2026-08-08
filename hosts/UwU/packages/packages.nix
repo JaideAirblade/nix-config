@@ -66,6 +66,13 @@ _:
         # it is a separate overlay utility, not a Discord client replacement.
         orbolay
 
+        # OBS Studio — video recording / live streaming / virtual camera.
+        # nixpkgs `obs-studio` includes the GPU-accelerated encoders (NVENC
+        # on the 3080) and the standard scene/window capture sources out of
+        # the box. Used with legcord for Discord screen-share-as-camera, and
+        # with PipeWire screen capture for recording.
+        obs-studio
+
         # Readest — modern ebook reader.
         readest
 
