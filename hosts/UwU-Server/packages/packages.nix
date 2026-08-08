@@ -46,7 +46,7 @@ _:
           postBuild = ''
             wrapProgram $out/bin/herm \
               --set HERMES_PYTHON ${lib.getExe' hermes-agent.hermesVenv "python3"} \
-              --set HERMES_AGENT_ROOT ${hermes-agent}/lib/python3.12/site-packages
+              --set HERMES_AGENT_ROOT ${hermes-agent.hermesVenv}/lib/python3.12/site-packages
           '';
         })
       ];
