@@ -192,7 +192,7 @@
                         { title = "Hermes Gateway"; url = "https://gateway.${domain}"; alt-status-codes = [ 404 ]; }
                         { title = "Hermes Bridge"; url = "https://bridge.${domain}"; alt-status-codes = [ 302 ]; }
                         { title = "Grafana"; url = "https://grafana.${domain}"; icon = "si:grafana"; }
-                        { title = "Netdata"; url = "https://netdata.${domain}"; icon = "si:netdata"; alt-status-codes = [ 400 ]; }
+                        { title = "Netdata"; url = "https://netdata.${domain}"; icon = "si:netdata"; alt-status-codes = [ 400 404 ]; }
                       ];
                     }
                   ];
