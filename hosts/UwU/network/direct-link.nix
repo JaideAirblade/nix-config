@@ -9,12 +9,20 @@
 #   UwU         -> 10.10.0.2/30  (client)
 #
 # UwU's WiFi (wlp7s0) remains on the apartment router LAN as a fallback.
-# The wired direct-link connection has a lower metric (higher priority)
+# The wired direct-link connection has a lower route metric (100 vs 300)
 # so internet traffic prefers the UwU-Server path.
+#
+# HISTORY: This used to use a systemd oneshot + `networking.networkmanager.unmanaged`
+# because NM keyfile symlinks via environment.etc didn't work. As of 2026-08-08
+# we switched to `networking.networkmanager.ensureProfiles`, which writes proper
+# NM keyfiles that NM actually manages. This means:
+#   - enp10s0 shows up in nmcli / DMS bar as a real connection
+#   - You can toggle it on/off from the network widget
+#   - NM handles link monitoring and failover
 _:
 {
   nixos.hosts."UwU" =
-    { pkgs, ... }:
+    { ... }:
 
     let
       linkIface = "enp10s0";
@@ -22,46 +30,43 @@ _:
       gatewayIP = "10.10.0.1";
     in
     {
-      # Mark enp10s0 as unmanaged by NetworkManager and assign the static
-      # IP via a systemd oneshot. NM keyfiles via environment.etc don't
-      # work (NM ignores symlinks), so this is the direct approach.
-      networking.networkmanager.unmanaged = [ "${linkIface}" ];
-
-      systemd.services.direct-link-ip = {
-        description = "Assign static IP to direct-link interface ${linkIface}";
-        after = [ "network-pre.target" ];
-        before = [ "network.target" ];
-        wantedBy = [ "multi-user.target" ];
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
+      # --- NetworkManager-managed direct-link profile -----------------------
+      # Replaces the old systemd oneshot + unmanaged hack. NM now owns
+      # enp10s0 as a proper managed connection with a static IP.
+      networking.networkmanager.ensureProfiles.profiles = {
+        direct-link = {
+          connection = {
+            id = "Direct Link (UwU-Server)";
+            type = "ethernet";
+            interface-name = linkIface;
+            autoconnect = true;
+            permissions = "";
+          };
+          ethernet = { };
+          ipv4 = {
+            method = "manual";
+            addresses = "${linkIP}/30, ${gatewayIP}";
+            # Route the internet through UwU-Server. Lower metric = preferred
+            # over WiFi (which NM assigns metric 300+ via DHCP).
+            routes = "0.0.0.0/0, ${gatewayIP}, 100";
+            # Use AdGuard Home on UwU-Server as DNS (ignore DHCP DNS).
+            dns = "${gatewayIP}";
+            dns-search = "tail542648.ts.net;fritz.box";
+            ignore-auto-dns = true;
+            route-metric = 100;
+          };
+          ipv6 = {
+            method = "disabled";
+          };
         };
-        path = [ pkgs.iproute2 pkgs.networkmanager pkgs.gawk ];
-        script = ''
-          ip link set ${linkIface} up
-          ip addr add ${linkIP}/30 dev ${linkIface} 2>/dev/null || true
-          ip route replace default via ${gatewayIP} dev ${linkIface} metric 100 2>/dev/null || true
-          # Remove any NM-saved ethernet profile for this iface. A stale
-          # "Wired connection 1" entry makes NM retry auto-activate every
-          # 45s, which generates LinkChange events that flap Tailscale and
-          # drop UDP for ~1-3s per flap — Discord voice interprets this as
-          # a session drop. Removing the profile kills the loop at the
-          # source. Idempotent: the nmcli delete is a no-op when no
-          # matching profile exists.
-          nmcli -t -f NAME,TYPE connection show 2>/dev/null \
-            | awk -F: '$2 == "802-3-ethernet" { print $1 }' \
-            | while read -r name; do
-                nmcli connection delete "$name" 2>/dev/null || true
-              done
-        '';
       };
 
-      # Use AdGuard Home on UwU-Server as the system DNS. Tailscale's
-      # MagicDNS (100.100.100.100) was the default but we want all DNS
-      # to go through our own ad-blocking recursive resolver.
+      # --- System DNS (resolv.conf) ----------------------------------------
+      # Pin resolv.conf to AdGuard. The NM profile also sets per-connection
+      # DNS, but we keep this as the system-wide fallback so nothing depends
+      # on NM having connected yet at boot time.
       networking.nameservers = [ gatewayIP ];
       networking.search = [ "tail542648.ts.net" "fritz.box" ];
-      # Don't let resolvconf/NetworkManager overwrite our DNS setting.
       networking.resolvconf.enable = false;
       environment.etc."resolv.conf".text = ''
         nameserver ${gatewayIP}
@@ -69,7 +74,7 @@ _:
         options edns0 trust-ad
       '';
 
-      # Tell Tailscale not to manage DNS -- we use AdGuard Home via the
+      # Tell Tailscale not to manage DNS — we use AdGuard Home via the
       # direct link. Without this, Tailscale overwrites /etc/resolv.conf
       # with MagicDNS (100.100.100.100) on every tailscaled restart.
       services.tailscale.extraSetFlags = [ "--accept-dns=false" ];
