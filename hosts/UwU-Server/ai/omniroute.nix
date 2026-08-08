@@ -79,7 +79,9 @@
         # not a replacement. The cutover to 8319 happens in a separate
         # commit only after live-verify of all four OpenAI-compatible
         # routes against OmniRoute on 8320 succeeds.
-        wantedBy = [ "multi-user.target" ];
+        # Disabled 2026-08-08 — router not needed for now. Re-add
+        # `wantedBy = [ "multi-user.target" ];` to bring it back.
+        # wantedBy = [ "multi-user.target" ];
         path = [ pkgs.docker ];
         serviceConfig = {
           Type = "exec";

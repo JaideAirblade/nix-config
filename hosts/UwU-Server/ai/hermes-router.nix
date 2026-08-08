@@ -340,7 +340,9 @@
         description = "Hardened local Hermes multi-provider router";
         after = [ "network-online.target" "nemotron-local.service" ];
         wants = [ "network-online.target" "nemotron-local.service" ];
-        wantedBy = [ "multi-user.target" ];
+        # Disabled 2026-08-08 — router not needed for now. Re-add
+        # `wantedBy = [ "multi-user.target" ];` to bring it back.
+        # wantedBy = [ "multi-user.target" ];
         environment = {
           HOST = "127.0.0.1";
           PORT = "8319";
