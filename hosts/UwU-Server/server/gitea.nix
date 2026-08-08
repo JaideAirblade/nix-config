@@ -68,6 +68,11 @@
         locations."/" = {
           proxyPass = "http://127.0.0.1:3001";
           proxyWebsockets = true;
+          extraConfig = ''
+            client_max_body_size 500m;
+            proxy_read_timeout 300s;
+            proxy_send_timeout 300s;
+          '';
         };
         # Git LFS support -- large file storage.
         locations."/lfs/" = {
