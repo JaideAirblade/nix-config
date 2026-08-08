@@ -36,11 +36,23 @@ _:
           Type = "oneshot";
           RemainAfterExit = true;
         };
-        path = [ pkgs.iproute2 ];
+        path = [ pkgs.iproute2 pkgs.networkmanager pkgs.gawk ];
         script = ''
           ip link set ${linkIface} up
           ip addr add ${linkIP}/30 dev ${linkIface} 2>/dev/null || true
           ip route replace default via ${gatewayIP} dev ${linkIface} metric 100 2>/dev/null || true
+          # Remove any NM-saved ethernet profile for this iface. A stale
+          # "Wired connection 1" entry makes NM retry auto-activate every
+          # 45s, which generates LinkChange events that flap Tailscale and
+          # drop UDP for ~1-3s per flap — Discord voice interprets this as
+          # a session drop. Removing the profile kills the loop at the
+          # source. Idempotent: the nmcli delete is a no-op when no
+          # matching profile exists.
+          nmcli -t -f NAME,TYPE connection show 2>/dev/null \
+            | awk -F: '$2 == "802-3-ethernet" { print $1 }' \
+            | while read -r name; do
+                nmcli connection delete "$name" 2>/dev/null || true
+              done
         '';
       };
 
