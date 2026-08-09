@@ -42,6 +42,42 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Noctalia — Wayland-native desktop shell (bars, launcher, dock, lock,
+    # notifications, control center, wallpapers, OSDs). See modules/wm/
+    # noctalia/noctalia.nix for the role module and hosts/UwU/desktop/
+    # noctalia-host.nix for the host-scoped wiring. The upstream flake
+    # currently tracks v5-beta; pin via this input if a stable v4 is
+    # needed instead. Verified on 2026-08-10:
+    #   repo github:noctalia-dev/noctalia
+    #   flake.nix exposes nixosModules.default + homeModules.default
+    #   + hjemModules.default + packages.<system>.default
+    noctalia = {
+      url = "github:noctalia-dev/noctalia";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # Noctalia Greeter — companion login greeter for greetd, matching
+    # the Noctalia look-and-feel. Loaded by modules/wm/noctalia/noctalia.nix.
+    noctalia-greeter = {
+      url = "github:noctalia-dev/noctalia-greeter";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # Niri — scrollable-tiling Wayland compositor, used by UwU.
+    # We do NOT use github:sodiboo/niri-flake because its pinned
+    # `make-niri` function still asserts `libdisplay-info_0_2.version
+    # == "0.2.0"`, which fails on current nixpkgs (libdisplay-info_0_2
+    # was removed in favour of _0_3 / 0.4.0). All 10 most recent
+    # niri-flake commits as of 2026-08-10 are just "Update flake.lock"
+    # with no actual fix for this assertion.
+    # Instead we use nixpkgs's built-in Niri module at
+    # nixos/modules/programs/wayland/niri.nix, which uses pkgs.niri
+    # (currently 26.04, built against the current libdisplay-info).
+    # The option shape (`programs.niri.enable`, `programs.niri.package`)
+    # is compatible with the niri-flake module, so swapping back to the
+    # flake in the future (when the assertion is fixed) is a one-line
+    # change in hosts/UwU/desktop/noctalia-host.nix.
+
     # Hermes Agent — Nous Research's terminal AI agent.
     hermes-agent = {
       url = "github:NousResearch/hermes-agent";

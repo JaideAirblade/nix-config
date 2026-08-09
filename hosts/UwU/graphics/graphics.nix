@@ -61,12 +61,13 @@ _:
         powerManagement.enable = true;
         powerManagement.finegrained = false;
       };
-
-      # WLR_DRM_NO_ATOMIC=1 — required by wlroots compositors (Mango) on NVIDIA
-      # to enable tearing (bypassing VSync for fullscreen games). Without this,
-      # tearing page flips are rejected by nvidia-drm's atomic commit path.
-      # Set in the session environment so greetd passes it to mango at startup.
-      environment.sessionVariables.WLR_DRM_NO_ATOMIC = "1";
+      # NVIDIA-specific compositor env vars were historically set here
+      # (WLR_DRM_NO_ATOMIC=1 for wlroots compositors). Niri is built on
+      # Smithay and uses DRM/KMS directly — it does NOT need that hint,
+      # and the host override at hosts/UwU/desktop/noctalia-host.nix
+      # forces WLR_DRM_NO_ATOMIC to empty. The kernel param
+      # `nvidia-drm.modeset=1` above remains the canonical NVIDIA-on-
+      # Wayland prerequisite and is required by both Mango and Niri.
     }
   ;
 }
