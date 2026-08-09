@@ -16,7 +16,7 @@
 # with Porkbun DNS provider. The Porkbun API keys are in sops secrets.
 # The cert auto-renews before expiry.
 #
-# Access: nginx listens on the Tailscale IP only (100.102.183.94:443).
+# Access: nginx listens on the Netbird IP only (100.77.228.137:443).
 # All services bind to 127.0.0.1 (loopback) -- only nginx exposes them.
 {
   inputs, lib, ... }:
@@ -25,7 +25,7 @@
     { config, lib, ... }:
 
     let
-      tsIP = "100.102.183.94";
+      nbIP = "100.77.228.137";
       domain = "jaidechan.moe";
     in
     {
@@ -70,7 +70,7 @@
         enable = true;
         recommendedProxySettings = true;
         recommendedTlsSettings = true;
-        defaultListenAddresses = [ tsIP ];
+        defaultListenAddresses = [ nbIP ];
 
         virtualHosts.${domain} = {
           useACMEHost = domain;
@@ -134,7 +134,7 @@
         };
       };
 
-      networking.firewall.interfaces.tailscale0.allowedTCPPorts =
+      networking.firewall.interfaces.wt0.allowedTCPPorts =
         lib.mkAfter [ 443 ];
 
       # --- Glance dashboard (replaces Homepage Dashboard) -------------------
@@ -209,7 +209,7 @@
                         {
                           title = "Admin";
                           links = [
-                            { title = "Tailscale"; url = "https://login.tailscale.com/admin/machines"; icon = "si:tailscale"; }
+                            { title = "Netbird"; url = "https://app.netbird.io"; icon = "si:netbird"; }
                             { title = "GitHub"; url = "https://github.com/JaideAirblade"; icon = "si:github"; }
                             { title = "NixOS Search"; url = "https://search.nixos.org/packages"; icon = "si:nixos"; }
                           ];
@@ -217,8 +217,8 @@
                         {
                           title = "AI";
                           links = [
-                            { title = "llama-server"; url = "http://${tsIP}:9001"; }
-                            { title = "Embeddings"; url = "http://${tsIP}:9002"; }
+                            { title = "llama-server"; url = "http://${nbIP}:9001"; }
+                            { title = "Embeddings"; url = "http://${nbIP}:9002"; }
                           ];
                         }
                         {

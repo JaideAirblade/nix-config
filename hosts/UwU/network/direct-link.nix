@@ -74,10 +74,6 @@ _:
         options edns0 trust-ad
       '';
 
-      # Tell Tailscale not to manage DNS — we use AdGuard Home via the
-      # direct link. Without this, Tailscale overwrites /etc/resolv.conf
-      # with MagicDNS (100.100.100.100) on every tailscaled restart.
-      services.tailscale.extraSetFlags = [ "--accept-dns=false" ];
     }
   ;
 }

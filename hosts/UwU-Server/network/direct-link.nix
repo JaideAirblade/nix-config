@@ -118,7 +118,7 @@ _:
       # --- AdGuard Home: ad/tracker blocking DNS ----------------------------
       # Binds to 0.0.0.0 so it doesn't need to wait for eth0 to have its
       # IP. The firewall restricts access to the direct-link interface
-      # and tailnet only -- binding wide is safe because the firewall
+      # and mesh only -- binding wide is safe because the firewall
       # blocks external access.
       #
       # NixOS module: `host` + `port` set the WEB UI bind address, NOT DNS.
@@ -137,15 +137,16 @@ _:
           dns = {
             bind_address = "0.0.0.0";
             listen_port = 53;
-            # Per-domain upstream: route tailnet names (MagicDNS) through
-            # Tailscale's own resolver before falling back to Unbound.
-            # Without this, UwU clients using AdGuard as their system DNS
-            # cannot resolve *.tail542648.ts.net (Unbound is recursive-only
-            # and has no view into the Tailscale coord server) and SSH by
-            # hostname from the direct link silently breaks. Tailscale's
-            # 100.100.100.100 is reachable via tailscale0 on this host.
+            # Per-domain upstream: empty for now. The previous Tailscale
+            # routing ([/tail542648.ts.net/]100.100.100.100) is gone with
+            # Tailscale. Netbird magic-DNS is served by the netbird-mesh
+            # daemon directly (when systemd-resolved is enabled on the
+            # client). AdGuard falls back to Unbound for everything else;
+            # UwU-side netbird hostnames resolve via netbird-mesh's
+            # nameserver on the Tailscale-deprecated path. The split-horizon
+            # upstream_dns routing for the netbird-cloud domain is a
+            # deferred Phase 3 task (see docs/netbird-mesh.md).
             upstream_dns = [
-              "[/tail542648.ts.net/]100.100.100.100"
               "127.0.0.1:5335"
             ];
             bootstrap_dns = [
@@ -175,8 +176,8 @@ _:
         };
       };
 
-      # Open AdGuard Home web UI on the tailnet interface (for remote admin).
-      networking.firewall.interfaces.tailscale0.allowedTCPPorts =
+      # Open AdGuard Home web UI on the mesh interface (for remote admin).
+      networking.firewall.interfaces.wt0.allowedTCPPorts =
         lib.mkAfter [ 3000 ];
     }
   ;
