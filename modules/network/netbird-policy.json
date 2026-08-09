@@ -1,0 +1,82 @@
+{
+  "_comment": "Declarative Netbird access-control policy for the private management mesh. Parallels modules/network/tailscale-policy.json. Import this file into the Netbird management console (Setup Keys → Policies, or via the Netbird API at https://api.netbird.io/api/v1/policies). The schema differs from Tailscale: Netbird uses a Policy with rules of the form {name, sources, destinations, protocol, action, ports, portRange}. The deny-by-default design and the printserver-source-denial invariant are preserved.",
+  "groups": [
+    {
+      "name": "private",
+      "description": "Personal private fleet — UwU and UwU-Server. Owns the bulk of the mesh services."
+    },
+    {
+      "name": "work",
+      "description": "Work laptop — TSBW-W01800. One-way trust into private for SSH and Hermes services."
+    },
+    {
+      "name": "personal",
+      "description": "Explicitly approved personal devices (Android phone, etc.). One-way trust into private for SSH and Hermes services."
+    },
+    {
+      "name": "printserver",
+      "description": "Print server — Projet-Printserver. DENY-BY-DEFAULT source: never appears in any `sources` list. May receive inbound SSH from private/work/personal only."
+    }
+  ],
+  "rules": [
+    {
+      "name": "private-to-all-mesh-services",
+      "description": "Private nodes can reach every other group on the management ports. OpenSSH (22), Hermes WebUI (8080), Hermes Mobile Bridge (8642/9119/9131), Gitea (443), AdGuard (3000), and a handful of utility ports (3001/3002/3030/19999/28981).",
+      "sources": ["private"],
+      "destinations": ["private", "work", "personal", "printserver"],
+      "ports": [
+        {"protocol": "tcp", "port": "22"},
+        {"protocol": "tcp", "port": "443"},
+        {"protocol": "tcp", "port": "3000"},
+        {"protocol": "tcp", "port": "3001"},
+        {"protocol": "tcp", "port": "3002"},
+        {"protocol": "tcp", "port": "3030"},
+        {"protocol": "tcp", "port": "8080"},
+        {"protocol": "tcp", "port": "8642"},
+        {"protocol": "tcp", "port": "9119"},
+        {"protocol": "tcp", "port": "9131"},
+        {"protocol": "tcp", "port": "19999"},
+        {"protocol": "tcp", "port": "28981"}
+      ],
+      "action": "accept"
+    },
+    {
+      "name": "work-to-private-mesh-services",
+      "description": "Work laptop reaches the same services private can reach, but only on private nodes.",
+      "sources": ["work"],
+      "destinations": ["private", "personal", "printserver"],
+      "ports": [
+        {"protocol": "tcp", "port": "22"},
+        {"protocol": "tcp", "port": "443"},
+        {"protocol": "tcp", "port": "8080"},
+        {"protocol": "tcp", "port": "8642"},
+        {"protocol": "tcp", "port": "9119"},
+        {"protocol": "tcp", "port": "9131"}
+      ],
+      "action": "accept"
+    },
+    {
+      "name": "personal-to-private-mesh-services",
+      "description": "Personal devices (phone, etc.) reach the same services work can reach, but only on private nodes.",
+      "sources": ["personal"],
+      "destinations": ["private", "work", "printserver"],
+      "ports": [
+        {"protocol": "tcp", "port": "22"},
+        {"protocol": "tcp", "port": "443"},
+        {"protocol": "tcp", "port": "8080"},
+        {"protocol": "tcp", "port": "8642"},
+        {"protocol": "tcp", "port": "9119"},
+        {"protocol": "tcp", "port": "9131"}
+      ],
+      "action": "accept"
+    },
+    {
+      "_comment_invariant": "There is NO rule with `sources: [printserver]`. The print server is deny-by-default-source: it may only receive inbound SSH from private/work/personal nodes (covered by the three accept rules above). No explicit deny rule is needed in Netbird policy — the absence of a source clause is the invariant. Tests in tests/netbird-mesh-regressions.py assert this invariant."
+    }
+  ],
+  "_invariants": {
+    "no_autogroup_member_equivalent": "Netbird has no implicit 'all members of the org' grant equivalent. The four groups above are the only sources of authority. New peers that join without a group assignment cannot reach any service.",
+    "no_printserver_as_source": "None of the rule sources include `printserver`. The print server is a sink only.",
+    "ssh_is_the_only_trust_path": "OpenSSH (port 22) is the only authentication path. Netbird is the encrypted wire; jaide_nixos is the only authorised human key. The pin of the OpenSSH host key is the trust root per docs/netbird-mesh.md."
+  }
+}

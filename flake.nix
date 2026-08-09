@@ -257,6 +257,7 @@
               python3 tests/user-password-regressions.py
               python3 tests/private-accounts-regressions.py
               python3 tests/tailscale-mesh-regressions.py
+              python3 tests/netbird-mesh-regressions.py
               python3 tests/user-unit-scope-regressions.py
               bash tests/set-private-password-hash-regressions.sh
               python3 tests/net-report-wifi-scan-regressions.py

@@ -13,6 +13,7 @@ python3 tests/register-sops-host-regressions.py
 python3 tests/user-password-regressions.py
 python3 tests/private-accounts-regressions.py
 python3 tests/tailscale-mesh-regressions.py
+python3 tests/netbird-mesh-regressions.py
 python3 tests/user-unit-scope-regressions.py
 bash tests/set-private-password-hash-regressions.sh
 bash tests/private-pam-u2f-regressions.sh
