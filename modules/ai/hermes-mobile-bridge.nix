@@ -400,7 +400,7 @@
           ReadWritePaths = [ herHome "/home/${herUser}/.cache" ];
           NoNewPrivileges = true;
           PrivateTmp = true;
-          PrivateDevices = true;
+          PrivateDevices = false;
           ProtectKernelTunables = true;
           ProtectKernelModules = true;
           ProtectControlGroups = true;
