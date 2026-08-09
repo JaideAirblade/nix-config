@@ -69,16 +69,23 @@
         # direct-link DNS rules below can reference the same string
         # everywhere.
         services.netbird.clients.mesh = {
-          enable = true;
+          # Schema note (NixOS module): the `clients.<name>` attrset
+          # has no `enable` field — presence of the entry IS the
+          # enable. The `services.netbirdMesh.enable` boolean in our
+          # outer role is what gates whether this whole block is
+          # present at all (via lib.mkIf cfg.enable above).
 
+          # Required: port the Wireguard UDP listener listens on for
+          # direct peer-to-peer paths. The Netbird management server
+          # (netbird.io) handles coordination; the deny-by-default
+          # Netbird policy on the management console enforces which
+          # peers may initiate connections.
+          port = 51821;
+
+          # Stable interface name across all hosts.
           interface = wtInterface;
 
-          # Wireguard UDP listener for direct peer-to-peer paths. The
-          # Netbird management server (netbird.io) handles
-          # coordination; the deny-by-default Netbird policy on the
-          # management console enforces which peers may initiate
-          # connections.
-          port = 51821;
+          # Default true — explicit for documentation.
           openFirewall = true;
           openInternalFirewall = true;
 
@@ -104,13 +111,21 @@
         services.netbird.useRoutingFeatures = "client";
 
         # ------------------------------------------------------------------
-        # systemd-resolved for Netbird MagicDNS resolution
+        # DNS integration: NOT enabled via systemd-resolved
         # ------------------------------------------------------------------
-        # Required by the Netbird NixOS module for the mesh client to
-        # use split-horizon DNS. AdGuard on the direct-link interface
-        # forwards queries for the Netbird-managed domain to this
-        # resolver.
-        services.resolved.enable = true;
+        # Netbird's NixOS module supports two DNS integration paths:
+        # either `services.resolved.enable = true` (with systemd-resolved
+        # as the system resolver) or leave it disabled and use openresolv
+        # (the module's default when resolved is off). We do NOT enable
+        # resolved here — hosts with a custom direct-link DNS pin
+        # (e.g. UwU pointing system DNS at AdGuard Home via a custom
+        # environment.etc."resolv.conf".text) would conflict with
+        # resolved's stub-resolv.conf assignment on the same option.
+        # When the AdGuard → Netbird split-horizon forward is wired
+        # (deferred to Phase 3), the upstream DNS resolver IP for
+        # Netbird's managed domain is set via `dns-resolver.address`
+        # per-client. See docs/netbird-mesh.md for the configuration
+        # pattern.
 
         # ------------------------------------------------------------------
         # OpenSSH — identical to the Tailscale mesh configuration.

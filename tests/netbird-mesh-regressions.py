@@ -59,7 +59,16 @@ require(
     "/run/secrets/netbird-setup-key" in module,
     "Netbird setup key path is not /run/secrets/netbird-setup-key (sops-rendered)",
 )
-require("services.resolved.enable = true;" in module, "systemd-resolved is not enabled for Netbird MagicDNS")
+# systemd-resolved is intentionally NOT enabled by the Netbird mesh module
+# because UwU's existing direct-link config pins environment.etc."resolv.conf"
+# to AdGuard Home, which conflicts with resolved's stub-resolv.conf
+# assignment. Openresolv is used as the default DNS manager when resolved
+# is disabled. The split-horizon DNS forward for Netbird's managed domain
+# is wired in Phase 3 (deferred).
+require(
+    "services.resolved.enable = true;" not in module,
+    "Netbird mesh should NOT enable systemd-resolved (conflicts with AdGuard resolv.conf pin)",
+)
 
 # --- OpenSSH + Jaide's key --------------------------------------------
 
