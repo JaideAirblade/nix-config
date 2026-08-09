@@ -137,22 +137,33 @@ _:
           dns = {
             bind_address = "0.0.0.0";
             listen_port = 53;
-            # Per-domain upstream: empty for now. The previous Tailscale
-            # routing ([/tail542648.ts.net/]100.100.100.100) is gone with
-            # Tailscale. Netbird magic-DNS is served by the netbird-mesh
-            # daemon directly (when systemd-resolved is enabled on the
-            # client). AdGuard falls back to Unbound for everything else;
-            # UwU-side netbird hostnames resolve via netbird-mesh's
-            # nameserver on the Tailscale-deprecated path. The split-horizon
-            # upstream_dns routing for the netbird-cloud domain is a
-            # deferred Phase 3 task (see docs/netbird-mesh.md).
+            # Upstream: Unbound on loopback (port 5335, see services.unbound
+            # above). Unbound does full recursive resolution from the root
+            # servers, no third-party resolver. The previous Tailscale
+            # per-domain routing ([/tail542648.ts.net/]100.100.100.100)
+            # is gone with Tailscale. Netbird magic-DNS hostnames
+            # (*.netbird.cloud) resolve directly via the public DNS
+            # (Porkbun A records point at the netbird mesh IP 100.77.228.137
+            # for jaidechan.moe + subdomains), so no upstream_dns override
+            # is needed for them. The Tailscale-deprecated "search
+            # tail542648.ts.net" in /etc/resolv.conf on UwU is also gone
+            # (replaced by ad-blocking on the local resolver).
+            #
             upstream_dns = [
               "127.0.0.1:5335"
             ];
-            bootstrap_dns = [
-              "1.1.1.1"
-              "9.9.9.9"
-            ];
+            # Explicit empty bootstrap_dns: AdGuard's runtime default is
+            # Cloudflare + Quad9 (1.1.1.1, 9.9.9.9). Even though
+            # upstream_dns is an IP (no resolution needed), AdGuard's
+            # own internal lookups (filter list updates, license check)
+            # use bootstrap_dns. Set it to empty so AdGuard uses Unbound
+            # (its own resolver) for those lookups instead of leaking to
+            # Cloudflare/Quad9. The mutableSettings = true flag means
+            # AdGuard's in-memory state is persisted to disk on every
+            # restart, so we have to explicitly clear this in the Nix
+            # config to prevent it from being restored from the
+            # pre-existing on-disk YAML.
+            bootstrap_dns = [];
             cache_size = 4096;
             cache_ttl_min = 60;
             cache_ttl_max = 86400;
