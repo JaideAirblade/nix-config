@@ -56,6 +56,14 @@ require(
 )
 require("setupKeyFile = setupKeyPath" in module, "Netbird setup key path is not wired to sops-rendered path")
 require(
+    "sops.secrets.netbird-setup-key" in module,
+    "the netbird-mesh module does not declare the sops secret for the setup key",
+)
+require(
+    "inputs.nixos-secrets" in module,
+    "the netbird-mesh module does not reference the nixos-secrets flake input",
+)
+require(
     "/run/secrets/netbird-setup-key" in module,
     "Netbird setup key path is not /run/secrets/netbird-setup-key (sops-rendered)",
 )

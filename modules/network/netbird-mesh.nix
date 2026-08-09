@@ -13,7 +13,7 @@
 # `nixos.modules.netbirdMesh` — a deferredModule attrset — in the same
 # shape as tailscale-mesh.nix returns `nixos.modules.remoteMesh`. The
 # NixOS sub-module is the inner function inside that attrset.
-{ lib, ... }:
+{ lib, inputs, ... }:
 {
   nixos.modules.netbirdMesh =
     { config, lib, ... }:
@@ -60,6 +60,25 @@
       };
 
       config = lib.mkIf cfg.enable {
+        # ------------------------------------------------------------------
+        # SOPS secret: Netbird setup key
+        # ------------------------------------------------------------------
+        # The setup key is stored in nixos-secrets (flake input
+        # `nixos-secrets`). The file is rendered at
+        # /run/secrets/netbird-setup-key by sops-nix at activation
+        # time. The netbird-mesh systemd unit runs as user
+        # netbird-mesh / group netbird-mesh, so the file is owned by
+        # that user/group with mode 0440 (read-only, owner+group).
+        # Without this declaration, sops-nix doesn't render the file
+        # and the netbird-mesh-login.service fails with
+        # status=243/CREDENTIALS.
+        sops.secrets.netbird-setup-key = {
+          sopsFile = "${inputs.nixos-secrets}/secrets/shared/netbird-setup-key.yaml";
+          owner = "netbird-mesh";
+          group = "netbird-mesh";
+          mode = "0440";
+        };
+
         # ------------------------------------------------------------------
         # Netbird client (single instance, named `mesh`)
         # ------------------------------------------------------------------
