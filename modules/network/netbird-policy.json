@@ -15,7 +15,7 @@
     },
     {
       "name": "printserver",
-      "description": "Print server — Projet-Printserver. DENY-BY-DEFAULT source: never appears in any `sources` list. May receive inbound SSH from private/work/personal only."
+      "description": "Print server group — RESERVED. Projet-Printserver is no longer enrolled on Netbird (2026-08-09 user decision: print server stays on a plain LAN path, no mesh). The group is kept so any future device that joins the `printserver` netbird group inherits the deny-by-default-source invariant: never appears in any `sources` list. May receive inbound SSH from private/work/personal only."
     }
   ],
   "rules": [

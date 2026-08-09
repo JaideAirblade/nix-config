@@ -5,6 +5,15 @@
 # It joins the lab.local domain and enforces per-printer ACLs based on
 # AD group membership.
 #
+# MESH POLICY (2026-08-09): This host is intentionally OFF the mesh.
+# It is NOT on Tailscale and NOT on Netbird. The original migration
+# plan called for it to be the LAST peer to enroll on Netbird (as the
+# deny-by-default-source group), but the decision changed: the print
+# server's trust model is purely LAN-based. It accepts SSH only from
+# 192.168.100.0/24 (the lab subnet), per the users/users.nix
+# Match Address block. There is no tailscale0 or wt0 firewall allowlist
+# because those interfaces don't exist on this host.
+#
 # ── Roles ──────────────────────────────────────────────────────────
 #   common       — base system (locale, users, shell, packages)
 #   printServer  — CUPS + Samba + SSSD + realmd + krb5 (this module)
@@ -36,7 +45,6 @@
 
     modules = [
       config.nixos.modules.common
-      config.nixos.modules.remoteMesh
       config.nixos.modules.printServer
       config.nixos.hosts."Projet-Printserver"
 
@@ -47,13 +55,6 @@
       inputs.self.nixosModules.witr
 
       { nixpkgs.overlays = [ inputs.self.overlays.additions ]; }
-
-      {
-        services.privateMesh = {
-          nodeRole = "printserver";
-          exposeSshOnLan = true;
-        };
-      }
 
       # State version — matches the NixOS release this host was created on.
       { system.stateVersion = "26.05"; }
