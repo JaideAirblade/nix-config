@@ -17,13 +17,12 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Niri — scrollable tiling Wayland compositor.
-    # Used by the TSBW-W01800 work host. Provides nixosModules.niri and
-    # homeManagerModules.niri. UwU doesn't import it.
-    niri = {
-      url = "github:sodiboo/niri-flake";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    # niri flake removed: as of 2026-08-09, the niri-flake's libdisplay-info_0_2
+    # compatibility shim is broken with newer nixpkgs (upstream still has a
+    # `assert libdisplay-info_0_2.version == "0.2.0"` line that fails when
+    # nixpkgs bumped the library). Mango is the only compositor on TSBW-W01800
+    # now; niri is uninstalled. Re-add when niri-flake drops the legacy version
+    # pin (see https://github.com/sodiboo/niri-flake/flake.nix).
 
     # DankMaterialShell — desktop shell (bar/launcher/lock/notifs) + greeter.
     dms = {

@@ -8,6 +8,7 @@
       config.nixos.modules.common
       config.nixos.modules.automationAccounts
       config.nixos.modules.remoteMesh
+      config.nixos.modules.netbirdMesh
       config.nixos.modules.virtualisation
       config.nixos.hosts."TSBW-W01800"
 
@@ -22,6 +23,19 @@
       { nixpkgs.overlays = [ (import ../../overlays/millennium.nix { millennium-input = inputs.millennium; }) ]; }
       {
         services.privateMesh = {
+          nodeRole = "work";
+          exposeSshOnLan = false;
+        };
+      }
+      {
+        # Netbird mesh opt-in (parallel to the Tailscale role above).
+        # Both remoteMesh (Tailscale) and netbirdMesh (Netbird) are
+        # active during the cutover window. The Tailscale mesh is
+        # removed after every reachable peer has been verified on
+        # Netbird AND the print-server denial invariant is confirmed
+        # via the Netbird policy tests. See docs/netbird-mesh.md.
+        services.netbirdMesh = {
+          enable = true;
           nodeRole = "work";
           exposeSshOnLan = false;
         };

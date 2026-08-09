@@ -4,13 +4,11 @@
 # NixOS modules and sets sensible defaults (compositor=mango, calendarEvents
 # via khal, etc.) via lib.mkDefault. This module overrides the host-specific
 # bits:
-#   - compositor.name = "niri" (not mango)
 #   - enableCalendarEvents = false (using DankCalendar instead of khal)
 #   - imports DankCalendar NixOS module + enables it
 #   - DMS systemd target/restartIfChanged
 #   - i2c for DDC/CI brightness control
 #   - Qt theming (qt6ct/qt5ct) for matugen-generated color schemes
-#   - disable niri-flake's default polkit agent (DMS ships its own)
 { inputs, ... }:
 {
   nixos.hosts."TSBW-W01800" =
@@ -20,9 +18,9 @@
       ];
 
       programs.dank-material-shell = {
-        # DMS systemd settings — bind to graphical-session.target, which niri
-        # activates natively. Mango's mango-session.target also requires
-        # graphical-session.target, so DMS starts under both compositors.
+        # DMS systemd settings — bind to graphical-session.target, which
+        # mango's mango-session.target also requires, so DMS starts under
+        # the primary compositor.
         systemd = {
           enable = true;
           # DMS refuses to start a second instance ("already running for this
@@ -55,9 +53,7 @@
         };
       };
 
-      # DankGreeter — compositor is now mango (switched from niri).
-      # Mango is the primary compositor on this host; niri stays installed
-      # as a secondary option (can be selected at the greeter).
+      # DankGreeter — primary compositor is mango.
       programs.dms-greeter = {
         enable = true;
         compositor.name = lib.mkForce "mango";
@@ -91,9 +87,6 @@
         QT_QPA_PLATFORMTHEME = "qt6ct";
         QT_QPA_PLATFORMTHEME_QT6 = "qt6ct";
       };
-
-      # Use DMS's built-in polkit agent instead of niri-flake's default
-      systemd.user.services.niri-flake-polkit.enable = false;
 
       # Pre-create the greeter log file AND fix stale ownership of greeter
       # state directories. When system user IDs shift between generations
