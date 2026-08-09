@@ -57,7 +57,7 @@ require(
 require("setupKeyFile = setupKeyPath" in module, "Netbird setup key path is not wired to sops-rendered path")
 require(
     "sops.secrets.netbird-setup-key" in module,
-    "the netbird-mesh module does not declare the sops secret for the setup key",
+    "the netbird-mesh module does not declare the sops secret for the setup key with the correct YAML key name (netbird-setup-key)",
 )
 require(
     "inputs.nixos-secrets" in module,

@@ -506,11 +506,11 @@
     "nixos-secrets": {
       "flake": false,
       "locked": {
-        "lastModified": 1786304086,
-        "narHash": "sha256-bG35GwrQSd8glcVdtZnD2H23SoLBakzkm1zB3WKSaCQ=",
+        "lastModified": 1786304337,
+        "narHash": "sha256-qiD8wwLaE04obDayI4WVaJ5oYOG3T6LINy8Ujj4Nsxs=",
         "ref": "main",
-        "rev": "28f04c9f96a472f0bef720dabbf6cf3c3fb20529",
-        "revCount": 27,
+        "rev": "9d939eb82664b90d9589b2ffd5d802b6ea1d8a28",
+        "revCount": 28,
         "type": "git",
         "url": "ssh://git@github.com/JaideAirblade/nixos-secrets.git"
       },
