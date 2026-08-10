@@ -37,6 +37,66 @@ debug $host=host:
     ./scripts/confirm-local-deploy.sh "$host"
     nixos-rebuild switch --flake ".#$host" --elevate=sudo --show-trace --print-build-logs --verbose
 
+# ── fast edit loop (added 2026-08-11) ───────────────────────────────
+# Single-command edit workflow: snapshot → shape-check → dry → confirm → deploy.
+# Designed for fast iteration with safe breakage.
+#
+# Workflow tiers:
+#   just edit-quick <host>   — shape-check + dry only (no snapshot, no deploy)
+#   just edit-fast  <host>   — snapshot + shape-check + dry (no deploy)
+#   just edit       <host>   — full loop: snapshot + shape-check + dry + deploy
+#   just edit-revert         — restore last snapshot (asks for YES at a tty)
+#   just edit-history        — list snapshots, newest first
+#   just edit-diff [id]      — show diff vs last snapshot (or vs <id>)
+#
+# The shape-check (scripts/nix-shape-check.sh) is sub-second for typical
+# edits; the dry-build is seconds-to-minutes depending on what changed.
+# The shape-check catches the 5 most common .nix editing mistakes BEFORE
+# nix evaluation, so iteration stays fast.
+
+# Quick check — shape + dry, no snapshot. Use for "let me see if it builds".
+# Note: echo uses shell `$host` (not just's `{{host}}`) so the recipe
+# passes tests/justfile-argument-regressions.sh which forbids any
+# `{{host}}`-style interpolation in shell source.
+edit-quick $host=host:
+    @echo ">>> edit-quick: shape-check + dry-build for $host"
+    ./scripts/nix-shape-check.sh
+    nixos-rebuild dry-build --flake ".#$host"
+
+# Fast edit — snapshot + shape + dry. Use for "I'm going to iterate on this".
+edit-fast $host=host label="":
+    @echo ">>> edit-fast: snapshot + shape-check + dry-build for $host"
+    @SNAPSHOT_ID=$(./scripts/edit-snapshot.sh save "$label"); \
+        echo "    snapshot: $SNAPSHOT_ID"
+    ./scripts/nix-shape-check.sh
+    nixos-rebuild dry-build --flake ".#$host"
+
+# Full edit loop — snapshot + shape + dry + confirm + deploy.
+# Use for "I'm done iterating and want to deploy".
+edit $host=host label="":
+    @echo ">>> edit: full loop for $host"
+    @SNAPSHOT_ID=$(./scripts/edit-snapshot.sh save "$label"); \
+        echo "    snapshot: $SNAPSHOT_ID"
+    @echo "--- step 1: shape-check (fast, <1s) ---"
+    ./scripts/nix-shape-check.sh
+    @echo "--- step 2: dry-build (eval gate) ---"
+    nixos-rebuild dry-build --flake ".#$host"
+    @echo "--- step 3: confirm + deploy ---"
+    ./scripts/confirm-local-deploy.sh "$host"
+    nixos-rebuild switch --flake ".#$host" --elevate=sudo
+
+# Revert to last snapshot. Asks for YES at a tty (no silent reverts).
+edit-revert id="":
+    ./scripts/edit-snapshot.sh revert "$id"
+
+# List snapshots, newest first.
+edit-history:
+    ./scripts/edit-snapshot.sh list
+
+# Show diff vs snapshot (default: last snapshot).
+edit-diff id="":
+    ./scripts/edit-snapshot.sh diff "$id"
+
 # ── flake inputs ──────────────────────────────────────────────────
 # Update all flake inputs, then deploy the current host.
 # Guarded the same way as `deploy`.
