@@ -159,6 +159,83 @@ for port in ("8642", "9119", "9131"):
 # We intentionally do NOT require every host to opt in here — the
 # Tailscale mesh is still the live mesh.
 
+# --- DMS user-facing `netbird` shim on UwU --------------------------------
+# The DMS "NetbirdStatus" plugin (github.com/Dadangdut33/dms-plugins/NetbirdStatus)
+# probes for a `netbird` binary on $PATH by running `which netbird`. The
+# NixOS netbird module exposes the per-instance wrapper as `netbird-mesh`
+# (the `bin.suffix` is the instance name), so the plugin's probe fails
+# even when the mesh is up. The remediation is a host-scoped shim that
+# wraps the upstream wrapper under the name `netbird`. The shim file
+# lives at hosts/UwU/shell/dms-netbird-shim.nix and is auto-imported
+# by collectModules; it must (a) exist on disk, (b) be wired into the
+# UwU host's flake-parts namespace, and (c) default to enabled once
+# the netbirdMesh role is enabled. If any of these regresses, the
+# DMS plugin will print "NetBird not installed" again.
+uwu_shim = ROOT / "hosts/UwU/shell/dms-netbird-shim.nix"
+require(uwu_shim.is_file(), "UwU DMS netbird shim file is missing")
+
+uwu_shim_text = uwu_shim.read_text()
+require(
+    "nixos.hosts.\"UwU\"" in uwu_shim_text,
+    "UwU DMS netbird shim is not host-scoped to UwU (must live under nixos.hosts.\"UwU\")",
+)
+require(
+    "config.services.netbird.clients.mesh.wrapper" in uwu_shim_text,
+    "UwU DMS netbird shim does not wrap services.netbird.clients.mesh.wrapper",
+)
+require(
+    "environment.systemPackages" in uwu_shim_text,
+    "UwU DMS netbird shim does not add the shim package to environment.systemPackages",
+)
+require(
+    'lib.mkIf (cfg.enable && cfg.dms.enable)' in uwu_shim_text,
+    "UwU DMS netbird shim is not gated by services.netbirdMesh.dms.enable",
+)
+require(
+    "services.netbirdMesh.dms" in uwu_shim_text and "dms.enable" in uwu_shim_text,
+    "UwU DMS netbird shim does not declare the services.netbirdMesh.dms.enable option",
+)
+
+# The netbird-mesh role module must expose a daemon-socket-access option
+# so hosts with `mkForce` on `users.users.jaide.extraGroups` (e.g. the
+# work laptop) can opt back in to the `netbird-mesh` group. The canonical
+# `jaide` user is added unconditionally inside the role module's
+# `users.users.jaide.extraGroups = lib.mkAfter [ "netbird-mesh" ]` block,
+# so asserting the option's existence is enough to know the wiring logic
+# is reachable for additional users.
+require(
+    "daemonSocketUsers" in module,
+    "netbird-mesh role module does not declare the daemonSocketUsers option",
+)
+require(
+    "lib.types.listOf lib.types.str" in module,
+    "netbird-mesh role module's daemonSocketUsers is not a listOf str",
+)
+require(
+    '"netbird-mesh"' in module and "extraGroups" in module,
+    "netbird-mesh role module does not wire the `netbird-mesh` group into users' extraGroups",
+)
+
+# The shim must be reachable by the flake's collectModules walker. The
+# walker excludes `default.nix` and any path listed in flake.nix's
+# `dendriticExceptions` map. The shim file is neither, so it is picked
+# up automatically. If a future contributor lists it as an exception
+# by mistake, the walker will skip it and the shim will silently
+# disappear from the system profile — exactly the bug we are
+# regression-testing. Read flake.nix and assert the shim is not in
+# the exception set.
+flake_text = (ROOT / "flake.nix").read_text()
+import re
+exc_block = re.search(r"dendriticExceptions\s*=\s*\{([^}]*)\}", flake_text, re.DOTALL)
+if exc_block is None:
+    raise SystemExit("FAIL: flake.nix does not declare a `dendriticExceptions` map")
+exc_paths = re.findall(r'"([^"]+)"', exc_block.group(1))
+require(
+    "hosts/UwU/shell/dms-netbird-shim.nix" not in exc_paths,
+    "UwU DMS netbird shim is listed in flake.nix's dendriticExceptions — "
+    "the walker will skip it and the shim will silently disappear",
+)
+
 # --- Print-server SSH invariant (independent of mesh) -----------------
 # The print server's users/users.nix must keep key-only SSH by default
 # and confine the AD password SSH block to the lab subnet.

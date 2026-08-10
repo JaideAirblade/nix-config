@@ -57,6 +57,44 @@
           default = false;
           description = "Also expose OpenSSH through the host's ordinary firewall. Mirrors the Tailscale-era option; usually the LAN SSH path is closed on private/work/personal nodes and only open on the bastion server.";
         };
+
+        # ─────────────────────────────────────────────────────────────────
+        # Daemon socket access — additional users beyond the canonical jaide
+        # ─────────────────────────────────────────────────────────────────
+        # The hardened Netbird daemon runs as user `netbird-mesh` and group
+        # `netbird-mesh`, and its per-instance runtime directory is mode
+        # 0750 (per the upstream NixOS module's `RuntimeDirectoryMode`).
+        # That means only the `netbird-mesh` group can traverse
+        # `/var/run/netbird-mesh/` to reach the unix socket. The upstream
+        # module's own docs (services/networking/netbird.nix ~line 272)
+        # document this as a deliberate hardening choice and tell the
+        # operator to add users to the daemon group:
+        #
+        #   users.users.<user>.extraGroups = [ "netbird-mesh" ];
+        #
+        # This role module always adds `jaide` to the `netbird-mesh`
+        # group when the mesh is enabled (see the `users.users`
+        # attrset in the config block below) so the canonical human
+        # account can talk to the daemon for the netbird-ui GUI, the
+        # `netbird status` CLI, and the DMS NetbirdStatus plugin.
+        # Hosts that have a `mkForce` on `users.users.jaide.extraGroups`
+        # (e.g. TSBW-W01800's "work" override wipes the personal list)
+        # need to opt back in via this option — list the user there
+        # and the role will merge the group into their forced extras.
+        #
+        # Each listed user must already exist via the standard NixOS
+        # `users.users.<name>` declaration; the role adds the
+        # `netbird-mesh` group to their `extraGroups`. The role does
+        # NOT create the user — that's the host's job (lives in
+        # hosts/<host>/users/). Listings that don't match a real user
+        # are silently ignored (gated on `config.users.users ? <name>`)
+        # so a host that doesn't declare them yet stays buildable.
+        daemonSocketUsers = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [ ];
+          example = [ "jaide" ];
+          description = "Additional local users (beyond the canonical `jaide` account) that should be allowed to talk to the netbird-mesh daemon over its unix socket. Each name is added to the `netbird-mesh` group via `users.users.<name>.extraGroups`.";
+        };
       };
 
       config = lib.mkIf cfg.enable {
@@ -201,9 +239,25 @@
         # Nix module system merges these two lists into a single
         # authorised-keys list. The key is identical so the merge is a
         # no-op.
-        users.users.jaide.openssh.authorizedKeys.keys = [
-          "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKozofCo3TsmA85edEMGsysfAkLf1/wWL3cv+DR0Ck04 jaide_nixos"
-        ];
+        users.users = {
+          # Daemon socket access — merge each user declared in
+          # cfg.daemonSocketUsers into the `netbird-mesh` group so they
+          # can reach the unix socket at `/var/run/netbird-mesh/sock`.
+          # The upstream NixOS module declares the `netbird-mesh` group
+          # itself when hardened mode is on, so we don't re-declare it.
+          # We gate each entry on the user's *existence* so naming a
+          # non-existent user on a host fails the build loudly instead
+          # of silently creating a phantom account.
+          jaide = {
+            openssh.authorizedKeys.keys = [
+              "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKozofCo3TsmA85edEMGsysfAkLf1/wWL3cv+DR0Ck04 jaide_nixos"
+            ];
+            extraGroups = lib.mkAfter [ "netbird-mesh" ];
+          };
+        } // lib.foldl' (acc: name:
+          acc // lib.optionalAttrs (config.users.users ? ${name}) {
+            ${name}.extraGroups = lib.mkAfter [ "netbird-mesh" ];
+          }) { } cfg.daemonSocketUsers;
 
         # ------------------------------------------------------------------
         # Public role metadata (echo of the Tailscale required-tag file)
