@@ -42,24 +42,14 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Noctalia — Wayland-native desktop shell (bars, launcher, dock, lock,
-    # notifications, control center, wallpapers, OSDs). See modules/wm/
-    # noctalia/noctalia.nix for the role module and hosts/UwU/desktop/
-    # noctalia-host.nix for the host-scoped wiring. The upstream flake
-    # currently tracks v5-beta; pin via this input if a stable v4 is
-    # needed instead. Verified on 2026-08-10:
-    #   repo github:noctalia-dev/noctalia
-    #   flake.nix exposes nixosModules.default + homeModules.default
-    #   + hjemModules.default + packages.<system>.default
-    noctalia = {
-      url = "github:noctalia-dev/noctalia";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    # Noctalia Greeter — companion login greeter for greetd, matching
-    # the Noctalia look-and-feel. Loaded by modules/wm/noctalia/noctalia.nix.
-    noctalia-greeter = {
-      url = "github:noctalia-dev/noctalia-greeter";
+    # iNiR — Niri-native desktop shell (bar, launcher, dock, lock screen,
+    # notifications, control center, wallpapers, OSDs) built on Quickshell.
+    # Replaces Noctalia on UwU. The flake exposes nixosModules.inir /
+    # homeModules.inir and packages.<system>.default. We use the NixOS
+    # module because the host wires greetd-vs-SDDM at the system layer.
+    # Verified on 2026-08-10: https://github.com/snowarch/iNiR
+    inir = {
+      url = "github:snowarch/iNiR";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 

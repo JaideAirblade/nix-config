@@ -124,6 +124,13 @@ in
         };
       };
       security.pam.services = {
+        # SDDM PAM service — populated on login-display-manager hosts
+        # (e.g. UwU since 2026-08-11, which swapped from greetd to SDDM
+        # to host the iNiR ii-pixel SDDM theme). No-op on hosts that
+        # don't use SDDM.
+        sddm.u2f.enable = true;
+        # greetd PAM service — still used by DankGreeter on TSBW-W01800
+        # and other hosts.
         greetd.u2f.enable = true;
         login.u2f.enable = true;
         sudo.u2f.enable = false;

@@ -14,4 +14,6 @@ pkgs: {
 
   officecli = pkgs.callPackage ./officecli { };
   herm-tui = pkgs.callPackage ./herm-tui { };
+
+  inir-sddm-theme = pkgs.callPackage ./inir-sddm-theme { };
 }

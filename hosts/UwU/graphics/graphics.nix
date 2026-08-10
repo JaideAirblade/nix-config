@@ -64,10 +64,11 @@ _:
       # NVIDIA-specific compositor env vars were historically set here
       # (WLR_DRM_NO_ATOMIC=1 for wlroots compositors). Niri is built on
       # Smithay and uses DRM/KMS directly — it does NOT need that hint,
-      # and the host override at hosts/UwU/desktop/noctalia-host.nix
-      # forces WLR_DRM_NO_ATOMIC to empty. The kernel param
-      # `nvidia-drm.modeset=1` above remains the canonical NVIDIA-on-
-      # Wayland prerequisite and is required by both Mango and Niri.
+      # and the host override at hosts/UwU/desktop/inir-host.nix is
+      # the authoritative place for any compositor-specific override.
+      # The kernel param `nvidia-drm.modeset=1` above remains the canonical
+      # NVIDIA-on-Wayland prerequisite and is required by both Mango and
+      # Niri.
     }
   ;
 }
