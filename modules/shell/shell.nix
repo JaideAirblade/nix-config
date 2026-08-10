@@ -4,10 +4,16 @@
 # dotfiles (many CLI tools do) stay writable. The user owns ~/.bashrc,
 # ~/.gitconfig, etc. — these system-level settings only provide defaults
 # via /etc and leave per-user overrides intact.
+# Note: the inner function takes `pkgs` so we can pull in
+# CLI tools (ripgrep-all, ocrmypdf, ...) that don't have a
+# `programs.X.enable` option in upstream nixpkgs. The shell-level
+# tools (zoxide, nh, starship, ...) are still wired via their
+# programs.X.enable options, which compose neatly with the
+# NixOS module system.
 _:
 {
   nixos.modules.common =
-    { lib, ... }:
+    { lib, pkgs, ... }:
 
     {
       programs.bash = {
@@ -83,6 +89,45 @@ _:
       # `flake` is left null by default — users set `NH_FLAKE` in their
       # shell init or pass --flake explicitly per invocation.
       programs.nh.enable = true;
+
+      # ─────────────────────────────────────────────────────────────────
+      # ripgrep-all — rg with PDF / Office / e-book / archive support
+      # ─────────────────────────────────────────────────────────────────
+      # Ripgrep-all (rga) extends ripgrep with adapters that pre-extract
+      # text from PDFs, .docx, .epub, .zip, .tar.gz, etc. so you can grep
+      # the contents of binary archive files as if they were plain text:
+      #   rga foo notes.pdf
+      #   rga --type pdf "needle"
+      # rga respects the same flags as rg (recursive, hidden, glob), so
+      # its alias is a drop-in. The system already has `rg` from
+      # packages.nix; this is the augmented binary that knows about
+      # archive formats.
+      #
+      # Note: upstream nixpkgs does not ship a `programs.ripgrep-all.enable`
+      # module — we add the package directly to environment.systemPackages.
+      # ─────────────────────────────────────────────────────────────────
+      # ripgrep-all + ocrmypdf — pull-in CLI tools without NixOS modules
+      # ─────────────────────────────────────────────────────────────────
+      # These are not `programs.X.enable` options in upstream nixpkgs —
+      # they are pure Python/Cargo packages with no module wrapping. We
+      # add them directly to environment.systemPackages. The list is
+      # defined once at the end of the module so the module system's
+      # automatic merging doesn't double-define the key.
+      #
+      # ripgrep-all (rga) — augments rg with PDF, Office, e-book, and
+      # archive adapters so you can grep into binary file contents:
+      #   rga foo notes.pdf
+      # rga respects the same flags as rg, so it is a drop-in replacement.
+      # Closure is small (~5MB).
+      #
+      # ocrmypdf — adds a searchable OCR text layer to scanned PDFs.
+      #   ocrmypdf input.pdf output.pdf          # lossless, ~2x size
+      #   ocrmypdf --optimize 1 input.pdf out.pdf # smaller, recompresses
+      #   ocrmypdf -l deu+eng input.pdf out.pdf    # multi-language
+      # Closure is heavy (~200MB compressed) because it pulls in
+      # tesseract 5 + pikepdf + pypdfium2 + pillow + ghostscript, but
+      # the binary is small and there is no daemon.
+      environment.systemPackages = [ pkgs.ripgrep-all pkgs.ocrmypdf ];
     }
   ;
 }
