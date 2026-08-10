@@ -76,9 +76,17 @@
       # not exist and the per-host fleet aliases (ssh uwu, ssh
       # uwu-server, ssh tsbw) defined in the automationAccounts module
       # are unreachable from interactive shells.
+      #
+      # The same pattern wires /home/luna/.ssh/id_ed25519 to the
+      # SOPS-rendered luna identity so `ssh uwu-server` from this host
+      # can actually authenticate. UwU-Server has the equivalent
+      # symlink in hosts/UwU-Server/users/users.nix; UwU was missing
+      # it before 2026-08-11, so SSH aliases from UwU were silently
+      # broken with "no such identity" until the key was exposed.
       systemd.tmpfiles.rules = [
         "d /home/luna/.ssh 0700 luna luna -"
         "L+ /home/luna/.ssh/config - - - - /etc/luna/ssh_config"
+        "L+ /home/luna/.ssh/id_ed25519 - - - - ${config.sops.templates.luna_ssh_identity.path}"
       ];
     }
   ;
