@@ -57,16 +57,16 @@ require(
     "hermes-webui flake input must be pinned to a known-good commit",
 )
 
-# Network binding: port 8080 is reachable only through the Tailscale
-# mesh. The NixOS firewall (modules/network/tailscale-mesh.nix) and the
-# tailnet ACL (modules/network/tailscale-policy.json) jointly control
+# Network binding: port 8080 is reachable only through the Netbird
+# mesh. The NixOS firewall (modules/network/netbird-mesh.nix) and the
+# mesh policy (modules/network/netbird-policy.json) jointly control
 # access; the WebUI itself binds 0.0.0.0 so a future reverse-proxy
 # (Caddy/Traefik) can sit in front without per-service re-binding.
 # openFirewall stays false because the firewall is managed centrally,
 # not by this service module.
 require(
     'host = "0.0.0.0";' in source,
-    "WebUI must bind to 0.0.0.0 (access control delegated to NixOS firewall + tailnet ACL)",
+    "WebUI must bind to 0.0.0.0 (access control delegated to NixOS firewall + mesh policy)",
 )
 require(
     "openFirewall = false;" in source,
@@ -76,23 +76,33 @@ require(
     'port = 8080;' in source,
     "WebUI must listen on port 8080 (see 2026-08-06 port-rearchitecture)",
 )
-# Inverse: the tailscale0 firewall rule MUST admit port 8080 (otherwise
-# the WebUI is reachable on the LAN/public interfaces but invisible on
-# the Tailscale path). Mirror check on tailscale-mesh.nix + policy.json.
-mesh = (ROOT / "modules/network/tailscale-mesh.nix").read_text(encoding="utf-8")
+# Inverse: the wt0 firewall rule MUST admit port 8080 (otherwise the
+# WebUI is reachable on the LAN/public interfaces but invisible on the
+# mesh). Mirror check on netbird-mesh.nix + netbird-policy.json. The
+# module references the interface via the `${wtInterface}` Nix var
+# (which expands to "wt0"), so the regex tolerates either form.
+mesh = (ROOT / "modules/network/netbird-mesh.nix").read_text(encoding="utf-8")
 require(
-    re.search(r"networking\.firewall\.interfaces\.tailscale0\.allowedTCPPorts\s*=\s*\[\s*22\s*8080\s*8642\s*9119\s*9131\s*\]\s*;", mesh)
+    re.search(
+        r"networking\.firewall\.interfaces\.(?:wt0|\$\{wtInterface\})\.allowedTCPPorts\s*=\s*\[[^\]]*?\b22\b[^\]]*?\b8080\b[^\]]*?\b8642\b[^\]]*?\b9119\b[^\]]*?\b9131\b[^\]]*?\]",
+        mesh,
+    )
     is not None,
-    "tailscale0 mesh firewall must allow TCP/8080 alongside TCP/22 for the WebUI",
+    "wt0 mesh firewall must allow TCP/22/8080/8642/9119/9131 for the WebUI + Mobile Bridge",
 )
-policy = json.loads((ROOT / "modules/network/tailscale-policy.json").read_text(encoding="utf-8"))
+policy = json.loads((ROOT / "modules/network/netbird-policy.json").read_text(encoding="utf-8"))
+# Netbird policy uses groups (not tag: prefixes) and the rule schema is
+# {sources, destinations, ports}. Find the rule that admits private peers
+# onto 8080 on private destinations.
 mesh_rule = next(
-    (r for r in policy.get("acls", [])
-     if set(r.get("src", [])) == {"tag:private", "tag:work", "tag:personal"}),
+    (r for r in policy.get("rules", [])
+     if "private" in r.get("sources", [])
+     and "private" in r.get("destinations", [])
+     and any(p.get("port") == "8080" for p in r.get("ports", []))),
     None,
 )
-require(mesh_rule is not None and "tag:private:8080" in mesh_rule.get("dst", []),
-        "tailnet policy must allow tag:private:8080 for the WebUI")
+require(mesh_rule is not None,
+        "mesh policy must admit private:8080 for the WebUI")
 
 # Hermes state sharing: must reuse the system's hermes-agent (so it picks
 # up the hermes-router provider and Mnemosyne memory) and read the same

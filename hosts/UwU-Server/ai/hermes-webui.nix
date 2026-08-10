@@ -1,13 +1,13 @@
 # Hermes WebUI — community web UI for Hermes Agent (nesquena/hermes-webui).
 #
 # Provides a browser-based chat interface that mirrors the Hermes CLI. Listens
-# on 0.0.0.0:8080; the NixOS firewall restricts tailscale0 (peer access) and
+# on 0.0.0.0:8080; the NixOS firewall restricts wt0 (mesh peer access) and
 # blocks eno1/loopback/public interfaces, so the WebUI is reachable only via
-# the tailnet (matching the existing port-8080 ACL in tailscale-policy.json
-# and the firewall rule in modules/network/tailscale-mesh.nix). This shape
-# keeps future host additions (Caddy reverse-proxy, more services) from
-# bumping against binding-IP state across hosts — access control lives in
-# one place.
+# the Netbird mesh (matching the existing port-8080 policy in
+# modules/network/netbird-policy.json and the firewall rule in
+# modules/network/netbird-mesh.nix). This shape keeps future host additions
+# (Caddy reverse-proxy, more services) from bumping against binding-IP state
+# across hosts — access control lives in one place.
 #
 # Runs as user `luna` so it shares the same ~/.hermes/ state as the on-host
 # hermes-agent sessions AND the hermes-router provider. That means the WebUI
@@ -19,10 +19,9 @@
 #
 # Authentication: password is loaded from sops (HERMES_WEBUI_PASSWORD), so
 # even if a phone or work laptop is briefly on an untrusted network (e.g. a
-# coffee shop), the tailnet is gated by an attacker-needs-to-know password.
-# The fire-and-forget alternative would be to rely on Tailscale's token
-# alone, which is fine for laptops but weak for phones that get handed
-# around.
+# coffee shop), the mesh is gated by an attacker-needs-to-know password.
+# The fire-and-forget alternative would be to rely on the mesh wire alone,
+# which is fine for laptops but weak for phones that get handed around.
 #
 # NOT enabled by default for flake-managed test hosts — only the canonical
 # "luna" user on UwU-Server benefits, so this module is registered against
@@ -60,7 +59,7 @@
       services.hermes-webui = {
         enable = true;
 
-        # Wire the WebUI to the SAME hermes-agent that the Tailscale-routed
+        # Wire the WebUI to the SAME hermes-agent that the mesh-routed
         # Luna users and the hermes-router provider use. passthru.hermesVenv
         # is exposed by the upstream hermes-agent overlay, so the WebUI's
         # Python resolves to: pyyaml + cryptography + every Hermes dep
@@ -68,8 +67,8 @@
         agent.package = pkgs.hermes-agent;
 
         # Network binding — listen on 0.0.0.0; access control is delegated
-        # to the NixOS firewall (modules/network/tailscale-mesh.nix +
-        # modules/network/tailscale-policy.json). Keeps the host/port
+        # to the NixOS firewall (modules/network/netbird-mesh.nix +
+        # modules/network/netbird-policy.json). Keeps the host/port
         # configuration host-agnostic so Caddy/other reverse proxies can
         # sit in front of multiple services later without per-host
         # re-binding gymnastics.

@@ -38,11 +38,11 @@
 #   9119 - dashboard     (web admin UI)
 #   9131 - mobile bridge (the Android companion service - its own API)
 #
-# All three listen on 0.0.0.0 inside the Tailscale mesh (wireguard-encrypted
+# All three listen on 0.0.0.0 inside the Netbird mesh (wireguard-encrypted
 # - plain HTTP is acceptable per the existing 8080 convention); they are not
-# opened on LAN or public interfaces. The tailnet ACL is updated in
-# modules/network/tailscale-policy.json and the firewall port list in
-# modules/network/tailscale-mesh.nix.
+# opened on LAN or public interfaces. The mesh policy is updated in
+# modules/network/netbird-policy.json and the firewall port list in
+# modules/network/netbird-mesh.nix.
 { inputs, ... }:
 {
   nixos.hosts."UwU-Server" =
@@ -181,23 +181,33 @@
       # command can be run from any shell, not just the desktop.
       pairQr = pkgs.writeShellApplication {
         name = "hermes-mobile-bridge-pair-qr";
-        runtimeInputs = [ pkgs.coreutils pkgs.gnused pkgs.qrencode ];
+        runtimeInputs = [ pkgs.coreutils pkgs.gnused pkgs.jq pkgs.qrencode pkgs.sudo ];
         text = ''
           set -euo pipefail
 
-          # The host we hand to the app is the Tailscale IP - that's the only
-          # network the Android phone reliably shares with the server (per
-          # module header). We resolve it at run-time so the QR stays valid
-          # even if the Tailscale address rotates (which it shouldn't, but
-          # belt-and-suspenders for a QR that may sit on a screen for a while).
-          tailscale_ip=""
-          if command -v ${pkgs.tailscale}/bin/tailscale >/dev/null 2>&1; then
-            tailscale_ip="$(${pkgs.tailscale}/bin/tailscale ip -4 2>/dev/null || true)"
+          # The host we hand to the app is the Netbird mesh IP — that's
+          # the only network the Android phone reliably shares with the
+          # server (per module header). We resolve it at run-time so the
+          # QR stays valid even if the mesh address rotates (which it
+          # shouldn't, but belt-and-suspenders for a QR that may sit on
+          # a screen for a while).
+          #
+          # The netbird-mesh systemd wrapper is what NixOS exposes when
+          # services.netbirdMesh.enable = true; its name comes from the
+          # `services.netbird.clients.mesh` instance attr + the `bin.suffix`
+          # = "mesh" (so `mkBin "netbird"` yields `netbird-mesh`). The
+          # daemon runs as user `netbird-mesh`, which is why we sudo into
+          # it before invoking the status CLI.
+          netbird_bin="$(command -v netbird-mesh || true)"
+          mesh_ip=""
+          if [ -n "$netbird_bin" ] && command -v sudo >/dev/null 2>&1; then
+            mesh_ip="$(sudo -u netbird-mesh "$netbird_bin" status --json 2>/dev/null \
+              | ${pkgs.jq}/bin/jq -r '"\(.netbirdIp)" | split("/")[0]' 2>/dev/null || true)"
           fi
-          if [ -z "$tailscale_ip" ]; then
-            echo "hermes-mobile-bridge-pair-qr: Tailscale is not up on this host" >&2
+          if [ -z "$mesh_ip" ]; then
+            echo "hermes-mobile-bridge-pair-qr: Netbird mesh is not up on this host" >&2
             echo "  the bridge will still pair via LAN, but the QR will use" >&2
-            echo "  the LAN IP. Bring tailscale0 up and re-run for the" >&2
+            echo "  the LAN IP. Bring wt0 up and re-run for the" >&2
             echo "  remote-friendly URL." >&2
           fi
 
@@ -213,7 +223,7 @@
             exit 1
           fi
 
-          gateway_host="$tailscale_ip"
+          gateway_host="$mesh_ip"
           gateway_port=8642
           dashboard_port=9119
           bridge_port=9131
@@ -236,7 +246,7 @@
           echo "  Pairing URL (paste in the app if your phone shares this screen):"
           echo "    $pair_url"
           echo
-          echo "  Tailscale IP used: $gateway_host"
+          echo "  Netbird mesh IP used: $gateway_host"
           echo "  Gateway:  http://$gateway_host:$gateway_port"
           echo "  Dashboard:http://$gateway_host:$dashboard_port"
           echo "  Bridge:   http://$gateway_host:$bridge_port"

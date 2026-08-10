@@ -178,15 +178,19 @@ require(
     "console-services path must be /home/luna/.hermes/console-services (literal or constructed)",
 )
 
-# 9. The pair-qr command calls Tailscale to get the IP and warns if
-#    tailscale is not up.
+# 9. The pair-qr command calls the Netbird mesh wrapper to get the IP
+#    and warns if the mesh is not up.
 require(
-    "tailscale" in source,
-    "pair-qr command must invoke the tailscale CLI to resolve the address",
+    "netbird-mesh" in source,
+    "pair-qr command must invoke the netbird-mesh CLI wrapper to resolve the address",
 )
 require(
-    "Tailscale is not up" in source,
-    "pair-qr command must warn when tailscale is down",
+    "Netbird mesh is not up" in source,
+    "pair-qr command must warn when the Netbird mesh is down",
+)
+require(
+    "pkgs.jq" in source,
+    "pair-qr command must declare pkgs.jq in runtimeInputs (parses netbird status JSON)",
 )
 
 # 10. The sops file actually exists in the secrets repo (this only

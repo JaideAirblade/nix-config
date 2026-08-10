@@ -11,7 +11,7 @@
 # deny-by-default-source group), but the decision changed: the print
 # server's trust model is purely LAN-based. It accepts SSH only from
 # 192.168.100.0/24 (the lab subnet), per the users/users.nix
-# Match Address block. There is no tailscale0 or wt0 firewall allowlist
+# Match Address block. There is no wt0 firewall allowlist
 # because those interfaces don't exist on this host.
 #
 # ── Roles ──────────────────────────────────────────────────────────

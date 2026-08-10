@@ -2,17 +2,16 @@
 # network plane, while ordinary OpenSSH retains the existing pinned
 # host/user key trust path.
 #
-# This module is the Netbird parallel to modules/network/tailscale-mesh.nix.
-# During the cutover (2026-08-09) hosts select BOTH nixos.modules.remoteMesh
-# (Tailscale — keeps the live mesh up) and nixos.modules.netbirdMesh (this
-# module — registers the new Netbird mesh). Once every reachable peer has
-# been verified on Netbird and the Tailscale module is removed, hosts
-# select only nixos.modules.netbirdMesh.
+# This module is the SOLE mesh role on every managed host as of 2026-08-11.
+# The previous Tailscale role (modules/network/tailscale-mesh.nix) was
+# removed in the same cleanup commit; hosts that previously selected both
+# `nixos.modules.remoteMesh` and `nixos.modules.netbirdMesh` now select
+# only `nixos.modules.netbirdMesh`. See docs/netbird-mesh.md for the
+# migration rationale.
 #
 # The outer layer (this file) is a flake-parts module that returns
-# `nixos.modules.netbirdMesh` — a deferredModule attrset — in the same
-# shape as tailscale-mesh.nix returns `nixos.modules.remoteMesh`. The
-# NixOS sub-module is the inner function inside that attrset.
+# `nixos.modules.netbirdMesh` — a deferredModule attrset. The NixOS
+# sub-module is the inner function inside that attrset.
 { lib, inputs, ... }:
 {
   nixos.modules.netbirdMesh =
@@ -158,13 +157,13 @@
         };
 
         # ------------------------------------------------------------------
-        # Routing features (mirrors services.tailscale.useRoutingFeatures)
+        # Routing features (client mode)
         # ------------------------------------------------------------------
         # Enables IP forwarding and the routing-peer features — required
         # for any peer that may route traffic on behalf of others (e.g.
         # UwU-Server routing UwU's direct-link traffic to the internet).
-        # Restricted to "client" mode in line with the Tailscale policy:
-        # nodes are not exit nodes for the whole mesh.
+        # Restricted to "client" mode: nodes are not exit nodes for the
+        # whole mesh.
         services.netbird.useRoutingFeatures = "client";
 
         # ------------------------------------------------------------------
@@ -204,14 +203,13 @@
         # ------------------------------------------------------------------
         # Firewall: Netbird interface allowlist
         # ------------------------------------------------------------------
-        # Same port list as the Tailscale role, bound to the Netbird
-        # interface name (`wt0`). See the corresponding comments in
-        # modules/network/tailscale-mesh.nix for the rationale of each
-        # port. Port 22 = OpenSSH; 8080 = Hermes WebUI; 8642/9119/9131
-        # = Hermes Mobile Bridge (gateway/dashboard/bridge). 3000 =
-        # AdGuard Home web UI on tailnet only. 443 = Gitea + dashboard
-        # ingress. Permissions in the Netbird policy mirror the
-        # Tailscale ACL.
+        # Same port list as the previous Tailscale role, bound to the
+        # Netbird interface name (`wt0`). Port 22 = OpenSSH; 8080 =
+        # Hermes WebUI; 8642/9119/9131 = Hermes Mobile Bridge
+        # (gateway/dashboard/bridge). 3000 = AdGuard Home web UI on mesh
+        # only. 443 = Gitea + dashboard ingress. Permissions in the
+        # Netbird policy mirror the previous Tailscale ACL (now stored in
+        # modules/network/netbird-policy.json).
         networking.firewall.interfaces.${wtInterface}.allowedTCPPorts = [
           22
           443
@@ -260,14 +258,13 @@
           }) { } cfg.daemonSocketUsers;
 
         # ------------------------------------------------------------------
-        # Public role metadata (echo of the Tailscale required-tag file)
+        # Public role metadata (echo of the pre-Netbird required-tag file)
         # ------------------------------------------------------------------
         # Netbird assigns groups at enrollment time, not via a
         # filesystem marker. We keep an analogous
         # `/etc/netbird/required-group` file so pre-enrollment sanity
-        # checks (the same pattern as the tailscale-required-tag file)
-        # report the intended role without touching the coordination
-        # server.
+        # checks report the intended role without touching the
+        # coordination server.
         environment.etc."netbird/required-group".text = "${cfg.nodeRole}\n";
       };
     };

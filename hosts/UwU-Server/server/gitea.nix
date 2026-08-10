@@ -1,11 +1,11 @@
 # Gitea: self-hosted Git service.
 #
 # Runs on UwU-Server behind nginx at git.jaidechan.moe.
-# SSH git access via the host's SSH server (port 22, already open on tailscale0).
+# SSH git access via the host's SSH server (port 22, already open on wt0).
 # SQLite database (sufficient for personal use).
 # Registration disabled -- single user (jaide/luna).
 #
-# Repos stored in /var/lib/gitea/repositories.
+# Repos stored at /var/lib/gitea/repositories.
 {
   inputs, lib, ... }:
 {
