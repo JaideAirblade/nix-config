@@ -195,7 +195,24 @@ _:
                 enabled = true;
               }
             ];
-            allowed_clients = [ linkSubnet "127.0.0.1/32" ];
+            # Per AdGuard's runtime default the allowed_clients list
+            # is 127.0.0.0/8 (localhost only) and any external DNS
+            # query returns REFUSED. We extend it to:
+            #   - the direct-link subnet (10.10.0.0/30) — UwU uses
+            #     the gateway IP 10.10.0.1 as its system resolver
+            #   - loopback (127.0.0.1/32) — AdGuard self-queries for
+            #     filter-list updates + license checks
+            #   - the netbird mesh subnet (100.77.0.0/16) — TSBW
+            #     reaches AdGuard at the UwU-Server mesh IP
+            #     (100.77.228.137) over the netbird tunnel and chains
+            #     `*.netbird.cloud` into the local netbird daemon
+            #     (see hosts/UwU-Server/network/direct-link.nix wt0
+            #     firewall below + services.netbirdMesh.dnsResolverAddress).
+            allowed_clients = [
+              linkSubnet
+              "127.0.0.1/32"
+              "100.77.0.0/16"
+            ];
             ratelimit = 0;
           };
         };

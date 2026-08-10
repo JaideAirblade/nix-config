@@ -285,6 +285,16 @@ require(
     "AdGuard on UwU-Server is missing the Unbound upstream (127.0.0.1:5335). "
     "Public DNS resolution will break for non-mesh queries.",
 )
+# The mesh subnet (100.77.0.0/16) must be in the allowed_clients list —
+# otherwise TSBW's dnsproxy gets REFUSED from AdGuard over the netbird
+# tunnel, and `ssh uwu-server` from TSBW silently fails to resolve.
+require(
+    "100.77.0.0/16" in adguard_cfg,
+    "AdGuard on UwU-Server must accept DNS queries from the netbird mesh "
+    "subnet (100.77.0.0/16) so TSBW-W01800 can reach AdGuard over the mesh "
+    "tunnel and chain `*.netbird.cloud` into the local netbird daemon. "
+    "Without this entry AdGuard returns REFUSED for every mesh-peer query.",
+)
 
 # --- TSBW dnsproxy: forward mesh DNS to UwU-Server --------------------
 # TSBW uses dnsproxy (not AdGuard) and has its own upstream chain.
