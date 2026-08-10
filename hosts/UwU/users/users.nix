@@ -63,8 +63,14 @@
         "${inputs.nixos-secrets}/secrets/UwU/luna-agent.yaml";
       sops.templates.luna_ssh_identity = {
         content = "${config.sops.placeholder.luna_ssh_private_key}\n";
-        owner = "jaide";
-        group = "users";
+        # Owned by luna directly (mode 0600) so the symlink in
+        # ~/.ssh/id_ed25519 is readable by luna. The previous
+        # jaide:users ownership worked for jaide's interactive SSH
+        # but broke luna's SSH-from-UwU use case (e.g. sister-sync
+        # + fleet automation): luna isn't in the `users` group, so
+        # the file was 0600 for luna even with the symlink in place.
+        owner = "luna";
+        group = "luna";
         mode = "0600";
       };
       environment.sessionVariables.LUNA_SSH_IDENTITY =
