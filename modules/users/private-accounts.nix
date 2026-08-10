@@ -89,6 +89,73 @@ let
       };
 
       environment.systemPackages = [ migrateLunaHome ];
+
+      # Declarative SSH config for Luna's fleet access. Every host
+      # that imports `automationAccounts` gets this — covers GitHub,
+      # the four netbird-mesh peers, and the per-host mesh DNS
+      # workaround for hosts that can't route to the magic-DNS
+      # suffix (none today, but the structure is here for parity
+      # with the Tailscale-era layout documented in
+      # skills/network/cross-host-ssh-setup/references/
+      # declarative-user-ssh-config.md).
+      #
+      # The config renders to /etc/luna/ssh_config. Luna's
+      # ~/.ssh/config is a systemd tmpfiles symlink into that path
+      # (managed per-host by each host's users/users.nix), so the
+      # rebuild-time file is the runtime config.
+      environment.etc."luna/ssh_config".text = ''
+        # GitHub — route through ssh.github.com:443 (port 22 often blocked).
+        Host github.com
+          HostName ssh.github.com
+          Port 443
+          User git
+          IdentityFile ~/.ssh/id_ed25519
+          IdentitiesOnly yes
+          StrictHostKeyChecking accept-new
+
+        # Netbird mesh peers. The Host block carries the literal mesh
+        # IP as HostName so the alias works without depending on the
+        # netbird daemon's DNS resolver being reachable from the
+        # calling host. HostKeyAlias keeps the known_hosts entry
+        # under the human-readable hostname (so `ssh -o
+        # HostKeyAlias=uwu` and `ssh -o HostKeyAlias=uwu-server` are
+        # both happy when the IP changes on re-enrollment).
+        Host uwu-server uwu-server.netbird.cloud
+          HostName 100.77.228.137
+          User luna
+          IdentityFile ~/.ssh/id_ed25519
+          IdentitiesOnly yes
+          StrictHostKeyChecking accept-new
+          HostKeyAlias uwu-server
+
+        Host uwu uwu.netbird.cloud
+          HostName 100.77.119.175
+          User luna
+          IdentityFile ~/.ssh/id_ed25519
+          IdentitiesOnly yes
+          StrictHostKeyChecking accept-new
+          HostKeyAlias uwu
+
+        Host tsbw tsbw-w01800 tsbw-w01800.netbird.cloud
+          HostName 100.77.44.152
+          User luna
+          IdentityFile ~/.ssh/id_ed25519
+          IdentitiesOnly yes
+          StrictHostKeyChecking accept-new
+          HostKeyAlias tsbw-w01800
+
+        # uwu-phone runs the Android netbird client only — no sshd.
+        # The Host block is here so `ssh uwu-phone` errors with a
+        # clear "Connection refused" rather than "Name or service
+        # not known" when the netbird DNS forward is unreachable.
+        Host uwu-phone uwu-phone.netbird.cloud
+          HostName 100.77.152.164
+          User luna
+          IdentityFile ~/.ssh/id_ed25519
+          IdentitiesOnly yes
+          StrictHostKeyChecking accept-new
+          HostKeyAlias uwu-phone
+      '';
     };
 in
 {

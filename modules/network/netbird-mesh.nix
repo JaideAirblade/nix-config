@@ -94,6 +94,42 @@
           example = [ "jaide" ];
           description = "Additional local users (beyond the canonical `jaide` account) that should be allowed to talk to the netbird-mesh daemon over its unix socket. Each name is added to the `netbird-mesh` group via `users.users.<name>.extraGroups`.";
         };
+
+        # ------------------------------------------------------------------
+        # Mesh DNS resolver bind address — per-host, opt-in
+        # ------------------------------------------------------------------
+        # When set, the netbird daemon serves `*.netbird.cloud` queries
+        # on this address+port instead of the default (the daemon's own
+        # mesh IP at an implementation-chosen port, currently 5053).
+        # The only host that opts in today is UwU-Server: its daemon
+        # binds on 127.0.0.1:5353 so AdGuard can forward `*.netbird.cloud`
+        # via a single `[/netbird.cloud/]127.0.0.1:5353` upstream entry
+        # (port 53 is taken by AdGuard; 5353 is the standard mDNS port
+        # and avoids the CAP_NET_BIND_SERVICE cap the daemon would
+        # otherwise need for ports < 1024). UwU and TSBW leave this
+        # null — their daemons bind on the default mesh IP:5053 and
+        # their system resolvers route `*.netbird.cloud` to UwU-Server's
+        # AdGuard over the mesh, which then forwards to the loopback
+        # daemon.
+        #
+        # Single address: the daemon only supports one. Picking the
+        # right address matters because:
+        # - `127.0.0.1` only works from the local host (AdGuard → daemon
+        #   on the same host).
+        # - the mesh IP works from any peer that can route to it, but
+        #   requires opening UDP/TCP firewall ports on `wt0`.
+        dnsResolverAddress = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          example = "127.0.0.1";
+          description = "Address that the netbird-mesh daemon should serve `*.netbird.cloud` DNS on. null means the daemon's default (its own mesh IP at port 5053). See module header for the UwU-Server / UwU / TSBW-W01800 split.";
+        };
+
+        dnsResolverPort = lib.mkOption {
+          type = lib.types.ints.between 1 65535;
+          default = 5353;
+          description = "Port the daemon should serve mesh DNS on (paired with `dnsResolverAddress`).";
+        };
       };
 
       config = lib.mkIf cfg.enable {
@@ -153,6 +189,19 @@
           login = {
             enable = true;
             setupKeyFile = setupKeyPath;
+          };
+
+          # Mesh DNS resolver bind. `dns-resolver.address` is null by
+          # default in the upstream module, which makes the daemon
+          # serve `*.netbird.cloud` on its own mesh IP at port 5053.
+          # Hosts that want a stable, predictable resolver bind (so
+          # the local resolver chain can forward to a known socket)
+          # set `dnsResolverAddress` via `services.netbirdMesh`.
+          # See the option doc on `dnsResolverAddress` for the
+          # UwU-Server / UwU / TSBW-W01800 split.
+          dns-resolver = lib.mkIf (cfg.dnsResolverAddress != null) {
+            address = cfg.dnsResolverAddress;
+            port = cfg.dnsResolverPort;
           };
         };
 

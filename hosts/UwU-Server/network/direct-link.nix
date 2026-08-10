@@ -137,19 +137,33 @@ _:
           dns = {
             bind_address = "0.0.0.0";
             listen_port = 53;
-            # Upstream: Unbound on loopback (port 5335, see services.unbound
-            # above). Unbound does full recursive resolution from the root
-            # servers, no third-party resolver. The previous Tailscale
-            # per-domain routing ([/tail542648.ts.net/]100.100.100.100)
-            # is gone with Tailscale. Netbird magic-DNS hostnames
-            # (*.netbird.cloud) resolve directly via the public DNS
-            # (Porkbun A records point at the netbird mesh IP 100.77.228.137
-            # for jaidechan.moe + subdomains), so no upstream_dns override
-            # is needed for them. The Tailscale-deprecated "search
-            # tail542648.ts.net" in /etc/resolv.conf on UwU is also gone
-            # (replaced by ad-blocking on the local resolver).
+            # Split-horizon upstream: per-domain inline DNS forward
+            # (AdGuard's `[/suffix/]<upstream>` syntax, exact-match on
+            # the suffix). Wildcard domains are routed to a different
+            # upstream than everything else, so a single AdGuard
+            # instance can answer both "public" DNS (via Unbound) and
+            # private-mesh DNS (via the local netbird daemon) without
+            # leaking mesh names to public resolvers.
             #
+            # The netbird daemon on this host binds its mesh DNS
+            # resolver on 127.0.0.1:5353 (set via
+            # `services.netbirdMesh.dnsResolverAddress` in
+            # hosts/UwU-Server/default.nix). Port 53 is taken by
+            # AdGuard itself; 5353 is the standard mDNS port and
+            # avoids the CAP_NET_BIND_SERVICE cap the netbird
+            # daemon would otherwise need to bind below 1024.
+            #
+            # Other queries route to Unbound (full recursive
+            # resolution from root, no third-party resolver). The
+            # previous Tailscale per-domain routing
+            # ([/tail542648.ts.net/]100.100.100.100) is gone with
+            # Tailscale (see commit `chore(mesh): drop Tailscale
+            # entirely`). The Porkbun A records for jaidechan.moe
+            # and its subdomains still point at the netbird mesh IP
+            # 100.77.228.137, so `dig jaidechan.moe @127.0.0.1`
+            # resolves correctly through the Unbound path.
             upstream_dns = [
+              "[/netbird.cloud/]127.0.0.1:5353"
               "127.0.0.1:5335"
             ];
             # Explicit empty bootstrap_dns: AdGuard's runtime default is
@@ -187,9 +201,21 @@ _:
         };
       };
 
-      # Open AdGuard Home web UI on the mesh interface (for remote admin).
-      networking.firewall.interfaces.wt0.allowedTCPPorts =
-        lib.mkAfter [ 3000 ];
+      # Open AdGuard Home on the mesh interface. The mesh peer
+      # (TSBW-W01800, currently the only non-private node) reaches
+      # AdGuard at the mesh IP 100.77.228.137:53 over the netbird
+      # tunnel so its dnsproxy can forward `*.netbird.cloud` queries
+      # to the local resolver (which then forwards to the local
+      # netbird daemon at 127.0.0.1:5353). UwU doesn't need this —
+      # its resolv.conf is pinned to AdGuard via the direct-link IP
+      # (10.10.0.1), not the mesh IP.
+      networking.firewall.interfaces.wt0 = {
+        allowedTCPPorts = lib.mkAfter [
+          53
+          3000
+        ];
+        allowedUDPPorts = lib.mkAfter [ 53 ];
+      };
     }
   ;
 }

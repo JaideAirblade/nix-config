@@ -69,6 +69,17 @@
       };
       environment.sessionVariables.LUNA_SSH_IDENTITY =
         config.sops.templates.luna_ssh_identity.path;
+      # Luna's home is provisioned by the privateAccounts module
+      # (nixos.modules.privateAccounts in flake.nix). Make her SSH
+      # config the one rendered by nixos.modules.automationAccounts at
+      # /etc/luna/ssh_config. Without this symlink, ~/.ssh/config does
+      # not exist and the per-host fleet aliases (ssh uwu, ssh
+      # uwu-server, ssh tsbw) defined in the automationAccounts module
+      # are unreachable from interactive shells.
+      systemd.tmpfiles.rules = [
+        "d /home/luna/.ssh 0700 luna luna -"
+        "L+ /home/luna/.ssh/config - - - - /etc/luna/ssh_config"
+      ];
     }
   ;
 }

@@ -1,18 +1,27 @@
-# DNS configuration — DoH for public domains, DHCP DNS for internal domains
+# DNS configuration — DoH for public domains, AdGuard for mesh,
+# DHCP DNS for internal domains.
 #
 # dnsproxy (AdGuard) with domain-specific upstreams:
-#   1. Public domains → DoH upstreams (Cloudflare, Quad9, Google, AdGuard) —
-#      port 443, looks like normal HTTPS traffic, harder to block
-#   2. Internal domains (*.tsbw.de) → DHCP DNS servers directly
-#   3. A NM dispatcher script writes the DHCP DNS IPs (only from interfaces
-#      carrying the tsbw.de search domain) to an upstream file in dnsproxy's
-#      [/domain/]server syntax and restarts dnsproxy on network changes.
+#   1. Mesh domain (*.netbird.cloud) → UwU-Server's AdGuard at
+#      100.77.228.137:53 (the netbird mesh IP). UwU-Server's AdGuard
+#      forwards `*.netbird.cloud` to its local netbird daemon on
+#      127.0.0.1:5353 — so a single hardcoded upstream here is
+#      enough to resolve every mesh hostname from this host.
+#   2. Public domains → DoH upstreams (Cloudflare, Quad9, Google,
+#      AdGuard) — port 443, looks like normal HTTPS traffic, harder
+#      to block.
+#   3. Internal domains (*.tsbw.de) → DHCP DNS servers directly.
+#   4. A NM dispatcher script writes the DHCP DNS IPs (only from
+#      interfaces carrying the tsbw.de search domain) to an upstream
+#      file in dnsproxy's [/domain/]server syntax and restarts
+#      dnsproxy on network changes.
 #
-# Why not --fallback?  dnsproxy's --fallback only triggers when upstreams
-# are UNREACHABLE (connection error).  DoH upstreams return NXDOMAIN for
-# internal domains — a valid DNS response — so --fallback never fires and
-# internal domains stay unresolved.  Domain-specific upstreams route the
-# query to the right server before DoH is ever asked.
+# Why not --fallback?  dnsproxy's --fallback only triggers when
+# upstreams are UNREACHABLE (connection error).  DoH upstreams return
+# NXDOMAIN for internal domains — a valid DNS response — so --fallback
+# never fires and internal domains stay unresolved.  Domain-specific
+# upstreams route the query to the right server before DoH is ever
+# asked.
 #
 # Boot race: dnsproxy After=NetworkManager, but NM "started" ≠ DHCP lease
 # acquired.  The preStart tolerates missing DHCP DNS (writes a placeholder;
@@ -88,10 +97,21 @@ _:
           ExecStart = "${lib.getBin pkgs.dnsproxy}/bin/dnsproxy"
             + " --listen 127.0.0.1"
             + " --port 53"
+            # Mesh DNS — netbird cloud hostnames route to UwU-Server's
+            # AdGuard over the netbird tunnel. UwU-Server's AdGuard then
+            # forwards to its local netbird daemon (127.0.0.1:5353). The
+            # IP is the mesh-static UwU-Server address (no DNS lookup
+            # needed). The mesh firewall on UwU-Server opens UDP/TCP/53
+            # on `wt0` for this purpose.
+            + " --upstream [/netbird.cloud/]100.77.228.137:53"
+            # Public DNS — DoH upstreams on port 443 (harder to block
+            # than plain DNS).
             + " --upstream https://1.1.1.1/dns-query"
             + " --upstream https://9.9.9.9/dns-query"
             + " --upstream https://8.8.8.8/dns-query"
             + " --upstream https://94.140.14.14/dns-query"
+            # Internal domains — DHCP-provided DNS IPs (one per tsbw.de
+            # interface), written by preStart + the NM dispatcher.
             + " --upstream /run/dnsproxy/internal-upstreams.txt"
             + " --cache"
             + " --cache-size 4096";

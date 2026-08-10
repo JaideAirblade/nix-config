@@ -86,18 +86,10 @@
         "/home/luna/.local/bin"
       ];
 
-      # Declarative SSH config for Luna's GitHub access. Route through
-      # ssh.github.com:443 since port 22 is often blocked.
-      environment.etc."luna/ssh_config".text = ''
-        # GitHub — route through ssh.github.com:443 (port 22 often blocked)
-        Host github.com
-          HostName ssh.github.com
-          Port 443
-          User git
-          IdentityFile ~/.ssh/id_ed25519
-          IdentitiesOnly yes
-          StrictHostKeyChecking accept-new
-      '';
+      # Declarative SSH config for Luna — provided by
+      # nixos.modules.automationAccounts (modules/users/private-accounts.nix).
+      # The render target is /etc/luna/ssh_config, and the symlink below
+      # makes ~/.ssh/config point at it.
 
       # Generate Luna's gitconfig as a systemd oneshot that runs after SOPS
       # has rendered the private key. The signing key (public key) is derived

@@ -69,6 +69,17 @@
           enable = true;
           nodeRole = "private";
           exposeSshOnLan = true;
+          # The netbird daemon binds its mesh DNS resolver on
+          # 127.0.0.1:5353 instead of the default mesh IP:5053.
+          # AdGuard on this host forwards `*.netbird.cloud` queries
+          # to that loopback address (see hosts/UwU-Server/network/
+          # direct-link.nix), so UwU and any other host whose
+          # resolv.conf points at this AdGuard gets mesh DNS without
+          # any per-host DNS plumbing. Port 5353 avoids the
+          # CAP_NET_BIND_SERVICE cap that < 1024 would force on the
+          # hardened netbird-mesh service.
+          dnsResolverAddress = "127.0.0.1";
+          dnsResolverPort = 5353;
         };
       }
     ];
