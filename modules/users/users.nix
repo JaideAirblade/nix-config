@@ -43,6 +43,12 @@ _:
       };
 
       services.userdbd.enable = true;
+      # NixOS-standard sandbox build users (nixbld1..32, UID 30001-30032)
+      # and `nobody` (UID 65534) trigger the userdbd high-UID warning
+      # because the userdbd module considers any system user with UID>=1000
+      # an "unusual" high-system-user. We have these by design. Acknowledge
+      # and silence the warning so every dry-build doesn't print it.
+      services.userdbd.silenceHighSystemUsers = true;
     }
   ;
 }

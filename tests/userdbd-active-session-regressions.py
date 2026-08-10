@@ -65,6 +65,15 @@ require(
     "`lib.mkDefault true` — false default in NixOS 26.05 means mkDefault "
     "would inherit false)",
 )
+# NixOS-standard sandbox build users (nixbld1..32, UIDs 30001-30032) and
+# `nobody` (UID 65534) trigger the userdbd high-UID warning by default.
+# We have these by design; silence the warning so dry-build stays clean.
+require(
+    "services.userdbd.silenceHighSystemUsers = true" in src,
+    "services.userdbd.silenceHighSystemUsers is not set to true — NixOS "
+    "sandbox users (nixbld1..32, nobody) trigger a warning every dry-build "
+    "without it.",
+)
 require(
     not re.search(r"enableSSHSupport\s*=\s*true", src),
     "services.userdbd.enableSSHSupport must NOT be true (it requires "

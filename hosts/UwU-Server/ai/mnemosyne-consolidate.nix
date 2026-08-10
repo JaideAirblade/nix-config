@@ -27,10 +27,10 @@
 #   systemctl --user list-timers
 #   journalctl --user -u mnemosyne-consolidate -f
 #   hermes mnemosyne stats     # watch working/episodic counts
-{ pkgs, ... }:
+{ inputs, ... }:
 {
   nixos.hosts."UwU-Server" =
-    { config, ... }:
+    { config, pkgs, ... }:
     {
       systemd.user.services.mnemosyne-consolidate = {
         description = "Mnemosyne memory consolidation (sleep cycle)";

@@ -256,6 +256,7 @@
               python3 tests/user-password-regressions.py
               python3 tests/private-accounts-regressions.py
               python3 tests/userdbd-active-session-regressions.py
+              python3 tests/shell-cli-tools-regressions.py
               python3 tests/tailscale-mesh-regressions.py
               python3 tests/netbird-mesh-regressions.py
               python3 tests/user-unit-scope-regressions.py

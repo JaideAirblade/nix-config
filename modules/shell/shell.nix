@@ -55,6 +55,34 @@ _:
           line_break.disabled = true;
         };
       };
+
+      # ─────────────────────────────────────────────────────────────────
+      # zoxide — smarter `cd` that learns your habits.
+      # ─────────────────────────────────────────────────────────────────
+      # Replaces the host's `cd` with one that tracks directories you've
+      # visited and lets you jump to them with partial names:
+      #   z foo         # cd to the highest-ranked dir matching "foo"
+      #   zi foo        # interactive picker (fzf if installed)
+      # The bash integration auto-initialises on every interactive shell,
+      # so `cd` is transparently upgraded. Defaults to true for enableBash
+      # / enableZsh / enableFish in the upstream module.
+      #
+      # Note: we deliberately do NOT also enable `programs.comma`. Comma
+      # is a Rust reimplementation of the same idea; enabling both would
+      # make them fight each other on the `cd` hook. Zoxide is the more
+      # mature option and is what the user picked.
+      programs.zoxide.enable = true;
+
+      # ─────────────────────────────────────────────────────────────────
+      # nh — alternative Nix CLI for switch/build/update.
+      # ─────────────────────────────────────────────────────────────────
+      # nh is a faster, more ergonomic front-end for nix operations that
+      # replaces the usual `nixos-rebuild` / `nix build` invocations. It
+      # uses flake-native state tracking so you can do `nh os switch`
+      # instead of `sudo nixos-rebuild switch --flake /etc/nixos#UwU`.
+      # `flake` is left null by default — users set `NH_FLAKE` in their
+      # shell init or pass --flake explicitly per invocation.
+      programs.nh.enable = true;
     }
   ;
 }
