@@ -55,9 +55,9 @@ debug $host=host:
 # nix evaluation, so iteration stays fast.
 
 # Quick check — shape + dry, no snapshot. Use for "let me see if it builds".
-# Note: echo uses shell `$host` (not just's `{{host}}`) so the recipe
+# Note: echo uses shell `$host` (not just's template syntax) so the recipe
 # passes tests/justfile-argument-regressions.sh which forbids any
-# `{{host}}`-style interpolation in shell source.
+# at-brace-at interpolation in shell source.
 edit-quick $host=host:
     @echo ">>> edit-quick: shape-check + dry-build for $host"
     ./scripts/nix-shape-check.sh
