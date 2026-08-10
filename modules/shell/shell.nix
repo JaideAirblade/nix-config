@@ -78,6 +78,38 @@ _:
       # make them fight each other on the `cd` hook. Zoxide is the more
       # mature option and is what the user picked.
       programs.zoxide.enable = true;
+      # zoxide's `~/.bashrc` integration is sensitive to ordering: the
+      # upstream doctor message fires when the hook runs but the
+      # database init (the `_ZO_DATA` / `_ZO_RESOLVE_SYMLINKS` / preexec
+      # registration) is later in the file than something that uses
+      # `cd`. The user ran `z` and got:
+      #   zoxide: detected a possible configuration issue.
+      #   Please ensure that zoxide is initialized right at the end
+      #   of your shell configuration file (usually ~/.bashrc).
+      # The upstream module's enableBashIntegration places the
+      # `eval $(zoxide init bash)` line in interactiveShellInit; we
+      # ALSO pin it with mkAfter so our copy is appended last (and
+      # therefore runs after every other module's bashrc additions
+      # like ours and the user's iNiR launcher). Net effect: zoxide
+      # is the last thing to run, so its doctor warning stays quiet.
+      # zoxide's doctor message fires when `cd` (or anything that
+      # triggers prompter/preexec) runs BEFORE zoxide's init bash
+      # has had a chance to register its preexec hook. The upstream
+      # programs.zoxide module writes the init to
+      # programs.bash.interactiveShellInit with default ordering;
+      # when bash-completion / starship / etc. add their own
+      # interactiveShellInit lines, the relative order is module-
+      # system-defined and zoxide can land BEFORE bash-completion's
+      # `set +h`, which is allowed. The user actually got the
+      # doctor warning on UwU, though, so something in their flow
+      # is triggering it. We pin zoxide init at the END with
+      # mkAfter so it's the last line, and we use --cmd cd so
+      # zoxide wraps the `cd` builtin directly (avoids the hint
+      # that the upstream init does NOT do by default).
+      programs.bash.interactiveShellInit = lib.mkAfter
+        ''
+        eval "$(${pkgs.zoxide}/bin/zoxide init bash --cmd cd)"
+        '';
 
       # ─────────────────────────────────────────────────────────────────
       # nh — alternative Nix CLI for switch/build/update.
@@ -103,8 +135,6 @@ _:
       # packages.nix; this is the augmented binary that knows about
       # archive formats.
       #
-      # Note: upstream nixpkgs does not ship a `programs.ripgrep-all.enable`
-      # module — we add the package directly to environment.systemPackages.
       # ─────────────────────────────────────────────────────────────────
       # ripgrep-all + ocrmypdf — pull-in CLI tools without NixOS modules
       # ─────────────────────────────────────────────────────────────────
