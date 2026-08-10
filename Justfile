@@ -112,8 +112,17 @@ vm-test $hostname:
 # Builds the closure LOCALLY (fast, uses this machine's CPU + nix store),
 # copies the store paths to the target, and activates remotely via
 # jaide@ + sudo. No root SSH access needed (PermitRootLogin=no is fine).
+#
+# Guarded by scripts/confirm-remote-deploy.sh, which SSHes to the target
+# and verifies its actual hostname matches the flake attr you passed.
+# If they don't match (or the box is unreachable), it requires a typed
+# confirmation at a real tty — same UX as the local `deploy` guard, but
+# across the network. Catches the "ship UwU's config to UwU-Server" class
+# of mistake. Symmetric hole-closer for confirm-local-deploy.sh.
+#
 # Usage: just deploy-remote UwU-Server 192.168.1.50
 deploy-remote $hostname $ip:
+    ./scripts/confirm-remote-deploy.sh "$hostname" "$ip"
     nixos-rebuild switch \
       --flake ".#$hostname" \
       --target-host "jaide@$ip" \
@@ -122,8 +131,11 @@ deploy-remote $hostname $ip:
 
 # Build a remote host's closure locally without activating — dry-run
 # pre-check. Same local-build strategy as deploy-remote.
+# Guarded the same way (the SSH check runs even for dry-activate, because
+# nixos-rebuild still ships closures and touches the remote store).
 # Usage: just dry-remote UwU-Server 192.168.1.50
 dry-remote $hostname $ip:
+    ./scripts/confirm-remote-deploy.sh "$hostname" "$ip"
     nixos-rebuild dry-activate \
       --flake ".#$hostname" \
       --target-host "jaide@$ip" \
