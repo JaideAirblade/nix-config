@@ -51,7 +51,13 @@ _:
             routes = "0.0.0.0/0, ${gatewayIP}, 100";
             # Use AdGuard Home on UwU-Server as DNS (ignore DHCP DNS).
             dns = "${gatewayIP}";
-            dns-search = "tail542648.ts.net;fritz.box";
+            # DNS search domains. Netbird magic-DNS lives under
+            # `netbird.cloud` (managed by netbird.io's public DNS, not
+            # the local AdGuard), so explicit `Host` blocks in
+            # /etc/luna/ssh_config are the right ergonomic path —
+            # the bare suffix isn't on this list. `fritz.box` stays
+            # for LAN name resolution.
+            dns-search = "netbird.cloud;fritz.box";
             ignore-auto-dns = true;
             route-metric = 100;
           };
@@ -64,13 +70,15 @@ _:
       # --- System DNS (resolv.conf) ----------------------------------------
       # Pin resolv.conf to AdGuard. The NM profile also sets per-connection
       # DNS, but we keep this as the system-wide fallback so nothing depends
-      # on NM having connected yet at boot time.
+      # on NM having connected yet at boot time. The search domain list
+      # mirrors the NM profile: netbird.cloud (magic-DNS) + fritz.box
+      # (LAN).
       networking.nameservers = [ gatewayIP ];
-      networking.search = [ "tail542648.ts.net" "fritz.box" ];
+      networking.search = [ "netbird.cloud" "fritz.box" ];
       networking.resolvconf.enable = false;
       environment.etc."resolv.conf".text = ''
         nameserver ${gatewayIP}
-        search tail542648.ts.net fritz.box
+        search netbird.cloud fritz.box
         options edns0 trust-ad
       '';
 
