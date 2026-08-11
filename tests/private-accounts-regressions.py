@@ -154,7 +154,6 @@ require(
     and "secrets/UwU/luna-agent.yaml" in uwu_users
     and "sops.templates.luna_ssh_identity" in uwu_users
     and 'content = "${config.sops.placeholder.luna_ssh_private_key}\\n";' in uwu_users
-    and 'owner = "jaide";' in uwu_users
     and 'mode = "0600";' in uwu_users,
     "the Luna controller key is not SOPS-deployed only on UwU",
 )

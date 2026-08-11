@@ -298,15 +298,39 @@ require(
 
 # --- TSBW dnsproxy: forward mesh DNS to UwU-Server --------------------
 # TSBW uses dnsproxy (not AdGuard) and has its own upstream chain.
-# Without the per-domain forward, `ssh uwu-server` from TSBW silently
-# fails to resolve. The IP is hardcoded because the netbird mesh IP
-# of UwU-Server is itself a literal, not a DNS answer.
+# The chain is (most specific first):
+#   1. *.netbird.cloud -> UwU-Server AdGuard (mesh DNS)
+#   2. /run/dnsproxy/internal-upstreams.txt (DHCP *.tsbw.de /
+#      *.ausbildung.tsbw.de)
+#   3. 100.77.228.137:53 (AdGuard default — ad-blocking + Unbound
+#      recursive resolution)
+#   4. --fallback DoH upstreams (only fires when AdGuard unreachable,
+#      NOT on NXDOMAIN)
 tsbw_dns_cfg = (ROOT / "hosts/TSBW-W01800/network/dns.nix").read_text()
 require(
     "[/netbird.cloud/]100.77.228.137:53" in tsbw_dns_cfg,
     "TSBW dnsproxy is not configured to forward `*.netbird.cloud` to "
     "UwU-Server's AdGuard over the mesh (100.77.228.137:53). Mesh hostname "
     "resolution from TSBW will silently break.",
+)
+require(
+    "--upstream /run/dnsproxy/internal-upstreams.txt" in tsbw_dns_cfg,
+    "TSBW dnsproxy must include the DHCP-derived internal-upstreams file "
+    "BEFORE the catch-all AdGuard upstream, so *.tsbw.de / "
+    "*.ausbildung.tsbw.de resolve on the LAN without leaving the apartment.",
+)
+require(
+    "--upstream 100.77.228.137:53" in tsbw_dns_cfg,
+    "TSBW dnsproxy must route public-domain queries through UwU-Server's "
+    "AdGuard (100.77.228.137:53) for fleet-wide ad-blocking + recursive "
+    "resolution. Ad-blocking on TSBW is currently bypassed by DoH.",
+)
+require(
+    "--fallback https://1.1.1.1/dns-query" in tsbw_dns_cfg,
+    "TSBW dnsproxy must keep the DoH upstreams as --fallback so DNS works "
+    "even when UwU-Server is unreachable. --fallback fires only on "
+    "connection error, not on NXDOMAIN, so internal domains still route "
+    "to DHCP DNS via the per-domain upstream.",
 )
 
 # --- SSH fleet aliases -----------------------------------------------

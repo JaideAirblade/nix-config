@@ -1,27 +1,39 @@
-# DNS configuration — DoH for public domains, AdGuard for mesh,
-# DHCP DNS for internal domains.
+# DNS configuration — AdGuard default + DoH fallback for everything except
+# the DHCP-advertised internal domains.
 #
-# dnsproxy (AdGuard) with domain-specific upstreams:
-#   1. Mesh domain (*.netbird.cloud) → UwU-Server's AdGuard at
-#      100.77.228.137:53 (the netbird mesh IP). UwU-Server's AdGuard
-#      forwards `*.netbird.cloud` to its local netbird daemon on
-#      127.0.0.1:5353 — so a single hardcoded upstream here is
-#      enough to resolve every mesh hostname from this host.
-#   2. Public domains → DoH upstreams (Cloudflare, Quad9, Google,
-#      AdGuard) — port 443, looks like normal HTTPS traffic, harder
-#      to block.
-#   3. Internal domains (*.tsbw.de) → DHCP DNS servers directly.
-#   4. A NM dispatcher script writes the DHCP DNS IPs (only from
-#      interfaces carrying the tsbw.de search domain) to an upstream
-#      file in dnsproxy's [/domain/]server syntax and restarts
-#      dnsproxy on network changes.
+# dnsproxy (AdGuard) with a multi-tier upstream chain:
+#   1. Per-domain (most specific first):
+#      a. *.netbird.cloud → UwU-Server's AdGuard at 100.77.228.137:53.
+#         AdGuard forwards *.netbird.cloud to its local netbird daemon
+#         on 127.0.0.1:5353 — so a single hardcoded upstream here
+#         resolves every mesh hostname from this host.
+#      b. *.tsbw.de / *.ausbildung.tsbw.de → DHCP DNS servers directly
+#         (file written by the NM dispatcher below). These domains
+#         are authoritative on the apartment's DHCP server; routing
+#         them through AdGuard would add a mesh hop and end in
+#         NXDOMAIN (AdGuard → Unbound doesn't know tsbw.de).
+#   2. Default catch-all:
+#      Public domains → UwU-Server's AdGuard at 100.77.228.137:53.
+#      AdGuard does ad-blocking locally and forwards to its own
+#      Unbound for full recursive resolution (no third-party leak).
+#      One resolver chain across the fleet.
+#   3. Fallback (--fallback flag, only fires on connection error — NOT
+#      on NXDOMAIN, per the dnsproxy docs and confirmed in our
+#      earlier session notes):
+#      DoH upstreams (Cloudflare, Quad9, Google, AdGuard) — used
+#      only when UwU-Server's AdGuard is unreachable, so the work
+#      laptop's DNS keeps working even when the apartment server is
+#      offline.
 #
-# Why not --fallback?  dnsproxy's --fallback only triggers when
-# upstreams are UNREACHABLE (connection error).  DoH upstreams return
-# NXDOMAIN for internal domains — a valid DNS response — so --fallback
-# never fires and internal domains stay unresolved.  Domain-specific
-# upstreams route the query to the right server before DoH is ever
-# asked.
+# A NM dispatcher script writes the DHCP DNS IPs (only from interfaces
+# carrying the tsbw.de search domain) to an upstream file in dnsproxy's
+# [/domain/]server syntax and restarts dnsproxy on network changes.
+#
+# Why not route *.tsbw.de through AdGuard? AdGuard → Unbound → public
+# DNS will not know *.tsbw.de (it's a private DHCP-advertised zone),
+# so queries end in NXDOMAIN. Per-domain upstreams route internal
+# queries to the right server BEFORE the catch-all AdGuard upstream
+# is asked.
 #
 # Boot race: dnsproxy After=NetworkManager, but NM "started" ≠ DHCP lease
 # acquired.  The preStart tolerates missing DHCP DNS (writes a placeholder;
@@ -97,22 +109,28 @@ _:
           ExecStart = "${lib.getBin pkgs.dnsproxy}/bin/dnsproxy"
             + " --listen 127.0.0.1"
             + " --port 53"
-            # Mesh DNS — netbird cloud hostnames route to UwU-Server's
-            # AdGuard over the netbird tunnel. UwU-Server's AdGuard then
-            # forwards to its local netbird daemon (127.0.0.1:5353). The
-            # IP is the mesh-static UwU-Server address (no DNS lookup
-            # needed). The mesh firewall on UwU-Server opens UDP/TCP/53
-            # on `wt0` for this purpose.
+            # Per-domain (most specific first):
+            #   *.netbird.cloud → AdGuard on UwU-Server (mesh DNS chain)
             + " --upstream [/netbird.cloud/]100.77.228.137:53"
-            # Public DNS — DoH upstreams on port 443 (harder to block
-            # than plain DNS).
-            + " --upstream https://1.1.1.1/dns-query"
-            + " --upstream https://9.9.9.9/dns-query"
-            + " --upstream https://8.8.8.8/dns-query"
-            + " --upstream https://94.140.14.14/dns-query"
-            # Internal domains — DHCP-provided DNS IPs (one per tsbw.de
-            # interface), written by preStart + the NM dispatcher.
+            #   *.tsbw.de / *.ausbildung.tsbw.de → DHCP DNS file
+            #   (NM dispatcher writes the DHCP-discovered IPs into
+            #   /run/dnsproxy/internal-upstreams.txt with [/suffix/]ip
+            #   syntax; this file lives in the chain BEFORE the catch-all
+            #   AdGuard upstream so internal queries never leave the LAN)
             + " --upstream /run/dnsproxy/internal-upstreams.txt"
+            # Default catch-all:
+            #   Public domains → UwU-Server's AdGuard (ad-blocking +
+            #   Unbound recursive resolution). One resolver chain for
+            #   the whole fleet, with ad-blocking uniformly applied.
+            + " --upstream 100.77.228.137:53"
+            # Fallback (fires ONLY on connection error, NOT on NXDOMAIN):
+            #   Public DoH upstreams, used when UwU-Server's AdGuard is
+            #   unreachable. Keeps TSBW DNS working even when the
+            #   apartment server is offline.
+            + " --fallback https://1.1.1.1/dns-query"
+            + " --fallback https://9.9.9.9/dns-query"
+            + " --fallback https://8.8.8.8/dns-query"
+            + " --fallback https://94.140.14.14/dns-query"
             + " --cache"
             + " --cache-size 4096";
           Restart = "on-failure";
