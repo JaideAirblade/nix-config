@@ -124,6 +124,15 @@
           restartUnits = [ "wg-quick-awg0.service" ];
         };
 
+        # NetBird Management API token (Luna service user, Network Admin
+        # role). Rendered luna:luna 0400 for ad-hoc curl use.
+        secrets.netbird_api_token = {
+          sopsFile = "${inputs.nixos-secrets}/secrets/shared/netbird-api-token.yaml";
+          owner = "luna";
+          group = "luna";
+          mode = "0400";
+        };
+
         # GitHub SSH key — used for git push + signing.
         # Written to /run/secrets/ssh_key at activation, then symlinked
         # to ~/.ssh/id_ed25519 by the activation script below.
