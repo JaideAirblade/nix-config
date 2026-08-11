@@ -29,6 +29,9 @@
           enable = true;
           nodeRole = "work";
           exposeSshOnLan = false;
+          # TSBW runs DMS (per hosts/TSBW-W01800/desktop/dms.nix),
+          # so the DMS NetbirdStatus plugin needs the `netbird` shim.
+          dms.enable = true;
         };
       }
     ];

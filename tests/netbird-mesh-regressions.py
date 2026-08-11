@@ -17,6 +17,7 @@ Invariants (mirrored from tailscale-mesh-regressions.py):
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -159,41 +160,78 @@ for port in ("8642", "9119", "9131"):
 # We intentionally do NOT require every host to opt in here — the
 # Tailscale mesh is still the live mesh.
 
-# --- DMS user-facing `netbird` shim on UwU --------------------------------
+# --- DMS user-facing `netbird` shim (role-level opt-in) -------------------
 # The DMS "NetbirdStatus" plugin (github.com/Dadangdut33/dms-plugins/NetbirdStatus)
 # probes for a `netbird` binary on $PATH by running `which netbird`. The
 # NixOS netbird module exposes the per-instance wrapper as `netbird-mesh`
 # (the `bin.suffix` is the instance name), so the plugin's probe fails
-# even when the mesh is up. The remediation is a host-scoped shim that
-# wraps the upstream wrapper under the name `netbird`. The shim file
-# lives at hosts/UwU/shell/dms-netbird-shim.nix and is auto-imported
-# by collectModules; it must (a) exist on disk, (b) be wired into the
-# UwU host's flake-parts namespace, and (c) default to enabled once
-# the netbirdMesh role is enabled. If any of these regresses, the
-# DMS plugin will print "NetBird not installed" again.
-uwu_shim = ROOT / "hosts/UwU/shell/dms-netbird-shim.nix"
-require(uwu_shim.is_file(), "UwU DMS netbird shim file is missing")
+# even when the mesh is up. The remediation is now a role-level opt-in:
+#
+#   services.netbirdMesh.dms.enable = true;
+#
+# which builds a tiny derivation in the netbird-mesh role module that
+# wraps the upstream wrapper under the name `netbird` and adds it to
+# `environment.systemPackages`. Hosts that run DMS (UwU, UwU-Server,
+# TSBW-W01800) set the flag; hosts without DMS (LaptopAP, Projet-
+# Printserver) leave it at the default `false`.
+#
+# This block asserts:
+#   (a) the role module declares the option and the shim derivation,
+#   (b) every DMS-running host opts in,
+#   (c) the old host-scoped file at hosts/UwU/shell/dms-netbird-shim.nix
+#       is gone (it was deleted when the shim moved into the role).
+# If any of these regresses, the DMS plugin will print "NetBird not
+# installed" again on the affected host.
 
-uwu_shim_text = uwu_shim.read_text()
+# (a) Role module declares the option + the shim derivation
 require(
-    "nixos.hosts.\"UwU\"" in uwu_shim_text,
-    "UwU DMS netbird shim is not host-scoped to UwU (must live under nixos.hosts.\"UwU\")",
+    "services.netbirdMesh.dms" in module and "dms.enable" in module,
+    "netbird-mesh role module does not declare the services.netbirdMesh.dms.enable option",
 )
 require(
-    "config.services.netbird.clients.mesh.wrapper" in uwu_shim_text,
-    "UwU DMS netbird shim does not wrap services.netbird.clients.mesh.wrapper",
+    "config.services.netbird.clients.mesh.wrapper" in module,
+    "netbird-mesh role module does not read services.netbird.clients.mesh.wrapper for the shim",
 )
 require(
-    "environment.systemPackages" in uwu_shim_text,
-    "UwU DMS netbird shim does not add the shim package to environment.systemPackages",
+    "dmsShim" in module and "environment.systemPackages" in module,
+    "netbird-mesh role module does not define dmsShim and add it to environment.systemPackages",
 )
 require(
-    'lib.mkIf (cfg.enable && cfg.dms.enable)' in uwu_shim_text,
-    "UwU DMS netbird shim is not gated by services.netbirdMesh.dms.enable",
+    'lib.mkIf cfg.dms.enable [ dmsShim.package ]' in module,
+    "netbird-mesh role module does not gate the shim on services.netbirdMesh.dms.enable",
 )
+
+# (b) Every DMS-running host opts in. LaptopAP / Projet-Printserver don't
+# run DMS and intentionally leave it off.
+DMS_HOSTS = ["UwU", "UwU-Server", "TSBW-W01800"]
+for host_name in DMS_HOSTS:
+    host_text = HOSTS[host_name].read_text()
+    require(
+        "dms.enable = true" in host_text,
+        f"{host_name} does not set services.netbirdMesh.dms.enable = true "
+        "(DMS NetbirdStatus plugin will print 'NetBird not installed')",
+    )
+
+# (c) The old host-scoped file is gone.
 require(
-    "services.netbirdMesh.dms" in uwu_shim_text and "dms.enable" in uwu_shim_text,
-    "UwU DMS netbird shim does not declare the services.netbirdMesh.dms.enable option",
+    not (ROOT / "hosts/UwU/shell/dms-netbird-shim.nix").exists(),
+    "hosts/UwU/shell/dms-netbird-shim.nix still exists — the shim moved "
+    "into the netbird-mesh role module; the host-scoped file is stale",
+)
+
+# The shim must NOT be in dendriticExceptions — it would be silently
+# skipped by the walker, so the file deletion above wouldn't matter.
+exc_block = re.search(
+    r"dendriticExceptions\s*=\s*\{([^}]+)\}",
+    (ROOT / "flake.nix").read_text(),
+    re.DOTALL,
+)
+require(exc_block is not None, "flake.nix does not declare dendriticExceptions")
+exc_paths = re.findall(r'"([^"]+)"', exc_block.group(1))
+require(
+    "hosts/UwU/shell/dms-netbird-shim.nix" not in exc_paths,
+    "UwU DMS netbird shim is listed in flake.nix's dendriticExceptions — "
+    "the walker would skip it (but the file no longer exists anyway)",
 )
 
 # The netbird-mesh role module must expose a daemon-socket-access option
@@ -225,7 +263,6 @@ require(
 # regression-testing. Read flake.nix and assert the shim is not in
 # the exception set.
 flake_text = (ROOT / "flake.nix").read_text()
-import re
 exc_block = re.search(r"dendriticExceptions\s*=\s*\{([^}]*)\}", flake_text, re.DOTALL)
 if exc_block is None:
     raise SystemExit("FAIL: flake.nix does not declare a `dendriticExceptions` map")

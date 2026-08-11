@@ -38,6 +38,10 @@
           enable = true;
           nodeRole = "private";
           exposeSshOnLan = false;
+          # DMS NetbirdStatus plugin + netbird-ui GUI both hardcode
+          # `which netbird`; the role module builds a passthrough shim
+          # that wraps `netbird-mesh` under the bare name.
+          dms.enable = true;
         };
       }
     ];

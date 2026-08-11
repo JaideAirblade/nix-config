@@ -80,6 +80,12 @@
           # hardened netbird-mesh service.
           dnsResolverAddress = "127.0.0.1";
           dnsResolverPort = 5353;
+          # The DMS greeter from modules/wm/dms/dms.nix (loaded by
+          # nixos.modules.common) renders the NetbirdStatus plugin
+          # against `which netbird`. Even though UwU-Server is
+          # headless, the greeter + a future netbird-ui dashboard
+          # both need the bare-name shim.
+          dms.enable = true;
         };
       }
     ];

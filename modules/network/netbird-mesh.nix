@@ -15,7 +15,7 @@
 { lib, inputs, ... }:
 {
   nixos.modules.netbirdMesh =
-    { config, lib, ... }:
+    { config, lib, pkgs, ... }:
     let
       cfg = config.services.netbirdMesh;
       # Stable interface name across all hosts. Matches the Netbird
@@ -33,6 +33,50 @@
       # is rendered into a tmpfs at /run/secrets, never into the
       # read-only Nix store.
       setupKeyPath = "/run/secrets/netbird-setup-key";
+
+      # Per-instance wrapper read + shim derivation. Both are wrapped
+      # in `lib.optionalAttrs cfg.dms.enable` so neither evaluation
+      # happens when the flag is off. Reading
+      # `config.services.netbird.clients.mesh.wrapper` eagerly fails
+      # for hosts that don't opt into netbirdMesh (the wrapper
+      # attribute is only defined when the upstream NixOS module has
+      # declared the instance). Forcing the evaluation for hosts
+      # without `dms.enable` (the default) would fail with "attribute
+      # 'wrapper' missing".
+      dmsShim = lib.optionalAttrs cfg.dms.enable {
+        # Read the per-instance wrapper that the NixOS netbird module
+        # builds for the `mesh` client. This is the SAME derivation
+        # that `netbird-mesh.service` ExecStarts and that the module
+        # already adds to `environment.systemPackages`. Reading it
+        # from `config` rather than hardcoding `/nix/store/…` keeps
+        # the shim in sync with any future netbird package version
+        # bump.
+        wrapper = config.services.netbird.clients.mesh.wrapper;
+
+        # Tiny passthrough package: a makeWrapper of the existing
+        # wrapper, renamed `netbird-mesh` → `netbird`. All `NB_*` env
+        # vars the wrapper exports propagate through unchanged.
+        package = pkgs.stdenv.mkDerivation {
+          pname = "netbird-mesh-shim";
+          version = pkgs.netbird.version;
+
+          nativeBuildInputs = [ pkgs.makeWrapper ];
+
+          buildCommand = ''
+            mkdir -p "$out/bin"
+            cp -r ${dmsShim.wrapper}/bin/* "$out/bin/"
+            mv "$out/bin/netbird-mesh" "$out/bin/netbird"
+            wrapProgram "$out/bin/netbird" \
+              --prefix PATH : "${lib.getBin dmsShim.wrapper}/bin"
+          '';
+
+          meta = {
+            description = "User-facing `netbird` shim that delegates to the NixOS-supervised netbird-mesh wrapper. For use by the DMS NetbirdStatus plugin, netbird-ui, and any other tooling that hardcodes `which netbird`.";
+            mainProgram = "netbird";
+            platforms = [ "x86_64-linux" ];
+          };
+        };
+      };
     in
     {
       # Parallel option namespace to `services.privateMesh` (Tailscale).
@@ -129,6 +173,51 @@
           type = lib.types.ints.between 1 65535;
           default = 5353;
           description = "Port the daemon should serve mesh DNS on (paired with `dnsResolverAddress`).";
+        };
+
+        # ------------------------------------------------------------------
+        # DMS-visible `netbird` CLI shim
+        # ------------------------------------------------------------------
+        # The NixOS netbird module exposes each instance as
+        # `netbird-mesh` (derived from `services.netbird.clients.<name>`
+        # where the instance attr is `mesh` and `bin.suffix = "mesh"`).
+        # The raw binary is intentionally NOT on $PATH — only the
+        # systemd wrapper is. That breaks any consumer that hardcodes
+        # `command -v netbird`:
+        #   - DMS NetbirdStatus plugin (github.com/Dadangdut33/
+        #     dms-plugins/NetbirdStatus) probes `which netbird` and
+        #     shows "NetBird not installed" if the probe fails.
+        #   - netbird-ui (the upstream GUI) launches `netbird status`
+        #     via subprocess.
+        #   - ad-hoc shell scripts that assume the upstream package
+        #     name.
+        #
+        # Setting `dms.enable = true` builds a tiny derivation that
+        # wraps the per-instance wrapper under the name `netbird` and
+        # adds it to `environment.systemPackages`. The wrapper bakes
+        # in every `NB_*` env var the upstream NixOS module requires
+        # (NB_DAEMON_ADDR, NB_CONFIG, NB_STATE_DIR, NB_INTERFACE_NAME,
+        # NB_WIREGUARD_PORT, NB_LOG_LEVEL, NB_SERVICE, NB_LOG_FILE),
+        # so the shim inherits them via makeWrapper's passthrough —
+        # no env-var re-derivation is needed.
+        #
+        # Hosts that DON'T need this (LaptopAP — no DMS; Projet-
+        # Printserver — printserver role, no DMS) leave it at the
+        # default `false`. Hosts that run DMS (UwU, UwU-Server,
+        # TSBW-W01800) opt in.
+        dms = {
+          enable = lib.mkOption {
+            type = lib.types.bool;
+            default = false;
+            description = ''
+              Whether to expose a user-facing `netbird` CLI on $PATH
+              for desktop-environment consumers (DankMaterialShell
+              NetbirdStatus plugin, netbird-ui, shell scripts that
+              hardcode `which netbird`). The shim delegates to the
+              supervised `netbird-mesh` wrapper and inherits its
+              env vars; the daemon itself is untouched.
+            '';
+          };
         };
       };
 
@@ -315,6 +404,17 @@
         # checks report the intended role without touching the
         # coordination server.
         environment.etc."netbird/required-group".text = "${cfg.nodeRole}\n";
+
+        # ------------------------------------------------------------------
+        # DMS-visible `netbird` CLI shim (opt-in)
+        # ------------------------------------------------------------------
+        # See the `services.netbirdMesh.dms.enable` option above for
+        # the full rationale. When enabled, the shim package (built
+        # above in `dmsShim.package`, lazily so it doesn't try to
+        # read the wrapper for hosts that don't opt in) is added to
+        # the system profile so `command -v netbird` succeeds for any
+        # user that pulls this profile into their shell.
+        environment.systemPackages = lib.mkIf cfg.dms.enable [ dmsShim.package ];
       };
     };
 }
