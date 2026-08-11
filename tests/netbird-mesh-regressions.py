@@ -249,6 +249,20 @@ require(
     "lib.types.listOf lib.types.str" in module,
     "netbird-mesh role module's daemonSocketUsers is not a listOf str",
 )
+# TSBW-W01800 must include `netbird-mesh` in jaide's extraGroups
+# because hosts/TSBW-W01800/users/users.nix uses lib.mkForce on
+# users.users.jaide.extraGroups (work-only override that wipes the
+# default personal list, including the `netbird-mesh` group the role
+# module tries to add via lib.mkAfter). Without this opt-in, `netbird
+# status` on TSBW returns "permission denied" on /var/run/netbird-mesh/sock.
+tsbw_users_text = (ROOT / "hosts/TSBW-W01800/users/users.nix").read_text()
+require(
+    '"netbird-mesh"' in tsbw_users_text,
+    "TSBW-W01800/users/users.nix does not include `netbird-mesh` in "
+    "jaide's mkForced extraGroups — the `netbird status` CLI would "
+    "fail with 'permission denied' on the daemon socket (the role "
+    "module's lib.mkAfter is overridden by the work-only mkForce).",
+)
 require(
     '"netbird-mesh"' in module and "extraGroups" in module,
     "netbird-mesh role module does not wire the `netbird-mesh` group into users' extraGroups",
