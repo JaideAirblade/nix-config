@@ -80,25 +80,59 @@ _:
           # exit 1, killing ExecStartPre.  We tolerate empty output; the NM
           # dispatcher re-fills this file on dhcp4-change events.
           #
-          # Only collect DNS from interfaces carrying the tsbw.de search domain,
-          # to avoid polluting the upstream list with DNS from unrelated networks.
-          DNS_SERVERS=""
-          for dev in $(nmcli -t -f GENERAL.DEVICE dev show 2>/dev/null | cut -d: -f2); do
-            DOMAIN=$(nmcli -t -f IP4.DOMAIN dev show "$dev" 2>/dev/null | cut -d: -f2)
-            case " $DOMAIN " in
-              *"tsbw.de"*) : ;;
-              *) continue ;;
-            esac
-            for dns in $(nmcli -t -f IP4.DNS dev show "$dev" 2>/dev/null | cut -d: -f2); do
-              [ -n "$dns" ] && DNS_SERVERS="$DNS_SERVERS $dns"
-            done
-          done
-          DNS_SERVERS=$(echo "$DNS_SERVERS" | tr ' ' '\n' | sort -u | grep -v '^$' || true)
+          # Per-search-domain routing: each NM connection that is currently
+          # `up` and `connected` advertises its own `IP4.DOMAIN` (search
+          # domain) and `IP4.DNS` list. We emit one dnsproxy upstream line
+          # per search domain so queries for `foo.<search-domain>` go to
+          # *that* network's DNS server. This works on every network the
+          # laptop joins — school (`ausbildung.tsbw.de`), apartment
+          # (`fritz.box`), a guest WiFi with its own internal namespace —
+          # without needing to edit this file.
+          #
+          # Why not write the catch-all here too? dnsproxy's --upstream
+          # chain (set in serviceConfig.ExecStart) already includes the
+          # fleet AdGuard catch-all + DoH fallbacks. This file only
+          # contains *per-domain* overrides for DHCP-advertised
+          # namespaces.
+          #
+          # NM's IP4.DOMAIN field is comma-separated for multiple search
+          # domains; we treat each one independently so a connection with
+          # `IP4.DOMAIN = "tsbw.de,ausbildung.tsbw.de"` emits two upstream
+          # lines pointing at the same DHCP DNS.
+          mapfile -t ROUTES < <(
+            # `nmcli -t -f DEVICE,STATE dev` emits one `<device>:<state>`
+            # line per device. This is the cleanest form for a per-device
+            # filter — no awk gymnastics needed over multi-key output.
+            while IFS=: read -r dev state; do
+              [[ "$state" == "connected" ]] || continue
+              DOMAINS=$(nmcli -t -f IP4.DOMAIN dev show "$dev" 2>/dev/null \
+                          | cut -d: -f2- | tr ',' ' ')
+              DNSS=$(nmcli -t -f IP4.DNS dev show "$dev" 2>/dev/null \
+                       | cut -d: -f2- | tr ',' ' ')
+              # Skip connections with no advertised DNS or no domains —
+              # they're either loopback-only or pure default-route and
+              # don't need an internal upstream.
+              [ -z "$DNSS" ] && continue
+              [ -z "$DOMAINS" ] && continue
+              for d in $DOMAINS; do
+                for ip in $DNSS; do
+                  # Strip IPv6 link-local noise; dnsproxy can take
+                  # IPv6 but the NM dispatcher only emits these when
+                  # DHCPv6 is on, and the school network's DHCPv6
+                  # server is sometimes unreachable. Filter to
+                  # IPv4 only so a flaky DHCPv6 server doesn't break
+                  # the chain.
+                  case "$ip" in
+                    *:*|*%*) continue ;;
+                  esac
+                  printf '[/%s/]%s\n' "$d" "$ip"
+                done
+              done
+            done < <(nmcli -t -f DEVICE,STATE dev 2>/dev/null) | sort -u
+          )
           TMPFILE=$(mktemp /run/dnsproxy/internal-upstreams.txt.XXXXXX)
-          if [ -n "''${DNS_SERVERS:-}" ]; then
-            for ip in $DNS_SERVERS; do
-              echo "[/tsbw.de/]$ip"
-            done > "$TMPFILE"
+          if [[ ''${#ROUTES[@]} -gt 0 ]]; then
+            printf '%s\n' "''${ROUTES[@]}" > "$TMPFILE"
           else
             echo "# No DHCP DNS yet — NM dispatcher will update on dhcp4-change" > "$TMPFILE"
           fi
@@ -157,29 +191,43 @@ _:
             *) exit 0 ;;
           esac
 
-          # Extract DNS IPs from NetworkManager interfaces that carry the tsbw.de
-          # search domain.  This avoids polluting the upstream list with DNS from
-          # unrelated networks (e.g. a guest wifi that happens to be connected).
-          DNS_SERVERS=""
-          for dev in $(nmcli -t -f GENERAL.DEVICE dev show 2>/dev/null | cut -d: -f2); do
-            DOMAIN=$(nmcli -t -f IP4.DOMAIN dev show "$dev" 2>/dev/null | cut -d: -f2)
-            case " $DOMAIN " in
-              *"tsbw.de"*) : ;;  # carries tsbw.de — collect its DNS
-              *) continue ;;
-            esac
-            for dns in $(nmcli -t -f IP4.DNS dev show "$dev" 2>/dev/null | cut -d: -f2); do
-              [ -n "$dns" ] && DNS_SERVERS="$DNS_SERVERS $dns"
-            done
-          done
-          # Deduplicate
-          DNS_SERVERS=$(echo "$DNS_SERVERS" | tr ' ' '\n' | sort -u | grep -v '^$' || true)
-
+          # Extract per-search-domain DNS routes from every NM connection
+          # that is currently `up` and `connected`.  This avoids polluting
+          # the upstream list with DNS from disconnected / loopback
+          # connections, AND it adapts to whatever network the laptop is
+          # on: school (`ausbildung.tsbw.de`), apartment (`fritz.box`),
+          # a guest WiFi with its own namespace — each gets its own
+          # search-domain upstream line in dnsproxy's `[/domain/]ip` syntax.
+          #
+          # The preStart script writes the same file on boot; the dispatcher
+          # writes it on every dhcp4-change / dhcp6-change / up event so
+          # connecting to a new network immediately routes its internal
+          # DNS through the right server.
+          mapfile -t ROUTES < <(
+            # `nmcli -t -f DEVICE,STATE dev` emits one `<device>:<state>`
+            # line per device. Cleanest form for a per-device filter.
+            while IFS=: read -r dev state; do
+              [[ "$state" == "connected" ]] || continue
+              DOMAINS=$(nmcli -t -f IP4.DOMAIN dev show "$dev" 2>/dev/null \
+                          | cut -d: -f2- | tr ',' ' ')
+              DNSS=$(nmcli -t -f IP4.DNS dev show "$dev" 2>/dev/null \
+                       | cut -d: -f2- | tr ',' ' ')
+              [ -z "$DNSS" ] && continue
+              [ -z "$DOMAINS" ] && continue
+              for d in $DOMAINS; do
+                for ip in $DNSS; do
+                  case "$ip" in
+                    *:*|*%*) continue ;;
+                  esac
+                  printf '[/%s/]%s\n' "$d" "$ip"
+                done
+              done
+            done < <(nmcli -t -f DEVICE,STATE dev 2>/dev/null) | sort -u
+          )
           mkdir -p /run/dnsproxy
           TMPFILE=$(mktemp /run/dnsproxy/internal-upstreams.txt.XXXXXX)
-          if [ -n "$DNS_SERVERS" ]; then
-            for ip in $DNS_SERVERS; do
-              echo "[/tsbw.de/]$ip"
-            done > "$TMPFILE"
+          if [[ ''${#ROUTES[@]} -gt 0 ]]; then
+            printf '%s\n' "''${ROUTES[@]}" > "$TMPFILE"
           else
             echo "# No DHCP DNS" > "$TMPFILE"
           fi
