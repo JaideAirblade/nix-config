@@ -128,7 +128,13 @@ _:
         host = "0.0.0.0";
         port = 3000;
         openFirewall = false;
-        mutableSettings = true;
+        # mutableSettings = false → on every restart, pre-start does a
+        # clean `cp` of the Nix-generated YAML over the on-disk one
+        # instead of merging. On-disk state mirrors Nix source exactly,
+        # and any partial/poisoned state from a previous bad deploy
+        # gets wiped on the next restart. Web UI changes are NOT
+        # persisted, but for our setup everything is Nix-managed.
+        mutableSettings = false;
         settings = {
           http = {
             address = "0.0.0.0:3000";
@@ -215,7 +221,73 @@ _:
             ];
             ratelimit = 0;
           };
+          # --- DoT (DNS-over-TLS, RFC 7858) on port 853 --------------------
+          # Used by Android "Private DNS" feature (Samsung phones,
+          # uwu-phone on the netbird mesh, etc.). The phone pins a
+          # hostname like `dns.jaidechan.moe`; the LE wildcard cert for
+          # *.jaidechan.moe is mounted into AdGuard's service namespace
+          # via systemd LoadCredential= (see below) so the DynamicUser
+          # can read it without widening permissions on /var/lib/acme.
+          #
+          # AdGuard's YAML schema (v0.107.x) has `tls` at the TOP level
+          # of the file (sibling of `dns:`, NOT a child of it). The path
+          # fields (`certificate_path` / `private_key_path`) point at
+          # files; AdGuard reads them at startup. The empty strings for
+          # `certificate_chain` / `private_key` (inline PEM fields) are
+          # deliberately left empty since we're using the file-based
+          # form.
+          #
+          # Only reachable on the mesh firewall (wt0) — direct-link
+          # (eth0) and the public internet (eno1) are NOT in scope. The
+          # phone reaches AdGuard at 100.77.228.137:853 over the netbird
+          # tunnel.
+          tls = {
+            enabled = true;
+            server_name = "dns.jaidechan.moe";
+            # CRITICAL: tls.enabled=true also switches on AdGuard's
+            # HTTPS WEB UI, whose default port is 443 — which nginx
+            # already owns on this host. AdGuard PANICS on the bind
+            # conflict (webapi.serveTLS → RecoverAndExit) and the
+            # whole process dies, taking plaintext :53 down with it.
+            # port_https = 0 disables the HTTPS web UI (and DoH, which
+            # rides the same port) while keeping DoT on 853.
+            force_https = false;
+            port_https = 0;
+            port_dns_over_tls = 853;
+            port_dns_over_quic = 0;       # we don't need DoQ, only DoT
+            port_dnscrypt = 0;            # not running DNSCrypt either
+            # AdGuard runs as the fixed `adguardhome` system user
+            # (DynamicUser disabled below), which is a member of the
+            # `nginx` group — the same group the acme module chowns
+            # /var/lib/acme/jaidechan.moe to (0750 acme:nginx, files
+            # 0640 via the postRun chmod in dashboard.nix). So the
+            # direct paths below are group-readable, no LoadCredential
+            # gymnastics needed.
+            certificate_path = "/var/lib/acme/jaidechan.moe/fullchain.pem";
+            private_key_path  = "/var/lib/acme/jaidechan.moe/key.pem";
+            strict_sni_check = false;     # wildcard cert, SNIs vary
+          };
         };
+      };
+      # Fixed system user for AdGuard, replacing the module's
+      # DynamicUser=yes. Needed for DoT cert access: systemd
+      # LoadCredential= mounts creds into a root-only 0500 dir that
+      # AdGuard's cert WATCHER can't traverse as a dynamic UID
+      # (tls_manager: permission denied), so the cred path is a dead
+      # end. Instead: fixed user in the `nginx` group, reading the
+      # LE wildcard cert directly from /var/lib/acme/jaidechan.moe/
+      # (0750 acme:nginx; files 0640 via postRun chmod in
+      # dashboard.nix).
+      users.users.adguardhome = {
+        isSystemUser = true;
+        group = "adguardhome";
+        extraGroups = [ "nginx" ];
+      };
+      users.groups.adguardhome = { };
+      systemd.services.adguardhome.serviceConfig = {
+        DynamicUser = lib.mkForce false;
+        User = "adguardhome";
+        Group = "adguardhome";
       };
 
       # Open AdGuard Home on the mesh interface. The mesh peer
@@ -226,10 +298,20 @@ _:
       # netbird daemon at 127.0.0.1:5353). UwU doesn't need this —
       # its resolv.conf is pinned to AdGuard via the direct-link IP
       # (10.10.0.1), not the mesh IP.
+      #
+      # 853/tcp added 2026-08-11 for DoT — Android Private DNS for
+      # uwu-phone. Scoped to wt0 only on purpose: do NOT add 853 to
+      # eth0 (direct-link) — the firewall would let any desktop on
+      # the LAN bypass the local resolv.conf and talk DoT directly
+      # to AdGuard, which is fine for the phone but unnecessary for
+      # UwU (it already has plaintext :53 and prefers local caching
+      # for that path). eno1 (public) also doesn't get 853 — DoT is
+      # mesh-only.
       networking.firewall.interfaces.wt0 = {
         allowedTCPPorts = lib.mkAfter [
           53
           3000
+          853
         ];
         allowedUDPPorts = lib.mkAfter [ 53 ];
       };

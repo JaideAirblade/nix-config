@@ -62,6 +62,21 @@
           dnsResolver = "1.1.1.1:53";
           webroot = null;
           group = "nginx";
+          # When lego renews the wildcard cert, restart the services
+          # that hold the cert in memory. nginx reloads cleanly; AdGuard
+          # needs a full restart (DoT opens the cert file at startup,
+          # there's no SIGHUP-style reload for it). try-reload-or-restart
+          # is a no-op for adguardhome (no ExecReload) and falls through
+          # to a restart — perfect.
+          reloadServices = [ "nginx.service" "adguardhome.service" ];
+          # Cert/key files readable by the `nginx` group (0640). The
+          # acme module writes them 0400 acme:nginx on renewal; the
+          # AdGuard service runs as the fixed `adguardhome` user with
+          # `nginx` as a supplementary group (see direct-link.nix) and
+          # needs to read these for the DoT listener on :853. 0640 =
+          # owner rw, group r, world nothing — tightest mode that
+          # lets both nginx and AdGuard do their jobs.
+          postRun = "chmod 0640 /var/lib/acme/${domain}/fullchain.pem /var/lib/acme/${domain}/key.pem";
         };
       };
 
