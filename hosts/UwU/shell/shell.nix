@@ -9,8 +9,13 @@ _:
 
     {
       programs.bash.shellAliases = {
-        rebuild = lib.mkForce "sudo nixos-rebuild switch --flake /etc/nixos#UwU";
-        update = lib.mkForce "cd /etc/nixos && nix flake update && sudo nixos-rebuild switch --flake .#UwU";
+        # Point at the actual flake checkout on this host. The legacy
+        # /etc/nixos#UwU path is a NixOS default that no longer matches
+        # this host's working tree (which lives at /home/jaide/nixos).
+        # Use `rebuild` from any jaide bash shell after the next switch
+        # to deploy from this clone.
+        rebuild = lib.mkForce "sudo nixos-rebuild switch --flake /home/jaide/nixos#UwU";
+        update = lib.mkForce "cd /home/jaide/nixos && nix flake update && sudo nixos-rebuild switch --flake .#UwU";
       };
 
       programs.git.config.user = {
