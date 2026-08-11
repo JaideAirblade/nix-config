@@ -1,0 +1,118 @@
+{
+  "_comment": "Declarative config for scripts/pkg-autoupdate.py. Each entry tells the updater how to detect and apply updates for one package in pkgs/. Edit an entry here to change behavior for that package — do NOT edit pkg-autoupdate.py. See docs/UPDATE-SAFETY.md for the safety process.",
+
+  "scope": {
+    "auto_handled": ["betterbird", "legcord", "officecli", "helium-bin", "nym-vpnd", "herm-tui", "macrotool-gtk4", "orbolay"],
+    "manual_only": {
+      "hytale":         "No public GitHub releases endpoint (hytale-studios org returns no releases). Manual: check hytale.com/download for new launcher version, bump version + hash by hand.",
+      "octarine":       "No upstream 'latest' symlink on CDN — URL embeds the version explicitly. Manual: see octarine.app/changelog, bump version + hash by hand.",
+      "omniroute":      "Docker image requires content digest (not :latest tag) for reproducibility. Manual: sudo docker pull diegosouzapw/omniroute && sudo docker image ls --digests diegosouzapw/omniroute, then update imageDigest + sha256 by hand.",
+      "net-report":     "Local source (./.) — your own code. Updates come from git commits in this repo, not from upstream."
+    }
+  },
+
+  "packages": {
+    "betterbird": {
+      "strategy": "scrape_downloads_page",
+      "url": "https://www.betterbird.eu/downloads/",
+      "regex": "betterbird-(\\d+\\.\\d+\\.\\d+esr-bb\\d+)\\.en-US\\.linux-x86_64\\.tar\\.xz",
+      "version_field": "version",
+      "asset_url_template": "https://www.betterbird.eu/downloads/LinuxArchive/betterbird-${version}.en-US.linux-x86_64.tar.xz",
+      "hash_algorithm": "sha256",
+      "license": "free"
+    },
+    "legcord": {
+      "strategy": "github_release",
+      "owner": "Legcord",
+      "repo": "Legcord",
+      "tag_prefix": "v",
+      "asset_match": "Legcord-${version_no_v}-linux-x86_64.AppImage",
+      "version_field": "version",
+      "tag_strip_prefix": "v"
+    },
+    "officecli": {
+      "strategy": "github_release",
+      "owner": "iOfficeAI",
+      "repo": "OfficeCLI",
+      "tag_prefix": "v",
+      "asset_match": "officecli-linux-x64",
+      "version_field": "version",
+      "tag_strip_prefix": "v",
+      "asset_url_template": "https://github.com/iOfficeAI/OfficeCLI/releases/download/v${version}/officecli-linux-x64"
+    },
+    "helium-bin": {
+      "strategy": "github_release",
+      "owner": "imputnet",
+      "repo": "helium-linux",
+      "tag_prefix": "",
+      "asset_match": "helium-${version}-x86_64_linux.tar.xz",
+      "version_field": "version",
+      "tag_strip_prefix": ""
+    },
+    "nym-vpnd": {
+      "strategy": "github_release",
+      "owner": "nymtech",
+      "repo": "nym-vpn-client",
+      "tag_prefix": "nym-vpn-v",
+      "asset_match": "nym-vpn-core-v${version}_linux_x86_64.tar.gz",
+      "version_field": "version",
+      "tag_strip_prefix": "nym-vpn-v",
+      "asset_url_template": "https://github.com/nymtech/nym-vpn-client/releases/download/nym-vpn-v${version}/nym-vpn-core-v${version}_linux_x86_64.tar.gz"
+    },
+    "herm-tui": {
+      "strategy": "npm_registry",
+      "package": "herm-tui",
+      "version_field": "version",
+      "asset_url_template": "https://registry.npmjs.org/herm-tui/-/herm-tui-${version}.tgz"
+    },
+    "macrotool-gtk4": {
+      "strategy": "github_default_branch_head",
+      "owner": "JaideAirblade",
+      "repo": "macrotool-gtk4",
+      "rev_field": "rev",
+      "hash_field": "hash",
+      "cargo_hash_field": "cargoHash",
+      "note": "YOUR OWN REPO — auto-bumping is safe. cargoHash will be left as the lib placeholder ('') so nix re-fetches + recomputes; build verifies the new hash."
+    },
+    "orbolay": {
+      "strategy": "github_default_branch_head",
+      "owner": "SpikeHD",
+      "repo": "Orbolay",
+      "rev_field": "rev",
+      "hash_field": "hash",
+      "cargo_hash_field": "cargoHash",
+      "skia_binaries_locked": true,
+      "note": "Skia binaries version 0.98.0 is pinned separately in src/default.nix and is NOT bumped automatically. Only rev + src hash + cargoHash update."
+    }
+  },
+
+  "fleet": {
+    "_comment": "Per-host Netbird IPs (2026-08-11). Updates must be applied to every host that consumes pkgs/. Override via --hosts when running scripts/fleet-deploy.py manually.",
+    "hosts": {
+      "UwU-Server":    "100.77.228.137",
+      "UwU":           "100.77.119.175",
+      "TSBW-W01800":   "100.77.44.152",
+      "uwu-phone":     "100.77.152.164"
+    },
+    "ssh_user": "luna",
+    "deploy_order": ["UwU-Server", "UwU", "TSBW-W01800"],
+    "_deploy_order_note": "uwu-phone deploys separately on mobile schedule (only when online + charging). Default order: server first (build host), then UwU, then TSBW. Phone skipped unless --include-phone."
+  },
+
+  "safety_gates": {
+    "_comment": "All gates must pass for a build to be considered deployable. Skipping any gate is logged + blocks the deploy.",
+    "require_nix_flake_check": true,
+    "require_per_pkg_build": true,
+    "require_post_update_diff_review": true,
+    "max_pkg_bumps_per_run": 8,
+    "rollback_command": "cd ~/nixos && git revert --no-commit HEAD && ./scripts/fleet-deploy.py --rollback",
+    "_rollback_note": "If auto-deploy breaks a host, the rollback script uses git revert + the same NAR-roundtrip path to push the previous known-good generation to every fleet device."
+  },
+
+  "cron": {
+    "schedule": "0 3 * * *",
+    "_schedule_note": "3am daily. Local time (server TZ).",
+    "deliver": "origin",
+    "_deliver_note": "Result reports back to the chat that triggered this job — you can change to 'all' to fan out to discord/telegram/etc."
+  }
+}
