@@ -291,13 +291,27 @@ def main() -> int:
     log("")
     log("Phase 6: fleet deploy")
     deploy_script = NIXOS / "scripts" / "fleet-deploy.py"
+    verify_script = NIXOS / "scripts" / "verify-pipeline.py"
     if not deploy_script.exists():
         log(f"FATAL: fleet-deploy.py not found at {deploy_script}")
         return 6
     r = run(["python3", str(deploy_script)])
     if r.returncode != 0:
         log(f"FATAL: fleet deploy failed with exit {r.returncode}")
-        log("See ~/.cache/pkg-autoupdate/fleet-deploy-*.log for details.")
+        log("fleet-deploy's target-side watchdog has already auto-rolled-back "
+            "any host that detected breakage. See ~/.cache/pkg-autoupdate/ "
+            "and /var/lib/nixos-rollback-watchdog.status on each target.")
+        return r.returncode
+
+    log("Phase 7: post-deploy network verification")
+    if not verify_script.exists():
+        log(f"FATAL: verify-pipeline.py not found at {verify_script}")
+        return 7
+    r = run(["python3", str(verify_script)])
+    if r.returncode != 0:
+        log(f"verify-pipeline reported failure (exit {r.returncode}). "
+            "It has already auto-rolled-back the fleet via "
+            "fleet-deploy.py --rollback. See /var/log/hermes-verify.log.")
         return r.returncode
 
     log("=== All phases complete ===")

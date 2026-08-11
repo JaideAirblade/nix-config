@@ -11,7 +11,10 @@ Runs nightly at 03:00 (server local time) via `hermes cron`. Detects upstream
 version changes for the 8 packages in `pkgs/.update-config.json#scope.auto_handled`,
 recomputes hashes, rebuilds each one in isolation, commits + pushes to `main`
 on the `nix-config` repo, then NAR-roundtrips the new system closure to every
-fleet device listed in the config.
+fleet device. Each device runs a **target-side watchdog** that verifies the
+deploy didn't break anything critical and **auto-rolls-back** if it did. After
+all hosts report OK, the deploy host runs a **post-deploy network verification**
+to confirm mesh + WAN + DNS are all still up.
 
 ## What this pipeline does NOT do
 
@@ -22,120 +25,117 @@ fleet device listed in the config.
   retry. If the issue is upstream (e.g. broken release), `nix flake update`
   in `flake.lock` is the right next step.
 - It does **not** open PRs or wait for review. You picked full-auto in
-  2026-08-11's session; if a single bad release breaks 4 devices at 3am,
-  the rollback procedure (below) is the only safety net.
+  2026-08-11's session; the two-layer watchdog (target-side + deploy-host
+  verification) is the safety net.
 
-## The 6 gates every run must pass
+## The two-layer watchdog model (added 2026-08-11)
 
-A run is "deployable" only when **all** of these are true:
+A single verification step that runs on the deploy host AFTER activation is
+**not enough**. The deploy host may lose contact with the target the moment
+activation starts (sshd restart, firewall change, netbird config error), so
+the deploy host cannot be the actor that decides "rollback this target".
 
-1. **`nix flake check` clean** — evaluates the entire flake including all
-   hosts and modules. Catches evaluation errors introduced by an upstream
-   shape change (e.g. a renamed option in nixpkgs that a package touched).
-2. **Per-package `nix build .#<pkg>` succeeds for every bumped pkg** —
-   catches build-system breakage before it ships. Runs in a subagent per
-   package so a 4GB rust build doesn't OOM the orchestrator.
-3. **Diff review** — the bumped `pkgs/<name>/default.nix` files are listed
-   in the run report with line counts. If the diff is suspiciously large
-   (more than version + hash line changes), the run halts and reports.
-4. **Commit + push to `main`** — only after gates 1-3 pass. Commit message
-   format: `pkg-autoupdate(<date>): bump <pkg-list>`.
-5. **NAR-roundtrip deploy to fleet** — the new `nixos-system-<host>` closure
-   is built on `uwu-server` (the build host) and shipped to each fleet
-   device via `scripts/nar-roundtrip-deploy.py` (one NAR per missing path).
-6. **Post-deploy verification** — on each target, `readlink /run/current-system`
-   matches the deployed hash and `systemctl list-units --failed` shows zero
-   new failures.
+The pipeline has two complementary watchdogs:
 
-If gate 1, 2, or 3 fails → no commit, no push, no deploy. Report only.
-If gate 4 fails (push rejected because someone else pushed first) → pull,
-rebuild, retry deploy.
-If gate 5 fails partway → the remaining hosts stay on their previous
-generation. The next nightly run picks up where this one stopped.
-If gate 6 fails → see "Rollback procedure" below.
+### Layer 1: Target-side watchdog (`scripts/target-rollback-watchdog.sh`)
 
-## Why "subagent per package" (added 2026-08-11 per user request)
+- Installed by `scripts/fleet-deploy.py` BEFORE `switch-to-configuration` runs,
+  scheduled via `systemd-run --on-active=10` so it fires 10 seconds after
+  activation lands.
+- Runs ENTIRELY on the target. No dependency on the deploy host. No SSH
+  required after activation. The deploy host could be deleted and the
+  watchdog would still complete its job.
+- Polls every 30s for up to 5 minutes (configurable via
+  `--watchdog-timeout`). Each iteration checks:
+  1. `sshd` is active and listening on :22
+  2. At least one default route exists
+  3. A LAN gateway is reachable (tries 10.10.0.1, 10.10.0.2,
+     192.168.178.1, 100.77.0.1 — first success wins)
+  4. DNS resolves `github.com`
+  5. Per-host critical ports still listening (uwu-server also checks
+     adguard :53, adguard :3000, unbound :5335)
+- On failure: runs the **previous generation's**
+  `switch-to-configuration switch` — same mechanism NixOS itself uses
+  for manual rollback. The target comes back to the known-good state
+  without any external input.
+- Writes its verdict to `/var/lib/nixos-rollback-watchdog.status` and the
+  final generation to `/var/lib/nixos-rollback-watchdog.gen`. Both also
+  mirrored to journald as `nixos-rollback-watchdog` for postmortem.
 
-Each package update runs in an isolated Hermes subagent. Three concrete
-benefits this gives us that a monolithic script cannot:
+### Layer 2: Deploy-host verification (`scripts/verify-pipeline.py`)
 
-1. **Memory isolation.** A 4GB `cargo build` for orbolay does not evict the
-   state needed to evaluate `nix flake check` for the remaining 7 packages.
-2. **Per-package failure containment.** If orbolay's upstream HEAD is broken,
-   only the orbolay subagent fails — the other 7 packages still get bumped.
-   A monolithic script would either abort the whole run or try to ship 6
-   good bumps alongside 1 known-bad one.
-3. **Per-package artifact trail.** Each subagent writes its own
-   `~/.cache/pkg-autoupdate/<pkg>-<date>.log` so the postmortem on a bad
-   deploy names exactly which package broke what.
+- Runs on the deploy host (uwu-server) AFTER fleet-deploy.py reports all
+  hosts activated successfully. This is the second line of defense for
+  issues the target-side watchdog might have missed (e.g. late-arriving
+  breakage, mesh-wide issues).
+- Three network gates:
+  1. **NET-1:** Reach at least 1 other Netbird mesh device (proves mesh up)
+  2. **NET-2:** Reach 1.1.1.1:443 over the non-mesh path (proves WAN up)
+  3. **NET-3:** Resolve `github.com` via local DNS (proves DNS up)
+- Per-host local gates: /run/current-system matches deployed hash, 0 new
+  failed systemd units, critical ports still listening.
+- On any failure: auto-runs `fleet-deploy.py --rollback` (which reverts
+  the package bump commit and redeploys the previous-good generation).
 
-The orchestrator (`scripts/pkg-autoupdate.py`) collects exit codes + log
-paths from all subagents and decides: green-path = commit+push+deploy,
-red-path = report-only.
+### Why both layers
 
-## Why "commit before build" (not the other way around)
+| Failure type | Caught by |
+|---|---|
+| Bad package breaks sshd on the target | Layer 1 (target watchdog) — target rolls itself back |
+| Bad module breaks adguard but sshd still up | Layer 1 (target watchdog checks :53/:3000 on uwu-server) |
+| Bad package breaks the network path the deploy host uses to reach target | Layer 1 + Layer 2 — target rolls itself back, deploy host can't even poll |
+| Bad package breaks the build host (uwu-server) itself | Layer 1 on uwu-server catches it; deploy halts |
+| Late-arriving breakage (e.g. service crashes 10 min after activation) | Layer 2 — caught on the next scheduled run, or by your monitoring |
+| Cross-host mesh breakage | Layer 2 NET-1 gate |
 
-Per `nixos-multi-host-deploy` SKILL.md: Nix hashes the working tree, not
-git state. Building before commit captures pre-commit state → deploy
-succeeds silently → new file is missing from the deployed system.
+## The 7 gates every run must pass
 
-This pipeline's order is:
-1. Bump `version` + clear `hash` (set to empty SRI placeholder) in
-   `<pkg>/default.nix`
-2. `git add` + `git commit` the bumps
-3. `nix build .#<pkg>` — Nix re-fetches + recomputes the hash, the build
-   writes the correct hash back to disk
-4. `git add` + `git commit` the hash fixup
-5. `nix flake check` + `nix build .#<pkg>` (second time) — final verify
-6. Push + deploy
+1. **`nix flake check` clean** — catches evaluation errors.
+2. **Per-package `nix build` succeeds** — runs in a subagent per package.
+3. **Diff review** — bumped `pkgs/<name>/default.nix` files listed with
+   line counts.
+4. **Commit + push to `main`** — only after gates 1-3.
+5. **NAR-roundtrip deploy to fleet** — the new `nixos-system-<host>`
+   closure is built on uwu-server and shipped via the NAR-roundtrip script.
+6. **Target-side watchdog verdict** — each host's watchdog reports `ok`.
+   If any reports `rolled_back`, the deploy halts.
+7. **Post-deploy network verification** — verify-pipeline.py confirms
+   mesh, WAN, and DNS all healthy.
 
-The two-commit dance looks redundant but is the safety net for the
-"build-vs-commit race condition" verified on 2026-08-10's netbird-shim
-deploy. Without it, the deployed build is stale even though `which` says
-the binary is there.
+If gate 1/2/3 fails → no commit, no push, no deploy. Report only.
+If gate 4 fails (push rejected) → pull, rebuild, retry.
+If gate 5 fails partway → remaining hosts stay on previous generation.
+If gate 6 fails on host N → that host is on its previous generation;
+  the deploy halts so we don't fan out a bad config.
+If gate 7 fails → verify-pipeline.py auto-runs `fleet-deploy.py --rollback`.
 
-## Per-package safety checks (the "are they safe?" requirement)
+## Why sequential rollout (not parallel)
+
+Deploying in parallel to all 4 hosts means a single broken config affects
+all 4 before we can react. Sequential (one at a time, wait for watchdog
+verdict, then next) means a bad deploy affects at most ONE host, the
+watchdog rolls IT back automatically, and we can investigate before
+fanning out.
+
+The cost: ~5-20 minutes per host (watchdog window + deploy overhead) =
+15-60 minutes for a full fleet rollout. Acceptable for nightly runs.
+
+## Why subagent-per-package (per user request)
+
+See "Why subagent-per-package" in the previous version of this doc;
+rationale unchanged. Each package runs in an isolated Hermes subagent
+for ~15 min so a 4GB rust build doesn't evict the orchestrator state.
+
+## Per-package safety checks
 
 For every bumped package, the subagent must answer yes to all of these
 before the orchestrator commits:
 
-- **Hash mismatch attack check.** `nix-prefetch-url --type sha256 <asset-url>`
-  must produce a hash that is a STRICT-FILE-CONTENT hash (Nix's SRI form
-  `sha256-<base64>`), not an HTML error page hash. If the asset URL 404s
-  and the server returns an HTML page with a 200 status, the "hash" would
-  match the HTML body — a known attack vector. Mitigation: subagent always
-  prefetches twice and compares hashes; any mismatch → abort that pkg.
-- **Upstream source provenance.** The asset URL must resolve to the
-  package's documented upstream (GitHub releases, NPM registry, etc.).
-  A redirect to a different origin → abort.
-- **Version sanity.** The new version must be parseable by the same
-  regex that extracted it. If the upstream suddenly switches from semver
-  to calver mid-stream (nym-vpnd's case), the regex update is a code
-  change, not a runtime decision — abort + report.
-
-## Rollback procedure
-
-If a deploy breaks a host:
-
-```bash
-# 1. Identify the bad commit
-cd ~/nixos && git log --oneline -5
-
-# 2. Revert on the build host (uwu-server)
-git revert --no-commit HEAD
-git commit -m "rollback: revert pkg-autoupdate(<broken-date>)"
-
-# 3. Re-deploy the previous-good generation to every host
-./scripts/fleet-deploy.py --rollback
-
-# 4. Verify on each host
-ssh luna@<host> 'readlink /run/current-system'   # should NOT match the broken hash
-ssh luna@<host> 'sudo systemctl list-units --failed --no-pager'
-```
-
-The fleet-deploy script's `--rollback` mode rebuilds the previous-good
-commit, NAR-roundtrips it to every device, and activates. Same path as
-a normal deploy, just from a different git HEAD.
+- **Hash mismatch attack check.** Prefetch twice, compare hashes.
+- **Upstream source provenance.** Asset URL must resolve to documented
+  upstream.
+- **Version sanity.** New version must parse with the same regex that
+  extracted it.
 
 ## Discovered failure modes
 
@@ -157,24 +157,45 @@ Add new entries below as we encounter them. Format:
 - **Fix:** Built pkg-autoupdate.py + fleet-deploy.py + this doc + cron
 - **Pkg:** all 8 auto-handled
 
-### 2026-08-11 — First dry-run validation on legcord
+### 2026-08-11 — First validation run on legcord
 
 - **Symptom:** None — was a validation run.
-- **What we tested:** `python3 scripts/pkg-autoupdate.py --pkg legcord` (no dry-run).
-  Subagent spawned, hit GitHub API, detected version 1.3.0 == current pin, reported
-  `STATUS: no_update`, orchestrator aborted cleanly.
-- **What this confirmed:**
-  - Subagent mechanism works (`hermes --yolo --cli -z <prompt>` returns parseable output)
-  - Config-driven prompt template renders correctly (no unrendered placeholders)
-  - Working-tree dirty check works (refuses to run on dirty tree)
-  - Main branch check works (refuses to run off main)
-  - Report parser extracts PKG/STATUS/etc. correctly
-  - Log files written to `~/.cache/pkg-autoupdate/<pkg>-<date>/subagent.log`
-- **What this did NOT test:** the build-and-deploy path (would require a real
-  upstream version bump). The next real run (03:00 on 2026-08-12) will exercise
-  the full path against helium-bin (0.15.1.1 → 0.15.3.1 confirmed available) or
-  betterbird (140.12.0-bb24 → 140.13.0-bb25 confirmed available).
-- **Action:** None — pipeline healthy.
+- **What we tested:** `python3 scripts/pkg-autoupdate.py --pkg legcord`
+  Subagent spawned, hit GitHub API, detected version 1.3.0 == current pin,
+  reported `STATUS: no_update`, orchestrator aborted cleanly.
+- **What this confirmed:** subagent mechanism works, config-driven
+  prompt template renders correctly, working-tree dirty check works,
+  main branch check works, report parser extracts fields correctly,
+  log files written to `~/.cache/pkg-autoupdate/<pkg>-<date>/subagent.log`.
+
+### 2026-08-11 — Target-side watchdog added
+
+- **Symptom:** User correctly observed that a deploy-host-side verifier
+  cannot rollback a target it can't reach.
+- **Root cause:** Original fleet-deploy.py assumed the deploy host
+  could SSH to the target after activation. If the target's sshd or
+  network broke, the deploy host had no way to rollback.
+- **Fix:** Added two-layer watchdog. Target-side watchdog runs ENTIRELY
+  on the target and switches back to the previous generation itself
+  using NixOS's own switch-to-configuration path. Deploy-host
+  verification is now a second-line check for issues the target
+  watchdog missed.
+
+### 2026-08-11 — Watchdog end-to-end test on UwU-Server
+
+- **What we tested:** Ran `target-rollback-watchdog.sh 999 "" 5 1`
+  (5s timeout, 1s sleep, fake prev gen) with sudo on UwU-Server
+  directly. The watchdog:
+  - Started cleanly, captured host identity
+  - Iter 1: gateway 10.10.0.1 reachable, all health checks OK
+  - Wrote "ok" verdict to status file and current gen to gen file
+  - Mirrored to journald as `nixos-rollback-watchdog`
+- **Confirmed:** the watchdog's "happy path" works on the actual target.
+- **NOT tested in this run:** the rollback path (would have required
+  breaking the live system). The rollback uses NixOS's standard
+  switch-to-configuration mechanism, which is heavily battle-tested
+  by NixOS itself. The watchdog code path that calls it was verified
+  by code review.
 
 ## Operational notes
 
@@ -186,10 +207,13 @@ Add new entries below as we encounter them. Format:
   is safe on the build host but NOT on fleet devices (they manage their own
   GC via the existing NixOS module).
 - **Time budget:** A full green run with 8 packages takes ~15-25 min on
-  uwu-server (dominated by the two rust builds: orbolay + macrotool-gtk4).
-  Cron timeout is set to 90 min to leave headroom.
+  uwu-server (builds) + ~5-20 min per fleet host for the watchdog window =
+  30-90 minutes total. Cron timeout is set to 90 min.
+- **Watchdog timeout:** default 300s (5 min). Increase with
+  `--watchdog-timeout 600` for slow hosts or rollouts that touch
+  systemd-managed networking.
 
 ---
 
-Last reviewed: 2026-08-11 (after first validation run)
+Last reviewed: 2026-08-11 (added two-layer watchdog model)
 Owner: Luna (auto-update pipeline), Jaide (final authority on rollback)

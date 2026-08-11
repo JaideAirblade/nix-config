@@ -1,0 +1,29 @@
+[Unit]
+Description=NixOS rollback watchdog (post-deploy self-check + auto-rollback)
+Documentation=file:/home/luna/nixos/scripts/target-rollback-watchdog.sh
+
+# This is a TEMPLATE file — the actual unit is transient, created by
+# `systemd-run --unit=<name> --on-active=10 <watchdog.sh> <prev_gen> <deploy_host> <timeout>`
+# from scripts/fleet-deploy.py. The .service file in this repo is here for
+# reference and for documentation; it is NOT auto-installed as a static
+# unit. systemd-run creates transient units on the fly.
+#
+# Args passed by systemd-run:
+#   $1 = previous generation number (e.g. "147")
+#   $2 = deploy host SSH target (e.g. luna@100.77.228.137)
+#   $3 = watchdog timeout in seconds (e.g. "300")
+
+[Service]
+Type=oneshot
+# Do NOT auto-restart — this is a one-shot post-deploy watchdog.
+# If it dies, the deploy host's poll will detect the missing status file.
+ExecStart=/home/luna/nixos/scripts/target-rollback-watchdog.sh
+# Allow up to 6 minutes (default timeout 300 + startup overhead)
+TimeoutStartSec=380
+# Both 0 (ok) and 2 (rolled_back) are successful outcomes from systemd's
+# POV — the watchdog exits 2 after auto-rollback to signal "intervention
+# happened", not "failure". systemd's success-exit-status keeps the unit
+# in "active (exited)" state.
+SuccessExitStatus=0 2
+User=root
+Group=root
