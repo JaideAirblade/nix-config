@@ -157,6 +157,25 @@ Add new entries below as we encounter them. Format:
 - **Fix:** Built pkg-autoupdate.py + fleet-deploy.py + this doc + cron
 - **Pkg:** all 8 auto-handled
 
+### 2026-08-11 — First dry-run validation on legcord
+
+- **Symptom:** None — was a validation run.
+- **What we tested:** `python3 scripts/pkg-autoupdate.py --pkg legcord` (no dry-run).
+  Subagent spawned, hit GitHub API, detected version 1.3.0 == current pin, reported
+  `STATUS: no_update`, orchestrator aborted cleanly.
+- **What this confirmed:**
+  - Subagent mechanism works (`hermes --yolo --cli -z <prompt>` returns parseable output)
+  - Config-driven prompt template renders correctly (no unrendered placeholders)
+  - Working-tree dirty check works (refuses to run on dirty tree)
+  - Main branch check works (refuses to run off main)
+  - Report parser extracts PKG/STATUS/etc. correctly
+  - Log files written to `~/.cache/pkg-autoupdate/<pkg>-<date>/subagent.log`
+- **What this did NOT test:** the build-and-deploy path (would require a real
+  upstream version bump). The next real run (03:00 on 2026-08-12) will exercise
+  the full path against helium-bin (0.15.1.1 → 0.15.3.1 confirmed available) or
+  betterbird (140.12.0-bb24 → 140.13.0-bb25 confirmed available).
+- **Action:** None — pipeline healthy.
+
 ## Operational notes
 
 - **Network:** GitHub API has a 60 req/hour unauthenticated limit. With 8
@@ -172,5 +191,5 @@ Add new entries below as we encounter them. Format:
 
 ---
 
-Last reviewed: 2026-08-11
+Last reviewed: 2026-08-11 (after first validation run)
 Owner: Luna (auto-update pipeline), Jaide (final authority on rollback)
