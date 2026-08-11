@@ -9,6 +9,7 @@
       config.nixos.modules.automationAccounts
       config.nixos.modules.netbirdMesh
       config.nixos.modules.virtualisation
+      config.nixos.modules.office
       config.nixos.hosts."TSBW-W01800"
 
       # Generated lower-level module exception.

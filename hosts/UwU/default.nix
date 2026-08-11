@@ -12,6 +12,7 @@
       config.nixos.modules.privateAccounts
       config.nixos.modules.netbirdMesh
       config.nixos.modules.fileManager
+      config.nixos.modules.office
       config.nixos.modules.personal
       config.nixos.modules.virtualisation
       config.nixos.modules.adLab

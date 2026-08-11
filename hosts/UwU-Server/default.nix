@@ -26,6 +26,7 @@
       config.nixos.modules.privateAccounts
       config.nixos.modules.netbirdMesh
       config.nixos.modules.fileManager
+      config.nixos.modules.office
       config.nixos.modules.disk
 
       # Host-specific NixOS module — includes the disko config from

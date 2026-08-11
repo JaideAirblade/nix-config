@@ -10,6 +10,7 @@
     modules = [
       config.nixos.modules.common
       config.nixos.modules.fileManager
+      config.nixos.modules.office
       config.nixos.modules.virtualisation
       config.nixos.modules.adLab
       config.nixos.hosts."OwO-Family"
