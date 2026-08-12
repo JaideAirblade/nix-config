@@ -356,16 +356,47 @@ _:
         for entry in user_themes_dir.iterdir():
             os.chmod(entry, 0o644)
 
-        # Write the per-theme JSON files (both dark and light variants,
-        # even though we register only one id — the manifest picks).
-        (user_themes_dir / "theme-dms.json").write_text(dark_theme_json, encoding="utf-8")
-        # Also write a light variant file (in case OO's loader tries
-        # theme-dms-light.json by convention).
-        (user_themes_dir / "theme-dms-light.json").write_text(light_theme_json, encoding="utf-8")
+        # Render the per-theme + manifest, then compare with what's
+        # already on disk. If both are byte-identical, we don't
+        # need to write (and don't need to kill any running OO —
+        # CEF re-reads themes.json on next launch anyway, so an
+        # unchanged manifest means nothing for the user changes).
+        # This idempotency is what prevents the feedback loop where
+        # the path watcher fires, the sync runs, the sync kills
+        # the user's just-launched OO, and the user sees "Terminated".
+        new_manifest = render_themes_manifest("theme-dms")
+        new_theme_dark = render_theme_json("dark", cache["colors"]["dark"], cache["colors"]["light"])
+        new_theme_light = render_theme_json("light", cache["colors"]["dark"], cache["colors"]["light"])
 
-        # Write themes.json with our theme registered.
-        manifest = render_themes_manifest("theme-dms")
-        (user_themes_dir / "themes.json").write_text(manifest, encoding="utf-8")
+        def _unchanged(path, new_content):
+            """Return True if path exists and content matches new_content."""
+            if not path.exists():
+                return False
+            try:
+                return path.read_text(encoding="utf-8") == new_content
+            except (OSError, UnicodeDecodeError):
+                return False
+
+        if (
+            _unchanged(user_themes_dir / "themes.json", new_manifest)
+            and _unchanged(user_themes_dir / "theme-dms.json", new_theme_dark)
+            and _unchanged(user_themes_dir / "theme-dms-light.json", new_theme_light)
+        ):
+            # No change → don't kill OO, don't rewrite files. This is
+            # the steady state when the watcher fires for a non-content
+            # change (e.g. the file got touched by some other tool, the
+            # watcher noticed, but our rendered output is identical to
+            # what's already on disk).
+            print(
+                f"OnlyOffice DMS theme up to date "
+                f"(mode={mode}, killed_running=False)"
+            )
+            return
+
+        # Content changed — write the new files.
+        (user_themes_dir / "theme-dms.json").write_text(new_theme_dark, encoding="utf-8")
+        (user_themes_dir / "theme-dms-light.json").write_text(new_theme_light, encoding="utf-8")
+        (user_themes_dir / "themes.json").write_text(new_manifest, encoding="utf-8")
 
         # Kill any running OO so the next launch reads our themes.json.
         was_running = kill_running()
@@ -373,9 +404,10 @@ _:
             time.sleep(0.5)
 
         # Note: themes.json is in OO's `resources/` dir which CEF loads
-        # via fetch(). We can't sentinel-guard an arbitrary location
-        # there; we just overwrite themes.json in place (idempotent —
-        # file content is deterministic from the DMS palette).
+        # via fetch() at startup. We can't sentinel-guard an arbitrary
+        # location there; we just overwrite themes.json in place. The
+        # diff-check above ensures we only kill+write when the rendered
+        # content actually changed.
         print(
             f"Synced OnlyOffice DMS theme "
             f"(mode={mode}, killed_running={was_running})"
@@ -479,17 +511,28 @@ _:
         '';
       };
 
-      # Watch the DMS palette cache and our own user-cache themes dir.
-      # DMS updates dms-colors.json atomically (tmp+rename), so watch
-      # the parent directory.
+      # Watch the SPECIFIC files that drive the DMS palette — not
+      # the parent directories. Watching the parent dirs would
+      # catch every mtime update from CEF, bwrap, and the sync
+      # itself, causing a feedback loop where the user launches
+      # OnlyOffice, the sync fires, the sync kills the OO, and the
+      # user sees "Terminated" within ~2 seconds. Watching the two
+      # specific files DMS actually writes (the palette cache + the
+      # GTK color-scheme file) keeps the watcher surgical.
+      #
+      # The sync script also has internal idempotency: it diff-checks
+      # the rendered theme-dms.json against the existing file before
+      # writing, so a re-trigger that produces the same content won't
+      # rewrite themes.json (which is the only reason we'd need to
+      # kill the running OO).
       systemd.user.paths.onlyoffice-dms-theme-sync = {
         description = "Watch DMS palette changes for OnlyOffice";
         unitConfig.ConditionUser = "jaide";
         wantedBy = [ "default.target" ];
         pathConfig = {
           PathChanged = [
-            "%h/.cache/DankMaterialShell"
-            "%h/.cache/onlyoffice-themes"
+            "%h/.cache/DankMaterialShell/dms-colors.json"
+            "%h/.config/gtk-4.0/dank-colors.css"
           ];
         };
       };
