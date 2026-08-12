@@ -306,22 +306,33 @@ _:
         # accidentally created) would shadow our writes. shutil.rmtree
         # on a writable dir is safe; if the dir doesn't exist, the
         # exception is suppressed.
-        if user_themes_dir.exists() or user_themes_dir.is_symlink():
-            try:
-                if user_themes_dir.is_symlink() or user_themes_dir.is_file():
-                    user_themes_dir.unlink()
-                else:
-                    shutil.rmtree(user_themes_dir)
-            except (OSError, PermissionError):
-                pass
+        if user_themes_dir.is_symlink():
+            # A symlink at the cache path is the failure mode from the
+            # first deploy — unlink explicitly, rmtree won't follow it.
+            user_themes_dir.unlink()
+        elif user_themes_dir.exists():
+            # Use a more robust removal that handles read-only entries
+            # (the upstream themes/ contents are read-only in the nix
+            # store, and a previous rmtree may have set the local
+            # mirror to read-only too). onerror clears the perms then
+            # retries the failed op.
+            def _onerr(fn, path, exc_info):
+                try:
+                    os.chmod(path, 0o700)
+                    fn(path)
+                except OSError:
+                    pass
+            shutil.rmtree(user_themes_dir, onerror=_onerr)
         # Mirror the upstream themes/ structure (the only file there is
         # themes.json — currently `{"themes": []}`). We copy WITHOUT
         # following symlinks so the local file is a real file we can
         # later overwrite. symlinks=True (the default) would follow the
         # source symlink (if any) and create a destination symlink —
         # which is what the previous version of this script did, and
-        # it broke writes.
-        shutil.copytree(themes_dir, user_themes_dir, symlinks=False)
+        # it broke writes. dirs_exist_ok=True makes the copy idempotent
+        # in the (unlikely) event rmtree didn't actually remove the
+        # dir.
+        shutil.copytree(themes_dir, user_themes_dir, symlinks=False, dirs_exist_ok=True)
 
         # Write the per-theme JSON files (both dark and light variants,
         # even though we register only one id — the manifest picks).
