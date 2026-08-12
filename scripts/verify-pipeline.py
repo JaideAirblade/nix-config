@@ -161,9 +161,12 @@ def main() -> int:
 
     expected = args.expected_toplevel
     if not expected:
+        # Use the explicit flake-parts attribute path. `.#UwU-Server` is
+        # the nixos-rebuild shorthand and does NOT resolve via plain `nix build`.
         r = run(["nix", "--extra-experimental-features", "nix-command flakes",
                  "build", "--no-link", "--print-out-paths",
-                 ".#UwU-Server"], cwd=NIXOS, timeout=60)
+                 ".#nixosConfigurations.UwU-Server.config.system.build.toplevel"],
+                cwd=NIXOS, timeout=60)
         if r.returncode == 0:
             expected = r.stdout.strip().splitlines()[-1]
             log(f"Expected toplevel: {expected}")

@@ -197,6 +197,58 @@ Add new entries below as we encounter them. Format:
   by NixOS itself. The watchdog code path that calls it was verified
   by code review.
 
+### 2026-08-12 — fleet-deploy script uses nixos-rebuild-only attribute shorthand
+
+- **Symptom:** First cron run with an actual pkg bump (helium-bin
+  0.15.1.1 -> 0.15.3.1) failed at Phase 6 (fleet deploy) with
+  `error: flake 'git+file:///tmp/nixos-wt' does not provide attribute
+  'packages.x86_64-linux.UwU-Server', 'legacyPackages.x86_64-linux.UwU-Server'
+  or 'UwU-Server'`. The build_local() function inside scripts/fleet-deploy.py
+  was calling `nix build .#<host>` which only resolves when the flake
+  exposes a top-level attribute named `<host>`. Our flake uses flake-parts
+  and exposes the configuration only as `nixosConfigurations.<host>`.
+- **Root cause:** `nix build .#<host>` does NOT do the implicit
+  `nixosConfigurations.<host>` prefix rewrite that `nixos-rebuild` does.
+  The Justfile's `just deploy` uses `nixos-rebuild` (which works), so the
+  `nix build` path in fleet-deploy.py was never actually exercised end-to-end
+  before this run. The earlier ad-hoc verification script used
+  `nix build .#UwU-Server` but only at a shape-check layer; the actual
+  build/NAR-roundtrip path was never exercised.
+- **Fix:** Changed `nix build .#<host>` to
+  `nix build .#nixosConfigurations.<host>.config.system.build.toplevel`
+  in both `scripts/fleet-deploy.py` (build_local + --skip-build path) and
+  `scripts/verify-pipeline.py` (expected-toplevel computation). `nix build`
+  produces the same closure it would have via the nixos-rebuild shorthand;
+  the verbose path is what plain `nix build` needs without the prefix rewrite.
+- **Pkg:** N/A (script fix)
+
+### 2026-08-12 — Read-only /home snapshot blocks the cron
+
+- **Symptom:** Original cron entry on UwU-Server, when run from a
+  btrfs-ro snapshot of `/home` (the standard NixOS impermanence setup
+  on this fleet), fails at the orchestrator's pre-flight `git status`
+  check with `FATAL: working tree is dirty. Commit or stash before running.`
+  The orchestrator's git-write phases (subagent's `git add && git commit`,
+  the orchestrator's `git diff --stat`, etc.) would also fail on the
+  ro filesystem with `Read-only file system` from
+  `/home/luna/nixos/.git/index.lock`. Separately, the symlink
+  `~/.ssh/config` -> `/etc/luna/ssh_config` is owned by `nobody:nogroup`,
+  which trips SSH's strict ownership check on every ssh/scp invocation.
+- **Root cause:** The pipeline was designed assuming `/home/luna/nixos`
+  is writable. On the actual fleet, `/home` is a read-only btrfs
+  subvolume. The previous run "succeeded" only because no packages
+  had updates, so the script never reached the git-write phase.
+- **Fix (tactical):** Set NIXOS_REPO=/tmp/nixos-wt (a writable clone)
+  plus a `PATH=/tmp/bin:$PATH` prepend that injects
+  `-F /tmp/fake-home/.ssh/config` into every ssh/scp invocation.
+  Also `GIT_SSH_COMMAND=ssh -F /tmp/fake-home/.ssh/config ...` for
+  the orchestrator's git push and the subagents' git push.
+- **Fix (permanent):** Make the orchestrator self-clone to a writable
+  path when the source is on a read-only filesystem. Also fix the
+  `~/.ssh/config` symlink chain so luna owns the final symlink (the
+  current symlink has wrong ownership for SSH's strict check).
+- **Pkg:** N/A (env / infrastructure fix)
+
 ## Operational notes
 
 - **Network:** GitHub API has a 60 req/hour unauthenticated limit. With 8
@@ -215,5 +267,5 @@ Add new entries below as we encounter them. Format:
 
 ---
 
-Last reviewed: 2026-08-11 (added two-layer watchdog model)
+Last reviewed: 2026-08-12 (fixed fleet-deploy build attribute path; documented RO-snapshot blocker)
 Owner: Luna (auto-update pipeline), Jaide (final authority on rollback)

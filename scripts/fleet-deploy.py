@@ -193,12 +193,17 @@ def poll_watchdog(ip: str, ssh_user_: str, timeout_sec: int) -> tuple[str, str]:
 # ── build + deploy one host ──────────────────────────────────────────────
 
 def build_local(host: str) -> str | None:
-    log(f"Building .#{host} locally")
+    # NOTE: `.#<host>` shorthand does NOT resolve for flake-parts configs
+    # (the flake exposes `nixosConfigurations.<host>` only, not a top-level
+    # `<host>`). We must use the full attribute path. nixos-rebuild does
+    # the prefix rewrite internally; plain `nix build` does not.
+    log(f"Building .#nixosConfigurations.{host}.config.system.build.toplevel locally")
     r = run(["nix", "--extra-experimental-features", "nix-command flakes",
              "build", "--no-link", "--print-out-paths",
-             f".#{host}"], timeout=3600)
+             f".#nixosConfigurations.{host}.config.system.build.toplevel"],
+            timeout=3600)
     if r.returncode != 0:
-        log(f"FATAL: local build of .#{host} failed")
+        log(f"FATAL: local build of .#nixosConfigurations.{host} failed")
         log(r.stderr[-2000:] if r.stderr else r.stdout[-2000:])
         return None
     out_path = r.stdout.strip().splitlines()[-1]
@@ -383,8 +388,11 @@ def main() -> int:
                 halted = True
                 break
         else:
+            # --skip-build: find the existing built closure for this host.
+            # See build_local() for the attribute-path rationale.
             r = run(["nix", "--extra-experimental-features", "nix-command flakes",
-                     "build", "--no-link", "--print-out-paths", f".#{host}"],
+                     "build", "--no-link", "--print-out-paths",
+                     f".#nixosConfigurations.{host}.config.system.build.toplevel"],
                     timeout=60)
             if r.returncode != 0:
                 failures.append((host, "no-existing-build", "build"))
