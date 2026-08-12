@@ -391,7 +391,7 @@ _:
                 f"OnlyOffice DMS theme up to date "
                 f"(mode={mode}, killed_running=False)"
             )
-            return
+            sys.exit(0)
 
         # Content changed — write the new files.
         (user_themes_dir / "theme-dms.json").write_text(new_theme_dark, encoding="utf-8")
