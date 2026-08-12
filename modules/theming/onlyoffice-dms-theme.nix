@@ -333,6 +333,13 @@ _:
         # in the (unlikely) event rmtree didn't actually remove the
         # dir.
         shutil.copytree(themes_dir, user_themes_dir, symlinks=False, dirs_exist_ok=True)
+        # The source themes/ lives in the read-only nix store with
+        # mode 0555. shutil.copystat (called by copytree) propagates
+        # the source mode to the destination, so the user cache ends
+        # up read-only too — even though the underlying filesystem
+        # allows writes. Override to 0755 so our subsequent write_text
+        # calls succeed.
+        os.chmod(user_themes_dir, 0o755)
 
         # Write the per-theme JSON files (both dark and light variants,
         # even though we register only one id — the manifest picks).
