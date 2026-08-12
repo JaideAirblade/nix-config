@@ -256,8 +256,21 @@ _:
                     os.kill(pid, signal.SIGTERM)
                 except ProcessLookupError:
                     continue
+                except PermissionError:
+                    # Process is owned by a different user (e.g. luna
+                    # started OO before us). Skip — we can't signal
+                    # without sudo and the next user-mode launch will
+                    # re-read themes.json anyway.
+                    continue
             for _ in range(50):
-                if not any(Path(f"/proc/{pid}").exists() for pid in pids):
+                still = []
+                for pid in pids:
+                    try:
+                        if Path(f"/proc/{pid}").exists():
+                            still.append(pid)
+                    except (OSError, PermissionError):
+                        continue
+                if not still:
                     return True
                 time.sleep(0.1)
             return False
@@ -391,6 +404,15 @@ _:
           # upstream's fhsenv rootfs). After substitution this exec
           # line holds the absolute store path of the fhsenv bwrap
           # launcher.
+          #
+          # bwrap inherits the calling process's CWD and chdirs into
+          # it inside the namespace. If the invoker ran from a
+          # directory the user can't enter (e.g. a different user's
+          # $HOME), bwrap fails with "Can't chdir to ...". cd to /tmp
+          # first so we always have a safe, accessible CWD. The user
+          # can still pass a file path as an argument and OO will
+          # open it; we don't depend on CWD for that.
+          cd /tmp
           exec __BWRAP_PATH__ \
               --bind "$HOME/.cache/onlyoffice-themes/themes" \
                        /usr/share/desktopeditors/editors/web-apps/apps/common/main/resources/themes \
