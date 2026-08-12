@@ -52,7 +52,7 @@
 _:
 {
   nixos.modules.common =
-    { pkgs, ... }:
+    { pkgs, lib, ... }:
 
     let
       # CSS map: material-design-3 token → OnlyOffice CSS variable. The
@@ -435,19 +435,16 @@ _:
       });
     in
     {
-      # The wrapped package replaces the unmodified onlyoffice-desktopeditors
-      # in the system closure. Hosts that opt in to the office role
-      # (config.nixos.modules.office) automatically pick this up; hosts that
-      # don't have the office role are unaffected.
-      #
-      # We declare only `wrappedPackage` here, not the unwrapped
-      # `pkgs.onlyoffice-desktopeditors`, because the override produces a
-      # new store path with the same name — listing both would put two
-      # ~400 MiB copies of OnlyOffice into the closure. The office role's
-      # contribution (modules/packages/office/office.nix) also lists
-      # `pkgs.onlyoffice-desktopeditors`; Nix deduplicates identical
-      # derivations, so whichever one wins is the only one shipped. We
-      # list `wrappedPackage` so the wrapper wins the dedup race.
+      # The wrapped package is the sole entry for OnlyOffice on hosts
+      # that import the office role (config.nixos.modules.office). The
+      # modules/packages/office/office.nix file used to also list the
+      # unwrapped package, but that listing was removed in 2026-08-12
+      # when this theming module started providing the wrapper — listing
+      # both would put two ~400 MiB copies of OnlyOffice into the
+      # closure and the /run/current-system/sw/bin symlink would point
+      # at the unwrapped one (which has the bwrap symlink, not the
+      # wrapper script). With the unwrapped listing removed, this module
+      # is the only place that ships OnlyOffice.
       environment.systemPackages = [ wrappedPackage ];
 
       # Oneshot that runs the sync. Debounced ~2s so DMS's cache writes
