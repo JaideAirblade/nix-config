@@ -1,166 +1,148 @@
-# OnlyOffice DMS theme sync — paint the OnlyOffice chrome with the active
+# OnlyOffice DMS theme sync — paint the OnlyOffice chrome with the live
 # DankMaterialShell palette.
 #
-# OnlyOffice Desktop Editors is a Chromium Embedded Framework (CEF) app.
-# Its entire UI theme lives in `/usr/share/desktopeditors/index.html`
-# (1.1 MiB, ~200 KB of compiled CSS) as CSS custom properties keyed by
-# `theme-{name}` class on <html>: `theme-dark`, `theme-night`, `theme-
-# contrast`, `theme-gray`, `theme-white`, `theme-classic`. The user picks
-# the active class via Settings → Interface theme; we override the
-# variables to paint DMS colors regardless of which class is selected.
+# OnlyOffice (9.1.0+) supports custom interface themes via JSON files
+# dropped into `editors/web-apps/apps/common/main/resources/themes/`.
+# The bundled directory ships an empty `themes.json` manifest:
 #
-# Why this is gnarly:
+#     $out/editors/web-apps/apps/common/main/resources/themes/themes.json
+#     → {"themes": []}
 #
-#   - `index.html` lives in /nix/store/<fhsenv>/usr/share/desktopeditors/
-#     which is read-only.
-#   - CEF loads index.html from a path embedded in the DesktopEditors
-#     binary at compile time. No CLI flag, env var, or config option
-#     redirects it. Chromium's `Custom.css` convention requires a flag
-#     CEF doesn't expose here, so that doesn't work either.
-#   - OnlyOffice's NixOS package is wrapped by buildFHSEnv, which uses
-#     bwrap to mount the FHS rootfs into a private namespace. The bwrap
-#     script does `--ro-bind <fhsenv>/usr/share/desktopeditors
-#     /usr/share/desktopeditors` — read-only.
+# To add a custom theme:
+#   1. Write `theme-<id>.json` in that directory.
+#   2. Append `<id>` to the `themes` array in `themes.json`.
+#   3. The user picks the theme from Settings → Interface theme in OO.
 #
-# The hook we use: bwrap processes bind mounts left-to-right and later
-# mounts shadow earlier ones. We add a SECOND `--bind` (writable) of
-# `$HOME/.cache/onlyoffice-themes/desktopeditors` over the read-only
-# mount. CEF then reads our patched index.html from the user cache.
+# See the official guide:
+#   https://helpcenter.onlyoffice.com/docs/installation/docs-developer-change-theme.aspx
 #
-# Mechanics:
-#   1. The NixOS module replaces the symlink at `$out/bin/onlyoffice-
-#      desktopeditors` (which points to the bwrap script) with a wrapper
-#      script. The wrapper runs the palette sync, then re-execs the
-#      original bwrap script with `--bind` prepended.
-#   2. The sync reads `~/.cache/DankMaterialShell/dms-colors.json`,
-#      renders the DMS→OnlyOffice CSS map, mirrors the FHS rootfs share
-#      tree into `~/.cache/onlyoffice-themes/desktopeditors/`, and
-#      in-place patches the cached `index.html` (inserting before
-#      `</head>` with begin/end markers so re-runs replace the same
-#      block rather than accumulating copies).
-#   3. If OnlyOffice is currently running, the sync kills it before
-#      patching (CEF holds the index.html file handle open; new content
-#      is only visible on next launch). The user's working documents
-#      are in CEF localStorage which CEF flushes on SIGTERM.
-#   4. A systemd user path unit watches `~/.cache/DankMaterialShell`
-#      and `~/.cache/onlyoffice-themes` and re-runs the sync whenever
-#      DMS updates its palette cache.
+# The path lives inside the read-only /nix/store. We use the same bwrap
+# `--bind` trick as the legcord/readest DMS-theming modules: write a
+# writable `themes/` tree to `~/.cache/onlyoffice-themes/themes/` and
+# have the wrapper prepend `--bind ~/.cache/onlyoffice-themes/themes
+# /usr/share/desktopeditors/editors/web-apps/apps/common/main/resources/themes`
+# to the bwrap command. bwrap processes binds left-to-right; later binds
+# shadow earlier ones — so our writable copy wins for CEF.
 #
-# The mode-selection heuristic matches the Legcord module: pick the DMS
-# palette variant whose `background` color matches the GTK window-bg
-# color. This naturally follows the user's DMS light/dark mode flip.
+# Wrapper requirements:
+#   - Locate the upstream bwrap launcher (a symlink in the unwrapped
+#     package that we replace with our wrapper script). The capture-
+#     and-substitute dance uses a __BWRAP_PATH__ sentinel in the wrapper
+#     script body, filled in by sed in extraInstallCommands.
+#   - The sync script reads DMS's color cache and writes
+#     `~/.cache/onlyoffice-themes/themes/theme-dms.json` plus updates
+#     `~/.cache/onlyoffice-themes/themes/themes.json`. CEF reads the
+#     `themes.json` list at startup; we patch it in place with the
+#     sentinel-guarded marker pattern.
+#   - If OnlyOffice is currently running, the sync kills it before
+#     rewriting the manifest (CEF caches `themes.json` at startup; a
+#     live re-read isn't supported). Next launch picks up new colors.
+#   - A systemd user path unit watches the DMS palette cache and the
+#     OO themes cache; re-runs the sync whenever DMS updates.
 _:
 {
   nixos.modules.common =
     { pkgs, lib, ... }:
 
     let
-      # CSS map: material-design-3 token → OnlyOffice CSS variable. The
-      # variable names are taken from `/usr/share/desktopeditors/index.html`
-      # in the OnlyOffice 9.1.0 source; the same names appear in every
-      # theme-{dark,night,white,contrast,gray,classic} variant block.
+      # Material Design 3 → OnlyOffice theme variable names. The OO docs
+      # (docs-developer-change-theme.aspx) list every valid color key;
+      # we map DMS Material roles onto the subset that's user-visible
+      # in the chrome (toolbar, sidebar, scrollbars, buttons).
       #
-      # Variables we deliberately leave alone:
-      #   - `--border-radius-*` (cosmetic — not color)
-      #   - `--scaled-one-px` (cosmetic)
-      #   - `--theme-inverted-image-filter` (image filter, not color)
-      cssTemplate = ''
-        :root {
-          --background-normal:           __SURFACE__;
-          --background-normal-element:   __SURFACE__;
-          --background-tabbar:           __SURFACE__;
-          --background-action-panel:     __SURFACE_CONTAINER__;
-          --background-icon-normal:      __SURFACE_CONTAINER__;
-          --background-primary-button:   __PRIMARY__;
-          --background-scrim:            rgba(0, 0, 0, 0.6);
-          --background-scroll-thumb:     __SURFACE_CONTAINER_HIGH__;
+      # Variables we deliberately skip: per-document editor colors
+      # (background-normal, etc. inside the doc canvas), which the user
+      # expects to be page-content driven, not theme driven.
+      #
+      # Dark variant — used when DMS reports dark mode.
+      darkPalette = {
+        "toolbar-header-document"      = "PRIMARY";
+        "toolbar-header-spreadsheet"   = "PRIMARY";
+        "toolbar-header-presentation"  = "PRIMARY";
+        "toolbar-header-pdf"           = "PRIMARY";
+        "toolbar-header-draw"          = "PRIMARY";
+        "background-toolbar"           = "SURFACE";
+        "text-toolbar-header"          = "ON_SURFACE";
+        "highlight-button-hover"       = "SURFACE_CONTAINER_HIGH";
+        "background-normal"            = "SURFACE";
+        "border-regular-control"       = "OUTLINE_VARIANT";
+        "border-divider"               = "OUTLINE_VARIANT";
+        "canvas-scroll-thumb-hover"    = "OUTLINE";
+        "window-background"            = "SURFACE";
+        "window-border"                = "OUTLINE_VARIANT";
+        "text-normal"                  = "ON_SURFACE";
+        "text-pretty"                  = "ON_SURFACE_VARIANT";
+        "text-inverse"                 = "ON_PRIMARY";
+        "menu-background"               = "SURFACE_CONTAINER";
+        "menu-border"                  = "OUTLINE_VARIANT";
+        "menu-item-hover-background"   = "SURFACE_CONTAINER_HIGH";
+        "menu-text"                    = "ON_SURFACE";
+        "menu-text-item-hover"         = "ON_PRIMARY";
+        "menu-text-item-disabled"      = "ON_SURFACE_VARIANT";
+        "menu-separator"               = "OUTLINE_VARIANT";
+        "tooltip-text"                 = "ON_SURFACE";
+        "tooltip-border"               = "OUTLINE_VARIANT";
+        "tooltip-background"           = "SURFACE_CONTAINER_HIGHEST";
+        "tab-default-active-background" = "SURFACE_CONTAINER";
+        "tab-default-active-text"      = "ON_SURFACE";
+        "tab-simple-active-background" = "SURFACE_CONTAINER";
+        "tab-simple-active-text"        = "ON_SURFACE";
+        "tab-divider"                  = "OUTLINE_VARIANT";
+        "background-accent-button"     = "PRIMARY";
+        "border-control-focus"        = "PRIMARY";
+        "highlight-text-select"       = "PRIMARY";
+      };
 
-          --background-accent-button:    __PRIMARY__;
-          --highlight-accent-button-hover: __PRIMARY_CONTAINER__;
-          --highlight-accent-button-pressed: __PRIMARY_CONTAINER__;
-          --highlight-text-select:       __PRIMARY__;
-          --highlight-toolbar-tab-underline-document: __PRIMARY__;
+      # Light variant — used when DMS reports light mode. Reuses the
+      # same DMS M3 tokens, just selecting from the light palette.
+      lightPalette = {
+        "toolbar-header-document"      = "L_PRIMARY";
+        "toolbar-header-spreadsheet"   = "L_PRIMARY";
+        "toolbar-header-presentation"  = "L_PRIMARY";
+        "toolbar-header-pdf"           = "L_PRIMARY";
+        "toolbar-header-draw"          = "L_PRIMARY";
+        "background-toolbar"           = "L_SURFACE";
+        "text-toolbar-header"          = "L_ON_SURFACE";
+        "highlight-button-hover"       = "L_SURFACE_CONTAINER_HIGH";
+        "background-normal"            = "L_SURFACE";
+        "border-regular-control"       = "L_OUTLINE_VARIANT";
+        "border-divider"               = "L_OUTLINE_VARIANT";
+        "canvas-scroll-thumb-hover"    = "L_OUTLINE";
+        "window-background"            = "L_SURFACE";
+        "window-border"                = "L_OUTLINE_VARIANT";
+        "text-normal"                  = "L_ON_SURFACE";
+        "text-pretty"                  = "L_ON_SURFACE_VARIANT";
+        "text-inverse"                 = "L_ON_PRIMARY";
+        "menu-background"               = "L_SURFACE_CONTAINER";
+        "menu-border"                  = "L_OUTLINE_VARIANT";
+        "menu-item-hover-background"   = "L_SURFACE_CONTAINER_HIGH";
+        "menu-text"                    = "L_ON_SURFACE";
+        "menu-text-item-hover"         = "L_ON_PRIMARY";
+        "menu-text-item-disabled"      = "L_ON_SURFACE_VARIANT";
+        "menu-separator"               = "L_OUTLINE_VARIANT";
+        "tooltip-text"                 = "L_ON_SURFACE";
+        "tooltip-border"               = "L_OUTLINE_VARIANT";
+        "tooltip-background"           = "L_SURFACE_CONTAINER_HIGHEST";
+        "tab-default-active-background" = "L_SURFACE_CONTAINER";
+        "tab-default-active-text"      = "L_ON_SURFACE";
+        "tab-simple-active-background" = "L_SURFACE_CONTAINER";
+        "tab-simple-active-text"        = "L_ON_SURFACE";
+        "tab-divider"                  = "L_OUTLINE_VARIANT";
+        "background-accent-button"     = "L_PRIMARY";
+        "border-control-focus"        = "L_PRIMARY";
+        "highlight-text-select"       = "L_PRIMARY";
+      };
 
-          --highlight-button-hover:      __SURFACE_CONTAINER_HIGH__;
-          --highlight-button-pressed:    __SURFACE_CONTAINER_HIGHEST__;
-          --highlight-button-pressed-hover: __SURFACE_CONTAINER_HIGHEST__;
-          --highlight-primary-button-hover: __PRIMARY__;
-          --highlight-primary-button-pressed: __PRIMARY_CONTAINER__;
-
-          --border-divider:              __OUTLINE_VARIANT__;
-          --border-regular-control:      __OUTLINE__;
-          --border-control-focus:        __PRIMARY__;
-          --border-tabbar:               __OUTLINE_VARIANT__;
-          --border-sidebar:              __OUTLINE_VARIANT__;
-          --border-sidebar-icon:         __OUTLINE_VARIANT__;
-          --border-error:                __ERROR__;
-
-          --text-normal:                 __ON_SURFACE__;
-          --text-normal-pressed:         __ON_SURFACE__;
-          --text-secondary:              __ON_SURFACE_VARIANT__;
-          --text-tertiary:               __ON_SURFACE_VARIANT__;
-          --text-link:                   __PRIMARY__;
-          --text-inverse:                __ON_PRIMARY__;
-          --text-contrast-background:    __SURFACE__;
-          --text-negative:               __ERROR__;
-
-          --icon-normal:                 __ON_SURFACE__;
-          --icon-success:                __TERTIARY__;
-        }
-        /* Override each built-in theme variant too — same variables, but
-         * keeps hover accents consistent regardless of which theme class
-         * the user has selected in Settings → Interface theme. */
-        :root .theme-dark, :root .theme-night, :root .theme-contrast,
-        :root .theme-gray {
-          --background-normal:           __SURFACE__;
-          --background-tabbar:           __SURFACE__;
-          --background-action-panel:     __SURFACE_CONTAINER__;
-          --background-icon-normal:      __SURFACE_CONTAINER__;
-          --background-primary-button:   __PRIMARY__;
-          --background-scroll-thumb:     __SURFACE_CONTAINER_HIGH__;
-          --background-accent-button:    __PRIMARY__;
-          --highlight-text-select:       __PRIMARY__;
-          --highlight-toolbar-tab-underline-document: __PRIMARY__;
-          --border-divider:              __OUTLINE_VARIANT__;
-          --border-regular-control:      __OUTLINE__;
-          --border-tabbar:               __OUTLINE_VARIANT__;
-          --text-normal:                 __ON_SURFACE__;
-          --text-secondary:              __ON_SURFACE_VARIANT__;
-          --text-tertiary:               __ON_SURFACE_VARIANT__;
-          --text-link:                   __PRIMARY__;
-          --text-inverse:                __ON_PRIMARY__;
-          --icon-normal:                 __ON_SURFACE__;
-          --icon-success:                __TERTIARY__;
-        }
-        :root .theme-white, :root .theme-classic-light {
-          --background-normal:           __L_SURFACE__;
-          --background-tabbar:           __L_SURFACE__;
-          --background-action-panel:     __L_SURFACE_CONTAINER__;
-          --background-icon-normal:      __L_SURFACE__;
-          --background-primary-button:   __L_PRIMARY__;
-          --background-scroll-thumb:     __L_OUTLINE_VARIANT__;
-          --background-accent-button:    __L_PRIMARY__;
-          --highlight-text-select:       __L_PRIMARY__;
-          --highlight-toolbar-tab-underline-document: __L_PRIMARY__;
-          --border-divider:              __L_OUTLINE_VARIANT__;
-          --border-regular-control:      __L_OUTLINE__;
-          --border-tabbar:               __L_OUTLINE_VARIANT__;
-          --text-normal:                 __L_ON_SURFACE__;
-          --text-normal-pressed:         __L_ON_SURFACE__;
-          --text-secondary:              __L_ON_SURFACE_VARIANT__;
-          --text-tertiary:               __L_ON_SURFACE_VARIANT__;
-          --text-link:                   __L_PRIMARY__;
-          --text-inverse:                __L_ON_PRIMARY__;
-          --icon-normal:                 __L_ON_SURFACE__;
-          --icon-success:                __L_TERTIARY__;
-        }
-      '';
-
-      # Python sync script — runs as a user systemd oneshot. Mirrors the
-      # shape of `sync-legcord-dms-theme` / `sync-readest-dms-theme` for
-      # consistency.
+      # Python sync script — runs as a user systemd oneshot. Mirrors
+      # the shape of `sync-legcord-dms-theme` / `sync-readest-dms-theme`.
       syncScript = pkgs.writers.writePython3Bin "sync-onlyoffice-dms-theme"
         {
+          # E501: long lines (the palette dicts have no useful wrap points).
+          # E241: aligned colons for readability — flake8 dislikes the
+          #       multiple spaces.
+          # E302/E305: function/class spacing (cosmetic, flake8 default).
+          # F401/E402: a few imports + the `Path.home()` fallback are
+          #             unused / non-top-level; harmless.
           flakeIgnore = [ "E501" "E231" "E241" "E302" "E305" "F401" "E402" ];
         } ''
         import json
@@ -174,26 +156,24 @@ _:
         from pathlib import Path
 
         HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
-        MARKER_BEGIN = "/* __ONLYOFFICE_DMS_THEME_BEGIN__ */"
-        MARKER_END = "/* __ONLYOFFICE_DMS_THEME_END__ */"
+        MARKER_THEMES_JSON = "/* __ONLYOFFICE_DMS_THEMES_JSON_BEGIN__ */"
+        MARKER_THEMES_JSON_END = "/* __ONLYOFFICE_DMS_THEMES_JSON_END__ */"
 
-        # OnlyOffice's NixOS wrapper invokes a bwrap script whose first
-        # argument is a realpath pointing at the FHS rootfs. We discover
-        # the share dir by walking from the wrapper script up to the
-        # fhsenv-profile store path and finding usr/share/desktopeditors.
-        #
-        # The bwrap script iterates over the FHS rootfs contents and
-        # adds a read-only bind mount for each entry (so the CEF binary
-        # sees /usr/share/desktopeditors/index.html). The fhsenv rootfs
-        # path is embedded in the bwrap script source as a regex-matchable
-        # literal; we discover it at runtime.
+        # The path inside the OO bundle where themes.json + per-theme
+        # JSON files live. Resolved at runtime by walking the bwrap
+        # script to find the FHS rootfs share dir (same logic the
+        # legcord module uses).
         OO_BWRAP_SCRIPT = Path(
             "/nix/store/4dbx9yyy56f3crjj6ddzz813h8qs1q5c-onlyoffice-desktopeditors-9.1.0-fhsenv-profile/bin/onlyoffice-desktopeditors"
         )
 
-        # The CSS template is embedded as a JSON-encoded literal so the
-        # Python source can do straight string replace on the placeholders.
-        TEMPLATE = json.loads('''${builtins.toJSON cssTemplate}''')
+        # Material Design 3 → OO variable mapping. Plain Python dicts
+        # (not JSON-encoded) so we can do straight substring substitution.
+        DARK_PALETTE = ${builtins.toJSON darkPalette}
+        LIGHT_PALETTE = ${builtins.toJSON lightPalette}
+
+        THEME_ID = "dms"
+        THEME_NAME = "DankMaterialShell"
 
 
         def require_color(colors, role):
@@ -212,38 +192,33 @@ _:
             return "dark"
 
 
-        def render_css(palette_dark, palette_light):
-            out = TEMPLATE
-            mapping = {
-                "SURFACE":               palette_dark["surface"],
-                "SURFACE_CONTAINER":     palette_dark["surface_container"],
-                "SURFACE_CONTAINER_HIGH":palette_dark["surface_container_high"],
-                "SURFACE_CONTAINER_HIGHEST": palette_dark["surface_container_highest"],
-                "PRIMARY":               palette_dark["primary"],
-                "PRIMARY_CONTAINER":     palette_dark["primary_container"],
-                "ON_PRIMARY":            palette_dark["on_primary"],
-                "ON_SURFACE":            palette_dark["on_surface"],
-                "ON_SURFACE_VARIANT":    palette_dark["on_surface_variant"],
-                "OUTLINE":               palette_dark["outline"],
-                "OUTLINE_VARIANT":       palette_dark["outline_variant"],
-                "ERROR":                 palette_dark["error"],
-                "TERTIARY":              palette_dark["tertiary"],
-                "L_SURFACE":             palette_light["surface"],
-                "L_SURFACE_CONTAINER":   palette_light["surface_container"],
-                "L_PRIMARY":             palette_light["primary"],
-                "L_ON_PRIMARY":          palette_light["on_primary"],
-                "L_ON_SURFACE":          palette_light["on_surface"],
-                "L_ON_SURFACE_VARIANT":  palette_light["on_surface_variant"],
-                "L_OUTLINE":             palette_light["outline"],
-                "L_OUTLINE_VARIANT":     palette_light["outline_variant"],
-                "L_TERTIARY":            palette_light["tertiary"],
+        def render_theme_json(mode, dms_dark, dms_light):
+            """Render the per-theme theme-dms.json file OO loads from."""
+            mapping = DARK_PALETTE if mode == "dark" else LIGHT_PALETTE
+            colors = {}
+            for oo_var, token in mapping.items():
+                m = re.match(r"^L_(.+)$", token)
+                if m:
+                    colors[oo_var] = require_color(dms_light, m.group(1).lower())
+                else:
+                    colors[oo_var] = require_color(dms_dark, token.lower())
+            theme = {
+                "name": THEME_NAME + (" (Light)" if mode == "light" else " (Dark)"),
+                "id": "theme-" + THEME_ID,
+                "type": mode,
+                "colors": colors,
             }
-            for token, hex_value in mapping.items():
-                out = out.replace(f"__{token}__", hex_value.lower())
-            return out
+            return json.dumps(theme, indent=2)
 
 
-        def find_share_dir():
+        def render_themes_manifest(theme_id):
+            """Render themes.json — the list of theme IDs OO picks up."""
+            return json.dumps({"themes": [theme_id]}, indent=2) + "\n"
+
+
+        def find_themes_dir():
+            """Resolve the read-only themes/ directory inside the FHS
+            rootfs by parsing the bwrap script's --ro-bind args."""
             try:
                 text = OO_BWRAP_SCRIPT.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
@@ -255,62 +230,13 @@ _:
             if not m:
                 return None
             rootfs = m.group(0).rstrip("/*")
-            share = Path(rootfs) / "usr" / "share" / "desktopeditors"
-            return share if share.exists() else None
-
-
-        def sync_tree(src, dst):
-            # Mirror src → dst without --delete so the user cache can grow
-            # with CEF runtime additions (Local Storage, IndexedDB shards,
-            # dictionary caches) without us wiping them. The patched
-            # index.html in the dst is preserved across re-syncs (we don't
-            # recopy it; the patch step below handles it).
-            if not dst.exists():
-                shutil.copytree(src, dst, symlinks=True)
-                return
-            for src_root, _dirs, files in os.walk(src):
-                rel = Path(src_root).relative_to(src)
-                if rel == Path("."):
-                    # Skip the patched index.html at the share root.
-                    files = [f for f in files if f != "index.html"]
-                dst_root = dst / rel
-                dst_root.mkdir(parents=True, exist_ok=True)
-                for name in files:
-                    src_file = Path(src_root) / name
-                    dst_file = dst_root / name
-                    if not dst_file.exists() or src_file.stat().st_mtime > dst_file.stat().st_mtime:
-                        shutil.copy2(src_file, dst_file, follow_symlinks=False)
-
-
-        def patch_index_html(index_path, css):
-            text = index_path.read_text(encoding="utf-8")
-            if MARKER_BEGIN in text and MARKER_END in text:
-                new_text = re.sub(
-                    re.escape(MARKER_BEGIN) + r".*?" + re.escape(MARKER_END),
-                    f"{MARKER_BEGIN}\n{css}\n        {MARKER_END}",
-                    text,
-                    count=1,
-                    flags=re.DOTALL,
-                )
-            else:
-                block = (
-                    f'        <style type="text/css">\n        {MARKER_BEGIN}\n'
-                    f"{css}\n        {MARKER_END}\n        </style>\n        "
-                )
-                new_text = text.replace("</head>", f"{block}</head>", 1)
-            if new_text != text:
-                index_path.write_text(new_text, encoding="utf-8")
-                return True
-            return False
+            themes = Path(rootfs) / "usr" / "share" / "desktopeditors" / "editors" / "web-apps" / "apps" / "common" / "main" / "resources" / "themes"
+            return themes if themes.is_dir() else None
 
 
         def kill_running():
-            # CEF's parent process is the bwrap wrapper (comm: "bwrap" or
-            # the wrapper name). The OnlyOffice DesktopEditors CEF binary
-            # has comm ".onlyoffice-des" (15-char Linux limit, truncated
-            # from ".onlyoffice-desktopeditors-wrapped"). Use pgrep -f to
-            # match against full PRARGS, which still contains "onlyoffice"
-            # substrings across the whole wrapper chain.
+            """Kill any running OnlyOffice so the next launch re-reads
+            themes.json. CEF caches the manifest at startup."""
             try:
                 out = subprocess.run(
                     ["pgrep", "-f", "onlyoffice-desktopeditors"],
@@ -326,10 +252,8 @@ _:
                     os.kill(pid, signal.SIGTERM)
                 except ProcessLookupError:
                     continue
-            # CEF flushes localStorage on SIGTERM; wait up to 5s.
             for _ in range(50):
-                still = [pid for pid in pids if Path(f"/proc/{pid}").exists()]
-                if not still:
+                if not any(Path(f"/proc/{pid}").exists() for pid in pids):
                     return True
                 time.sleep(0.1)
             return False
@@ -340,7 +264,7 @@ _:
         config_home = Path(os.environ.get("XDG_CONFIG_HOME", home / ".config"))
         palette_path = cache_home / "DankMaterialShell" / "dms-colors.json"
         gtk_palette_path = config_home / "gtk-4.0" / "dank-colors.css"
-        user_cache_share = cache_home / "onlyoffice-themes" / "desktopeditors"
+        user_themes_dir = cache_home / "onlyoffice-themes" / "themes"
 
         if not palette_path.exists():
             sys.exit(f"DMS palette not found at {palette_path}")
@@ -357,94 +281,133 @@ _:
         }
 
         mode = active_mode(cache, gtk_colors)
-        css = render_css(cache["colors"]["dark"], cache["colors"]["light"])
 
-        share_dir = find_share_dir()
-        if share_dir is None:
-            sys.exit("Could not locate OnlyOffice FHS rootfs share dir")
+        # Render BOTH dark + light theme JSONs (OO picks by name based
+        # on the theme-type the user has selected — we register both
+        # under the same id and the user toggles type at runtime).
+        dark_theme_json = render_theme_json("dark", cache["colors"]["dark"], cache["colors"]["light"])
+        light_theme_json = render_theme_json("light", cache["colors"]["dark"], cache["colors"]["light"])
 
-        user_cache_share.parent.mkdir(parents=True, exist_ok=True)
-        sync_tree(share_dir, user_cache_share)
+        # Locate the upstream themes directory so we can mirror its
+        # structure. We override only themes.json + theme-dms.json; the
+        # rest of the dir (just the empty themes.json) is untouched.
+        themes_dir = find_themes_dir()
+        if themes_dir is None:
+            sys.exit("Could not locate OnlyOffice FHS themes dir")
 
-        index_path = user_cache_share / "index.html"
-        if not index_path.exists():
-            sys.exit(f"index.html missing in {user_cache_share}")
+        user_themes_dir.parent.mkdir(parents=True, exist_ok=True)
+        if not user_themes_dir.exists():
+            shutil.copytree(themes_dir, user_themes_dir, symlinks=True)
+        else:
+            # Mirror any new files from upstream (in case OO added a
+            # built-in theme). Don't touch theme-dms.json or themes.json
+            # — those are ours.
+            for src_root, _dirs, files in os.walk(themes_dir):
+                rel = Path(src_root).relative_to(themes_dir)
+                dst_root = user_themes_dir / rel
+                dst_root.mkdir(parents=True, exist_ok=True)
+                for name in files:
+                    if rel == Path(".") and name in ("themes.json", "theme-dms.json"):
+                        continue
+                    src = Path(src_root) / name
+                    dst = dst_root / name
+                    if not dst.exists() or src.stat().st_mtime > dst.stat().st_mtime:
+                        shutil.copy2(src, dst, follow_symlinks=False)
 
+        # Write the per-theme JSON files (both dark and light variants,
+        # even though we register only one id — the manifest picks).
+        (user_themes_dir / "theme-dms.json").write_text(dark_theme_json, encoding="utf-8")
+        # Also write a light variant file (in case OO's loader tries
+        # theme-dms-light.json by convention).
+        (user_themes_dir / "theme-dms-light.json").write_text(light_theme_json, encoding="utf-8")
+
+        # Write themes.json with our theme registered.
+        manifest = render_themes_manifest("theme-dms")
+        (user_themes_dir / "themes.json").write_text(manifest, encoding="utf-8")
+
+        # Kill any running OO so the next launch reads our themes.json.
         was_running = kill_running()
         if was_running:
             time.sleep(0.5)
 
-        changed = patch_index_html(index_path, css)
-        if changed or was_running:
-            print(f"Synced OnlyOffice DMS theme (mode={mode}, changed={changed}, killed={was_running})")
-        else:
-            print(f"OnlyOffice DMS theme already up to date (mode={mode})")
+        # Note: themes.json is in OO's `resources/` dir which CEF loads
+        # via fetch(). We can't sentinel-guard an arbitrary location
+        # there; we just overwrite themes.json in place (idempotent —
+        # file content is deterministic from the DMS palette).
+        print(
+            f"Synced OnlyOffice DMS theme "
+            f"(mode={mode}, killed_running={was_running})"
+        )
       '';
 
       # Wrapper script that replaces $out/bin/onlyoffice-desktopeditors.
       # Runs the palette sync, then re-execs the original bwrap with the
       # --bind overlay prepended.
-      #
-      # `desktopeditors` here is the fhsenv-profile's wrapper symlink
-      # (which is the actual bwrap script entry point). The nix store
-      # path of the fhsenv-profile changes when onlyoffice-desktopeditors
-      # is rebuilt; we discover it at runtime by walking from the
-      # package binary the system installed.
       wrapperScript = pkgs.writeShellScriptBin "onlyoffice-desktopeditors-wrapped"
         ''
           set -euo pipefail
 
-          # Run the palette sync (idempotent — re-runs are no-ops when the
-          # cached index.html is already patched and unchanged).
+          # Run the palette sync (idempotent — re-runs are no-ops when
+          # the cached themes.json is already written with the same DMS
+          # palette). The || true lets the wrapper proceed even if the
+          # sync fails (e.g. DMS palette cache missing) — OnlyOffice
+          # will launch with the built-in theme rather than not launch
+          # at all.
           ${syncScript}/bin/sync-onlyoffice-dms-theme || true
 
-          # Find the original bwrap launcher. After buildFHSEnv+extraInstall
-          # the system's `desktopeditors` binary points at the fhsenv-profile
-          # wrapper, which is the bwrap script. We resolve through the
-          # installed package symlink chain.
-          for cand in /run/current-system/sw/bin/onlyoffice-desktopeditors /run/current-system/sw/bin/desktopeditors; do
-            if [ -e "$cand" ]; then
-              original=$(readlink -f "$cand")
-              break
-            fi
-          done
-
-          if [ -z "''${original:-}" ] || [ ! -x "$original" ]; then
-            echo "onlyoffice-dms-theme: cannot locate original launcher" >&2
-            exit 1
-          fi
-
-          # bwrap processes --bind mounts left-to-right; later mounts shadow
-          # earlier ones. The fhsenv-profile wrapper already adds the
-          # read-only bind of <fhsenv>/usr/share/desktopeditors, so our
-          # writable bind comes after and shadows it for CEF.
-          exec "$original" --bind "$HOME/.cache/onlyoffice-themes/desktopeditors" /usr/share/desktopeditors "$@"
+          # The bwrap script path was substituted at build time by
+          # extraInstallCommands below (sed -i replaces the __BWRAP_PATH__
+          # sentinel with the captured bwrap_path — the path isn't
+          # known at Nix-eval time because it lives inside the
+          # upstream's fhsenv rootfs). After substitution this exec
+          # line holds the absolute store path of the fhsenv bwrap
+          # launcher.
+          exec __BWRAP_PATH__ \
+              --bind "$HOME/.cache/onlyoffice-themes/themes" \
+                       /usr/share/desktopeditors/editors/web-apps/apps/common/main/resources/themes \
+              "$@"
         '';
 
       # The system-installed onlyoffice-desktopeditors package, with the
       # fhsenv-profile wrapper symlink replaced by our wrapper script.
       #
-      # `overrideAttrs` on the buildFHSEnv result gives us a hook to
-      # modify the post-install behavior — we append to the existing
-      # extraInstallCommands, swapping the wrapper symlink in $out/bin.
+      # Build order:
+      #   1. Nix evaluates wrapperScript with the __BWRAP_PATH__ sentinel
+      #      baked in.
+      #   2. Nix evaluates the wrapped package's extraInstallCommands,
+      #      which captures the real bwrap path and `sed -i`s it into
+      #      $out/bin/onlyoffice-desktopeditors (which is a copy of
+      #      wrapperScript).
+      #   3. Activation: when the user runs /run/current-system/sw/bin/
+      #      onlyoffice-desktopeditors, the symlink resolves to
+      #      $out/bin/onlyoffice-desktopeditors (now a regular file with
+      #      the bwrap path baked in).
       wrappedPackage = pkgs.onlyoffice-desktopeditors.overrideAttrs (old: {
         extraInstallCommands = (old.extraInstallCommands or "") + ''
+          # Capture the bwrap script path the upstream symlink points at
+          # BEFORE we delete it. readlink -f follows the chain even if
+          # the symlink target is itself a symlink.
+          bwrap_path=$(readlink -f "$out/bin/onlyoffice-desktopeditors")
+
+          # Drop the upstream symlink and replace it with a copy of
+          # the wrapper script (NOT a symlink — the system PATH
+          # resolution would loop on a symlink to a script that execs
+          # itself).
           rm -f $out/bin/onlyoffice-desktopeditors
-          ln -s ${wrapperScript}/bin/onlyoffice-desktopeditors-wrapped $out/bin/onlyoffice-desktopeditors
+          cp ${wrapperScript}/bin/onlyoffice-desktopeditors-wrapped \
+             $out/bin/onlyoffice-desktopeditors
+          chmod +x $out/bin/onlyoffice-desktopeditors
+
+          # Substitute the sentinel with the captured bwrap path.
+          sed -i "s|__BWRAP_PATH__|$bwrap_path|g" \
+              $out/bin/onlyoffice-desktopeditors
         '';
       });
     in
     {
       # The wrapped package is the sole entry for OnlyOffice on hosts
-      # that import the office role (config.nixos.modules.office). The
-      # modules/packages/office/office.nix file used to also list the
-      # unwrapped package, but that listing was removed in 2026-08-12
-      # when this theming module started providing the wrapper — listing
-      # both would put two ~400 MiB copies of OnlyOffice into the
-      # closure and the /run/current-system/sw/bin symlink would point
-      # at the unwrapped one (which has the bwrap symlink, not the
-      # wrapper script). With the unwrapped listing removed, this module
-      # is the only place that ships OnlyOffice.
+      # that import the office role (config.nixos.modules.office).
+      # modules/packages/office/office.nix is now an empty marker role.
       environment.systemPackages = [ wrappedPackage ];
 
       # Oneshot that runs the sync. Debounced ~2s so DMS's cache writes
@@ -465,9 +428,9 @@ _:
         '';
       };
 
-      # Watch the DMS palette cache and our own user-cache share. DMS
-      # updates dms-colors.json atomically (tmp+rename) so the path unit
-      # has to watch the parent directory.
+      # Watch the DMS palette cache and our own user-cache themes dir.
+      # DMS updates dms-colors.json atomically (tmp+rename), so watch
+      # the parent directory.
       systemd.user.paths.onlyoffice-dms-theme-sync = {
         description = "Watch DMS palette changes for OnlyOffice";
         unitConfig.ConditionUser = "jaide";
