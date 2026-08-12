@@ -1,4 +1,5 @@
-# OnlyOffice DMS theme — sample `theme-dms.json` shipped in the package
+# OnlyOffice DMS theme — sample `theme-dms.json` shipped via the
+# `install-onlyoffice-dms-theme` helper.
 #
 # This module is intentionally minimal. The previous version of the
 # OnlyOffice theming attempt was a tangle of moving parts: a Python
@@ -11,11 +12,52 @@
 # the user couldn't launch OO.
 #
 # This version:
-#   1. Ships a sample `theme-dms.json` in the package's resources.
-#   2. Ships `install-onlyoffice-dms-theme` that writes the theme into
-#      the user's `~/.config/onlyoffice/DesktopEditors.conf` so it
-#      appears in Settings → Interface theme.
-#   3. Pure-passthrough wrapper (no sync, no bind mount, no kill).
+#   1. Wrapper = pure passthrough. `cd /tmp; exec __BWRAP_PATH__ "$@"`.
+#      No sync, no bind mount, no kill.
+#   2. `install-onlyoffice-dms-theme` writes a sample theme to
+#      `~/.local/share/onlyoffice/desktopeditors/uithemes/` so the
+#      C++ `DesktopEditors` binary picks it up at startup.
+#   3. `UITheme=theme-dms` is set in `DesktopEditors.conf` so OO
+#      activates the theme by default.
+#
+# ## How OO loads custom themes
+#
+# Verified by reading the desktop-apps source (`win-linux/src/cthemes.cpp`):
+#
+#   void CThemesPrivate::searchLocalThemes() {
+#       QFileInfoList themes = QDir(qApp->applicationDirPath() + "/uithemes")
+#           .entryInfoList(... << "*.json", QDir::Files);
+#       themes.append(QDir(Utils::getAppCommonPath() + "/uithemes")
+#           .entryInfoList(... << "*.json", QDir::Files));
+#       ...
+#   }
+#
+# `Utils::getAppCommonPath()` returns `~/.local/share/onlyoffice/desktopeditors/`
+# on Linux. So the user-writable dir is:
+#
+#   ~/.local/share/onlyoffice/desktopeditors/uithemes/*.json
+#
+# Each file must be a JSON object with at minimum `id` (alphanumeric +
+# dash only) and `name`. Optional: `colors` (CSS variable dict),
+# `type` ("light" or "dark"), `l10n`, `icons`.
+#
+# The same files populate the Settings → Interface theme menu via
+# `Common.Controllers.Desktop.localThemes()` in the JS theme registry.
+#
+# ## Apply mechanism
+#
+# 1. **C++ side** reads `UITheme` and the matching file at startup.
+# 2. **JS side** populates the Settings menu with the same files
+#    (via `localThemes()` returning `localThemesToJson()`).
+# 3. Switching themes in Settings → Interface theme is **LIVE**:
+#    the JS theme registry rebuilds the stylesheet on every selection,
+#    no restart required.
+# 4. Editing the JSON file on disk has NO effect until OO is
+#    restarted (or the user re-picks the theme from the menu, which
+#    re-reads the file via `fromFile`).
+#
+# So: edit `theme-dms.json` colors, restart OO, OR pick the theme
+# again from Settings → Interface theme. Both will pick up the change.
 #
 # ## How to apply the theme
 #
@@ -26,48 +68,4 @@
 # ```
 #
 # Restart OnlyOffice. Open Settings → Interface theme. Pick
-# "DankMaterialShell". Apply is LIVE (the JS theme registry rebuilds
-# the stylesheet on selection — see
-# `editors/web-apps/apps/common/main/lib/controller/Themes.js`).
-#
-# ## Apply mechanism (what the user wanted to verify)
-#
-# 1. **C++ side** (`DesktopEditors` binary) reads the `localthemes`
-#    QSettings value from `~/.config/onlyoffice/DesktopEditors.conf`
-#    at startup. The blob is a JSON object with a `themes` array.
-# 2. **JS side** (`Common.Controllers.Desktop.localThemes()`) returns
-#    that blob to the theme registry in
-#    `editors/web-apps/apps/common/main/lib/controller/Themes.js`.
-# 3. The registry is populated once at startup. CEF does NOT watch
-#    `localthemes` for changes — edits to the JSON only take effect
-#    on the next OO launch.
-# 4. Switching themes in the Settings menu is LIVE: the
-#    `apply_icons_from_url` / stylesheet-injection code in
-#    `Themes.js` rebuilds the stylesheet on every selection.
-#
-# So: edit `theme-dms.json` colors, restart OO, OR pick the theme
-# again from Settings → Interface theme. Both will pick up the change.
-#
-# ## Theme file format
-#
-# Each entry in the `themes` array:
-#
-# ```json
-# {
-#   "id": "theme-dms",
-#   "name": "DankMaterialShell",
-#   "type": "dark",
-#   "colors": {
-#     "background-toolbar": "#1c1b1f",
-#     "toolbar-header-document": "#7c4dff",
-#     ...
-#   }
-# }
-# ```
-#
-# The full list of valid color keys is the `s` array in
-# `editors/web-apps/apps/common/main/lib/controller/Themes.js`. The
-# subset used in `theme-dms.json` covers the visible chrome (toolbar,
-# header, sidebar, menus, scrollbars, buttons). Add more keys as
-# needed — unknown keys are silently ignored, so it's safe to include
-# the full set.
+# "DankMaterialShell". Apply is LIVE.
