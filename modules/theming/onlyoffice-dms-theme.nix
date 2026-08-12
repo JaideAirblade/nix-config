@@ -161,7 +161,7 @@ _:
       # consistency.
       syncScript = pkgs.writers.writePython3Bin "sync-onlyoffice-dms-theme"
         {
-          flakeIgnore = [ "E501" "E302" "E305" "F401" "E402" ];
+          flakeIgnore = [ "E501" "E231" "E241" "E302" "E305" "F401" "E402" ];
         } ''
         import json
         import os
