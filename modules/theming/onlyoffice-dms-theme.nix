@@ -300,23 +300,28 @@ _:
             sys.exit("Could not locate OnlyOffice FHS themes dir")
 
         user_themes_dir.parent.mkdir(parents=True, exist_ok=True)
-        if not user_themes_dir.exists():
-            shutil.copytree(themes_dir, user_themes_dir, symlinks=True)
-        else:
-            # Mirror any new files from upstream (in case OO added a
-            # built-in theme). Don't touch theme-dms.json or themes.json
-            # — those are ours.
-            for src_root, _dirs, files in os.walk(themes_dir):
-                rel = Path(src_root).relative_to(themes_dir)
-                dst_root = user_themes_dir / rel
-                dst_root.mkdir(parents=True, exist_ok=True)
-                for name in files:
-                    if rel == Path(".") and name in ("themes.json", "theme-dms.json"):
-                        continue
-                    src = Path(src_root) / name
-                    dst = dst_root / name
-                    if not dst.exists() or src.stat().st_mtime > dst.stat().st_mtime:
-                        shutil.copy2(src, dst, follow_symlinks=False)
+        # Wipe the cache before recreating — we own it (read-write user
+        # dir) and any stale files from a previous version's sync
+        # (especially the symlinks that an older script version
+        # accidentally created) would shadow our writes. shutil.rmtree
+        # on a writable dir is safe; if the dir doesn't exist, the
+        # exception is suppressed.
+        if user_themes_dir.exists() or user_themes_dir.is_symlink():
+            try:
+                if user_themes_dir.is_symlink() or user_themes_dir.is_file():
+                    user_themes_dir.unlink()
+                else:
+                    shutil.rmtree(user_themes_dir)
+            except (OSError, PermissionError):
+                pass
+        # Mirror the upstream themes/ structure (the only file there is
+        # themes.json — currently `{"themes": []}`). We copy WITHOUT
+        # following symlinks so the local file is a real file we can
+        # later overwrite. symlinks=True (the default) would follow the
+        # source symlink (if any) and create a destination symlink —
+        # which is what the previous version of this script did, and
+        # it broke writes.
+        shutil.copytree(themes_dir, user_themes_dir, symlinks=False)
 
         # Write the per-theme JSON files (both dark and light variants,
         # even though we register only one id — the manifest picks).
