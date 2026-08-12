@@ -388,8 +388,8 @@ _:
       # `desktopeditors` here is the fhsenv-profile's wrapper symlink
       # (which is the actual bwrap script entry point). The nix store
       # path of the fhsenv-profile changes when onlyoffice-desktopeditors
-      # is rebuilt; we discover it at runtime by walking from the package
-      # binary the system installed.
+      # is rebuilt; we discover it at runtime by walking from the
+      # package binary the system installed.
       wrapperScript = pkgs.writeShellScriptBin "onlyoffice-desktopeditors-wrapped"
         ''
           set -euo pipefail
@@ -402,25 +402,23 @@ _:
           # the system's `desktopeditors` binary points at the fhsenv-profile
           # wrapper, which is the bwrap script. We resolve through the
           # installed package symlink chain.
-          original=$(
-              for cand in \\
-                  /run/current-system/sw/bin/onlyoffice-desktopeditors \\
-                  /run/current-system/sw/bin/desktopeditors; do
-                  if [ -e "$cand" ]; then
-                      readlink -f "$cand"
-                      break
-                  fi
-              done
-          )
+          for cand in /run/current-system/sw/bin/onlyoffice-desktopeditors /run/current-system/sw/bin/desktopeditors; do
+            if [ -e "$cand" ]; then
+              original=$(readlink -f "$cand")
+              break
+            fi
+          done
+
           if [ -z "''${original:-}" ] || [ ! -x "$original" ]; then
-              echo "onlyoffice-dms-theme: cannot locate original launcher" >&2
-              exit 1
+            echo "onlyoffice-dms-theme: cannot locate original launcher" >&2
+            exit 1
           fi
 
-          exec "$original" \\
-              --bind "$HOME/.cache/onlyoffice-themes/desktopeditors" \\
-                       /usr/share/desktopeditors \\
-              "$@"
+          # bwrap processes --bind mounts left-to-right; later mounts shadow
+          # earlier ones. The fhsenv-profile wrapper already adds the
+          # read-only bind of <fhsenv>/usr/share/desktopeditors, so our
+          # writable bind comes after and shadows it for CEF.
+          exec "$original" --bind "$HOME/.cache/onlyoffice-themes/desktopeditors" /usr/share/desktopeditors "$@"
         '';
 
       # The system-installed onlyoffice-desktopeditors package, with the
