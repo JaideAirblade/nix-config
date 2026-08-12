@@ -156,16 +156,6 @@ _:
         from pathlib import Path
 
         HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
-        MARKER_THEMES_JSON = "/* __ONLYOFFICE_DMS_THEMES_JSON_BEGIN__ */"
-        MARKER_THEMES_JSON_END = "/* __ONLYOFFICE_DMS_THEMES_JSON_END__ */"
-
-        # The path inside the OO bundle where themes.json + per-theme
-        # JSON files live. Resolved at runtime by walking the bwrap
-        # script to find the FHS rootfs share dir (same logic the
-        # legcord module uses).
-        OO_BWRAP_SCRIPT = Path(
-            "/nix/store/4dbx9yyy56f3crjj6ddzz813h8qs1q5c-onlyoffice-desktopeditors-9.1.0-fhsenv-profile/bin/onlyoffice-desktopeditors"
-        )
 
         # Material Design 3 → OO variable mapping. Plain Python dicts
         # (not JSON-encoded) so we can do straight substring substitution.
@@ -216,21 +206,35 @@ _:
             return json.dumps({"themes": [theme_id]}, indent=2) + "\n"
 
 
+        # The path inside the OO bundle where themes.json + per-theme
+        # JSON files live. Discovered at runtime via glob — the fhsenv
+        # rootfs hash changes whenever nixpkgs is rebuilt, so we can't
+        # hardcode it.
+        def find_oo_bwrap_script():
+            for p in Path("/nix/store").glob("*-onlyoffice-desktopeditors-9.1.0-bwrap"):
+                return p
+            return None
+
+
         def find_themes_dir():
             """Resolve the read-only themes/ directory inside the FHS
-            rootfs by parsing the bwrap script's --ro-bind args."""
+            rootfs by parsing the bwrap script's --ro-bind args.
+            Walks /nix/store to find the bwrap script because its hash
+            changes on every nixpkgs rebuild."""
+            bwrap_script = find_oo_bwrap_script()
+            if bwrap_script is None:
+                return None
             try:
-                text = OO_BWRAP_SCRIPT.read_text(encoding="utf-8")
+                text = bwrap_script.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
                 return None
             m = re.search(
-                r"/nix/store/[\w-]+-onlyoffice-desktopeditors-[\w.-]+/\*",
+                r"/nix/store/[\w-]+-onlyoffice-desktopeditors-[\w.-]+-fhsenv-rootfs",
                 text,
             )
             if not m:
                 return None
-            rootfs = m.group(0).rstrip("/*")
-            themes = Path(rootfs) / "usr" / "share" / "desktopeditors" / "editors" / "web-apps" / "apps" / "common" / "main" / "resources" / "themes"
+            themes = Path(m.group(0)) / "usr" / "share" / "desktopeditors" / "editors" / "web-apps" / "apps" / "common" / "main" / "resources" / "themes"
             return themes if themes.is_dir() else None
 
 
