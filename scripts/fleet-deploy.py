@@ -226,12 +226,21 @@ def build_local(host: str) -> str | None:
 
 
 def nar_roundtrip(host: str, ip: str, out_path: str, ssh_user_: str) -> bool:
-    log(f"  NAR-roundtrip closure to {host}")
+    # NAR-roundtrip timeouts. NAT-relayed targets (TSBW) need a longer
+    # copy-timeout than the upstream script's default 600s; the first copy
+    # of a multi-GB closure routinely exceeds 10 min over a 7ms-RTT relay.
+    # The skill's recommendation is 1800s for TSBW-shaped targets.
+    # 2026-08-13 — first observed: TSBW timed out at 600s with closure
+    # ~95% shipped; nix copy eventually finished but the script had
+    # already returned timeout.
+    copy_timeout = 1800 if host == "TSBW-W01800" else 600
+    log(f"  NAR-roundtrip closure to {host} (copy_timeout={copy_timeout}s)")
     r = run(["python3", str(NAR_SCRIPT),
              "--target-path", out_path,
              "--remote-host", ip,
              "--remote-user", ssh_user_,
-             "--max-attempts", "80"], timeout=7200)
+             "--max-attempts", "80",
+             "--copy-timeout", str(copy_timeout)], timeout=7200)
     if r.returncode != 0:
         log(f"  ! NAR-roundtrip FAILED for {host}")
         log(f"    stderr: {r.stderr[-2000:] if r.stderr else r.stdout[-2000:]}")
