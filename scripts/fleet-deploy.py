@@ -68,6 +68,10 @@ from pathlib import Path
 NIXOS = Path(os.environ.get("NIXOS_REPO", Path.home() / "nixos"))
 CONFIG_FILE = NIXOS / "pkgs" / ".update-config.json"
 NAR_SCRIPT = Path.home() / ".hermes/skills/nixos-multi-host-deploy/scripts/nar-roundtrip-deploy.py"
+# Patched variant: streams nix copy output to a log file instead of capturing
+# into Python's pipe buffer (which fills + deadlocks on multi-GB closures
+# over slow relays like TSBW). Use for any NAT-relayed target.
+NAR_SCRIPT_PATCHED = Path.home() / ".hermes/skills/nixos-multi-host-deploy/scripts/nar-roundtrip-patched.py"
 WATCHDOG_LOCAL = NIXOS / "scripts" / "target-rollback-watchdog.sh"
 WATCHDOG_REMOTE = "/home/luna/nixos/scripts/target-rollback-watchdog.sh"
 LOG_DIR = Path.home() / ".cache" / "pkg-autoupdate"
@@ -226,21 +230,30 @@ def build_local(host: str) -> str | None:
 
 
 def nar_roundtrip(host: str, ip: str, out_path: str, ssh_user_: str) -> bool:
-    # NAR-roundtrip timeouts. NAT-relayed targets (TSBW) need a longer
-    # copy-timeout than the upstream script's default 600s; the first copy
-    # of a multi-GB closure routinely exceeds 10 min over a 7ms-RTT relay.
-    # The skill's recommendation is 1800s for TSBW-shaped targets.
-    # 2026-08-13 — first observed: TSBW timed out at 600s with closure
-    # ~95% shipped; nix copy eventually finished but the script had
-    # already returned timeout.
-    copy_timeout = 1800 if host == "TSBW-W01800" else 600
-    log(f"  NAR-roundtrip closure to {host} (copy_timeout={copy_timeout}s)")
-    r = run(["python3", str(NAR_SCRIPT),
-             "--target-path", out_path,
-             "--remote-host", ip,
-             "--remote-user", ssh_user_,
-             "--max-attempts", "80",
-             "--copy-timeout", str(copy_timeout)], timeout=7200)
+    # NAR-roundtrip timeouts. NAT-relayed targets (TSBW) need the patched
+    # script (streaming nix-copy output to a log file to avoid the
+    # pipe-buffer hang on multi-GB closures) AND a longer copy-timeout.
+    # 2026-08-13 — first observed: TSBW NAR-roundtrip stalled at ~16 min
+    # even with --copy-timeout 1800; closure ~95% shipped but the upstream
+    # script's subprocess.run(capture_output=True) hung on nix copy's
+    # progress text filling Python's 64KB pipe buffer.
+    is_nat_relayed = host == "TSBW-W01800"
+    copy_timeout = 1800 if is_nat_relayed else 600
+    script = NAR_SCRIPT_PATCHED if is_nat_relayed else NAR_SCRIPT
+    log(f"  NAR-roundtrip closure to {host} (copy_timeout={copy_timeout}s, "
+        f"script={'patched' if is_nat_relayed else 'upstream'})")
+    # Patched script takes --log-file; upstream does not.
+    cmd = ["python3", str(script),
+           "--target-path", out_path,
+           "--remote-host", ip,
+           "--remote-user", ssh_user_,
+           "--max-attempts", "80",
+           "--copy-timeout", str(copy_timeout)]
+    if is_nat_relayed:
+        log_file = LOG_DIR / f"nar-{host}-{int(time.time())}.log"
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        cmd += ["--log-file", str(log_file)]
+    r = run(cmd, timeout=7200)
     if r.returncode != 0:
         log(f"  ! NAR-roundtrip FAILED for {host}")
         log(f"    stderr: {r.stderr[-2000:] if r.stderr else r.stdout[-2000:]}")
