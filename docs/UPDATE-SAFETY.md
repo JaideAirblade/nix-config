@@ -249,6 +249,44 @@ Add new entries below as we encounter them. Format:
   current symlink has wrong ownership for SSH's strict check).
 - **Pkg:** N/A (env / infrastructure fix)
 
+### 2026-08-13 — Watchdog unit needs explicit PATH (bash-not-found on NixOS systemd)
+
+- **Symptom:** fleet-deploy halted with `activation FAILED` on UwU-Server
+  immediately after the activate step. stderr included
+  `warning: the following units failed: nginx-config-reload.service,
+  nixos-rollback-watchdog-<gen>-<ts>.service`. No
+  `/var/lib/nixos-rollback-watchdog.status` file was ever written on the
+  target. All critical services (nginx, adguardhome, netbird-mesh, sshd)
+  were still active. The new closure was shipped to /nix/store but never
+  promoted to a system generation; fleet deploy halted and UwU + TSBW
+  were not touched.
+- **Root cause:** `scripts/target-rollback-watchdog.sh` uses
+  `#!/usr/bin/env bash`. `schedule_watchdog` in `scripts/fleet-deploy.py`
+  scheduled the unit via
+  `sudo systemd-run --unit=<name> --on-active=10 ...`. System-level
+  systemd services on NixOS do NOT inherit the user's PATH, so `env`
+  looked for `bash` only in the systemd manager's default PATH
+  (`/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`)
+  and failed with `exit 127 / "env: 'bash': No such file or directory"`.
+  Because the unit exited before the watchdog loop started, no status
+  file was ever written; `fleet-deploy`'s watchdog-poll loop sat out
+  its full 6-minute timeout and then marked the deploy as failed.
+- **Diagnosis clues:**
+  `sudo journalctl -u nixos-rollback-watchdog-<gen>-<ts>.service` shows
+  `env: 'bash': No such file or directory` + `status=127/n/a`. The unit
+  Loads and Starts (it's a transient unit) but Exits immediately. If the
+  target's actual services (sshd, nginx, etc.) are all `active`, the
+  deploy state is healthy; the failure is purely the watchdog service
+  itself dying on launch.
+- **Fix:** added `--setenv=PATH=/run/current-system/sw/bin:/run/current-system/systemd/bin:/run/current-system/sw/sbin:/run/current-system/host/bin`
+  to the `systemd-run` call in `schedule_watchdog` (scripts/fleet-deploy.py).
+  This is the standard NixOS system PATH used by NixOS-generated systemd
+  units; setting it on the transient watchdog unit makes `#!/usr/bin/env bash`
+  resolve correctly.
+- **Pkg:** N/A (script fix; bumps betterbird 140.12.0esr-bb24 -> 140.13.0esr-bb25
+  and helium-bin 0.15.3.1 -> 0.15.4.1 were already pushed to main and are safe
+  to deploy with the fixed watchdog)
+
 ## Operational notes
 
 - **Network:** GitHub API has a 60 req/hour unauthenticated limit. With 8
@@ -267,5 +305,5 @@ Add new entries below as we encounter them. Format:
 
 ---
 
-Last reviewed: 2026-08-12 (fixed fleet-deploy build attribute path; documented RO-snapshot blocker)
+Last reviewed: 2026-08-13 (fixed watchdog systemd-run PATH; documented bash-not-found failure mode)
 Owner: Luna (auto-update pipeline), Jaide (final authority on rollback)

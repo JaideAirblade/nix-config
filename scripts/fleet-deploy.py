@@ -147,9 +147,23 @@ def schedule_watchdog(ip: str, ssh_user_: str, prev_gen: str,
     """Use systemd-run to schedule the watchdog on the target. It fires
     after the activation finishes + a 10s grace period."""
     unit_name = f"nixos-rollback-watchdog-{prev_gen}-{int(time.time())}"
+    # NixOS system services don't inherit the user's PATH. The watchdog script
+    # uses #!/usr/bin/env bash, so without PATH set the unit fails with
+    # exit 127 ("bash: No such file or directory") and never writes the
+    # verdict file — fleet-deploy then mis-classifies the deploy as failed
+    # even though the activation itself succeeded.
+    # 2026-08-13 — first observed: UwU-Server watchdog died with exit 127,
+    # deploy halted, no rollback needed (system was healthy).
+    nixos_system_path = (
+        "/run/current-system/sw/bin:"
+        "/run/current-system/systemd/bin:"
+        "/run/current-system/sw/sbin:"
+        "/run/current-system/host/bin"
+    )
     r = ssh(ip, ssh_user_,
             f"sudo systemd-run --unit={unit_name} "
             f"--on-active=10 "
+            f"--setenv=PATH={nixos_system_path} "
             f"--description='NixOS post-deploy rollback watchdog (gen {prev_gen})' "
             f"{WATCHDOG_REMOTE} {prev_gen} {deploy_host_ip} {timeout_sec}",
             timeout=20)
