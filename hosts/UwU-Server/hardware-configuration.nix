@@ -20,6 +20,14 @@
   boot.kernelModules = [ "kvm-amd" ];
   boot.extraModulePackages = [ ];
 
+  # AMD IOMMU (AMD-Vi) runs in full-translation mode by default on this
+  # Beelink SER10 Max (Ryzen AI 9 HX 470). This breaks iwlwifi RX frame
+  # aggregation on the Intel AX200 — DMA mappings for aggregated frames
+  # fail, collapsing RX to MCS0 (6.5 Mbit/s) while TX stays at full rate.
+  # iommu=pt puts the IOMMU in passthrough mode (only translates for
+  # devices that opt in), letting WiFi DMA work directly.
+  boot.kernelParams = [ "iommu=pt" ];
+
   # NOTE: no fileSystems entries — filesystems are managed declaratively by
   # disko (hosts/UwU-Server/disk-layout.nix).
 
