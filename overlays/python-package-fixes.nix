@@ -32,6 +32,14 @@ final: prev: {
           pythonMetadataCheckPhase = "";
           pythonImportsCheck = [ ];
         });
+        # mat2 0.15.0 fails tests/test_libmat2.py::TestCleaning::test_all_parametred
+        # on the 'mp4' case — expected_meta["TimeScale"] mismatches the parsed value
+        # (720000). The shipped mp4 fixture's MP4Box-generated TimeScale drifted from
+        # what the test asserts; nixpkgs master is still broken. Skip checks; runtime
+        # binary works fine.
+        mat2 = super.mat2.overridePythonAttrs (_: {
+          doCheck = false;
+        });
       });
   });
 }
