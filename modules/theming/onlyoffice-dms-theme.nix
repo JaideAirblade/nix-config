@@ -72,72 +72,70 @@ _:
       # (~80+ CSS variables). The subset below is what controls the
       # visible chrome — toolbar, header, sidebar, menus, scrollbars,
       # buttons.
-      # Material Design 3 dark scheme, full 116-key schema.
-      # Mapped to the `s` array in
-      # `editors/web-apps/apps/common/main/lib/controller/Themes.js`
-      # so every CSS variable OO asks for has a real value.
-      # Primary = DMS "maguten" purple (#7c4dff).
+      # Material Design 3 dark scheme. `values` is the C++ theme
+      # schema (read at win-linux/src/cthemes.cpp:329 —
+      # "jsonValues = obj.value(\"values\").toObject()"). The key set
+      # is the same as upstream's theme-night.json (the default
+      # built-in dark), with M3-mapped DMS color values swapped in.
+      # Special keys (button-normal-opacity, logo-type) keep their
+      # upstream values — they're not theme colors.
       themeDmsDark = {
         id = "theme-dms";
         name = "DankMaterialShell";
         type = "dark";
-        # The `colors` object is read by the JS theme registry (s[] array).
-        # The `values` object is read by the C++ theme loader
-        # (cthemes.cpp CThemePrivate::fromJsonObject — line "jsonValues =
-        # obj.value(\"values\").toObject()"). Both must be present for
-        # the editor's native chrome (toolbar buttons, tabs, menus,
-        # tooltips, download widget) to use the theme instead of the
-        # static default. Keys come from
-        # https://github.com/ONLYOFFICE/desktop-apps/blob/master/win-linux/res/styles/theme-dark.json
         values = {
-          "brand-word"                                  = "#7c4dff";
-          "brand-slide"                                 = "#7c4dff";
-          "brand-cell"                                  = "#7c4dff";
-          "brand-pdf"                                   = "#7c4dff";
-          "brand-draw"                                  = "#7c4dff";
-          "window-background"                           = "#141318";
-          "window-border"                               = "#49454f";
           "border-control-focus"                        = "#7c4dff";
-          "text-normal"                                 = "#e6e1e5";
-          "text-pretty"                                 = "#e6e1e5";
-          "text-inverse"                                = "#1d1b20";
-          "tool-button-background"                      = "#1c1b1f";
-          "tool-button-hover-background"                = "#2a2930";
-          "tool-button-pressed-background"              = "#35343a";
-          "tool-button-active-background"               = "#7c4dff";
-          "download-widget-background"                 = "#1c1b1f";
-          "download-widget-border"                      = "#49454f";
-          "download-item-hover-background"             = "#2a2930";
+          "brand-cell"                                  = "#7c4dff";
+          "brand-draw"                                  = "#7c4dff";
+          "brand-pdf"                                   = "#7c4dff";
+          "brand-slide"                                 = "#7c4dff";
+          "brand-word"                                  = "#7c4dff";
+          "button-normal-opacity"                       = "rgba(255,255,255,200)";
           "download-ghost-button-text"                  = "#a08cff";
           "download-ghost-button-text-hover"            = "#e6e1e5";
           "download-ghost-button-text-pressed"          = "#cac4d0";
           "download-ghost-button-text-pressed-item-hover" = "#cac4d0";
+          "download-item-hover-background"             = "#2a2930";
           "download-label-text"                         = "#e6e1e5";
           "download-label-text-info"                    = "#cac4d0";
           "download-label-text-info-item-hover"         = "#cac4d0";
-          "download-progressbar-chunk"                  = "#7c4dff";
           "download-progressbar-background"             = "#49454f";
           "download-progressbar-background-item-hover"  = "#49454f";
-          "download-scrollbar-handle"                   = "#49454f";
-          "menu-background"                             = "#1c1b1f";
+          "download-progressbar-chunk"                  = "#7c4dff";
+          "download-scrollbar-handle"                   = "#948f99";
+          "download-widget-background"                 = "#201f23";
+          "download-widget-border"                      = "#49454f";
+          "logo-type"                                   = "dark";
+          "menu-background"                             = "#201f23";
           "menu-border"                                 = "#49454f";
           "menu-item-hover-background"                  = "#2a2930";
-          "menu-text"                                   = "#e6e1e5";
-          "menu-text-item-hover"                        = "#ffffff";
-          "menu-text-item-disabled"                     = "#cac4d0";
           "menu-separator"                              = "#49454f";
-          "tooltip-text"                                = "#e6e1e5";
-          "tooltip-border"                              = "#49454f";
-          "tooltip-background"                          = "#1c1b1f";
-          "tab-active-background"                       = "#1c1b1f";
-          "tab-simple-active-background"                = "#1c1b1f";
-          "tab-simple-active-text"                      = "#e6e1e5";
-          "tab-default-active-background"               = "#1c1b1f";
+          "menu-text"                                   = "#e6e1e5";
+          "menu-text-item-disabled"                     = "#cac4d0";
+          "menu-text-item-hover"                        = "#ffffff";
+          "tab-active-background"                       = "#141318";
+          "tab-default-active-background"               = "#141318";
           "tab-default-active-text"                     = "#e6e1e5";
           "tab-divider"                                 = "#49454f";
-          "button-normal-opacity"                       = "1.0";
-          "logo-type"                                   = "dark";
+          "tab-simple-active-background"                = "#141318";
+          "tab-simple-active-text"                      = "#e6e1e5";
+          "text-inverse"                                = "#7c4dff";
+          "text-normal"                                 = "#e6e1e5";
+          "text-pretty"                                 = "#e6e1e5";
+          "tool-button-active-background"               = "#7c4dff";
+          "tool-button-background"                      = "#1c1b1f";
+          "tool-button-hover-background"                = "#201f23";
+          "tool-button-pressed-background"              = "#2a2930";
+          "tooltip-background"                          = "#35343a";
+          "tooltip-border"                              = "#49454f";
+          "tooltip-text"                                = "#e6e1e5";
+          "window-background"                           = "#141318";
+          "window-border"                               = "#49454f";
         };
+        # `colors` is the JS theme schema (read at
+        # editors/web-apps/.../Themes.js — `t.src.colors` is applied as
+        # CSS custom properties). 116 keys, all of the s[] array
+        # from the OO web-apps theme controller. Mapped from M3 dark.
         colors = {
           "background-accent-button"               = "#7c4dff";
           "background-contrast-popover"            = "#35343a";
@@ -259,59 +257,64 @@ _:
         };
       };
 
-      # Light variant (M3 light scheme, primary = #6750a4).
+      # Light variant. `values` schema mirrors theme-white.json from
+      # upstream, with M3 light values for each role. Includes the
+      # extra keys theme-white has (tab-editor-theme-type,
+      # tool-button-active-background1).
       themeDmsLight = {
         id = "theme-dms";
         name = "DankMaterialShell";
         type = "light";
         values = {
-          "brand-word"                                  = "#6750a4";
-          "brand-slide"                                 = "#6750a4";
-          "brand-cell"                                  = "#6750a4";
-          "brand-pdf"                                   = "#6750a4";
-          "brand-draw"                                  = "#6750a4";
-          "window-background"                           = "#fef7ff";
-          "window-border"                               = "#cac4d0";
           "border-control-focus"                        = "#6750a4";
-          "text-normal"                                 = "#1d1b20";
-          "text-pretty"                                 = "#1d1b20";
-          "text-inverse"                                = "#fef7ff";
-          "tool-button-background"                      = "#f7f2fa";
-          "tool-button-hover-background"                = "#ece6f0";
-          "tool-button-pressed-background"              = "#e6e0ea";
-          "tool-button-active-background"               = "#6750a4";
-          "download-widget-background"                 = "#f3edf7";
-          "download-widget-border"                      = "#cac4d0";
-          "download-item-hover-background"             = "#ece6f0";
-          "download-ghost-button-text"                  = "#6750a4";
+          "brand-cell"                                  = "#6750a4";
+          "brand-draw"                                  = "#6750a4";
+          "brand-pdf"                                   = "#6750a4";
+          "brand-slide"                                 = "#6750a4";
+          "brand-word"                                  = "#6750a4";
+          "button-normal-opacity"                       = "rgba(49,49,49,255)";
+          "download-ghost-button-text"                  = "#9678d4";
           "download-ghost-button-text-hover"            = "#1d1b20";
           "download-ghost-button-text-pressed"          = "#49454f";
           "download-ghost-button-text-pressed-item-hover" = "#49454f";
+          "download-item-hover-background"             = "#ece6f0";
           "download-label-text"                         = "#1d1b20";
           "download-label-text-info"                    = "#49454f";
           "download-label-text-info-item-hover"         = "#49454f";
-          "download-progressbar-chunk"                  = "#6750a4";
           "download-progressbar-background"             = "#cac4d0";
           "download-progressbar-background-item-hover"  = "#cac4d0";
-          "download-scrollbar-handle"                   = "#cac4d0";
-          "menu-background"                             = "#f7f2fa";
+          "download-progressbar-chunk"                  = "#6750a4";
+          "download-scrollbar-handle"                   = "#79747e";
+          "download-widget-background"                 = "#f3edf7";
+          "download-widget-border"                      = "#cac4d0";
+          "logo-type"                                   = "light";
+          "menu-background"                             = "#f3edf7";
           "menu-border"                                 = "#cac4d0";
           "menu-item-hover-background"                  = "#ece6f0";
-          "menu-text"                                   = "#1d1b20";
-          "menu-text-item-hover"                        = "#6750a4";
-          "menu-text-item-disabled"                     = "#49454f";
           "menu-separator"                              = "#cac4d0";
-          "tooltip-text"                                = "#1d1b20";
-          "tooltip-border"                              = "#cac4d0";
-          "tooltip-background"                          = "#fef7ff";
-          "tab-active-background"                       = "#f7f2fa";
-          "tab-simple-active-background"                = "#f7f2fa";
-          "tab-simple-active-text"                      = "#1d1b20";
-          "tab-default-active-background"               = "#f7f2fa";
+          "menu-text"                                   = "#1d1b20";
+          "menu-text-item-disabled"                     = "#49454f";
+          "menu-text-item-hover"                        = "#ffffff";
+          "tab-active-background"                       = "#fef7ff";
+          "tab-default-active-background"               = "#fef7ff";
           "tab-default-active-text"                     = "#1d1b20";
           "tab-divider"                                 = "#cac4d0";
-          "button-normal-opacity"                       = "1.0";
-          "logo-type"                                   = "light";
+          "tab-editor-theme-type"                       = "light";
+          "tab-simple-active-background"                = "#fef7ff";
+          "tab-simple-active-text"                      = "#1d1b20";
+          "text-inverse"                                = "#ffffff";
+          "text-normal"                                 = "#1d1b20";
+          "text-pretty"                                 = "#1d1b20";
+          "tool-button-active-background"               = "#eaddff";
+          "tool-button-active-background1"              = "#fef7ff";
+          "tool-button-background"                      = "#f7f2fa";
+          "tool-button-hover-background"                = "#f3edf7";
+          "tool-button-pressed-background"              = "#ece6f0";
+          "tooltip-background"                          = "#e6e0ea";
+          "tooltip-border"                              = "#cac4d0";
+          "tooltip-text"                                = "#1d1b20";
+          "window-background"                           = "#fef7ff";
+          "window-border"                               = "#cac4d0";
         };
         colors = {
           "background-accent-button"               = "#6750a4";
