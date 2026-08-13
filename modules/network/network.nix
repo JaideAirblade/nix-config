@@ -80,8 +80,8 @@
       nixpkgs.overlays = [ (import ./ivpn.overlay.nix { inherit inputs; }) ];
 
       # --- MAC address randomization -------------------------------------------
-      # NetworkManager generates a random MAC per connection (not per boot —
-      # each saved network gets its own persistent random MAC, so you keep
+      # NetworkManager generates a stable random MAC per connection profile
+      # (each saved network gets its own persistent random MAC, so you keep
       # the same "fake" MAC on your home wifi but a different one on coffee
       # shop wifi). This is more practical than a fully random MAC on every
       # boot because some routers whitelist MACs or assign fixed IPs.
@@ -96,8 +96,8 @@
       # are per-connection properties that can be defaulted here.
       environment.etc."NetworkManager/conf.d/30-mac-randomization.conf".text = ''
         [connection]
-        ethernet.cloned-mac-address=random
-        wifi.cloned-mac-address=random
+        ethernet.cloned-mac-address=stable
+        wifi.cloned-mac-address=stable
       '';
 
       # wifi.scan-rand-mac-address is a [device] section property. The NixOS
