@@ -1,9 +1,27 @@
-# Account and authentication policy shared only by Jaide's private devices.
+# Account and authentication policy for the fleet's automation identity
+# (Luna). Two role modules are exposed from this file:
+#
+#   automationAccounts — Luna's account + SSH keys + sudo rules. Imported
+#     on every host where Luna operates (UwU, UwU-Server, TSBW-W01800,
+#     OwO-Family, ...). Grants Luna the `jaide` supplementary group so
+#     she can read /home/jaide and operate the nix-config repo on those
+#     hosts. Does NOT touch pam_u2f or the sops password hash wiring.
+#
+#   privateAccounts — automationAccounts + SOPS unwrapped password hash
+#     for the Jaide account + pam_u2f *option* wiring (enable = false
+#     by default; hosts enable it via their security/yubikey.nix).
+#     Imported only on Jaide's personal devices (UwU, UwU-Server)
+#     because TSBW intentionally keeps its own yubikey.nix as the
+#     authority on pam_u2f there.
+#
+# As of 2026-08-12 Luna is in the `jaide` supplementary group on every
+# host that pulls automationAccounts. The /home/jaide homeMode is set
+# to 0750 (in modules/users/users.nix) so the group can read; sensitive
+# material in Jaide's home (ssh keys, sops age keys, gpg) should still
+# be explicitly permissioned (0600) so group read is harmless if those
+# files exist.
 { inputs, ... }:
 let
-  # Fleet automation is separate from Jaide's private password policy so a
-  # managed work host can authorize Luna without receiving private login
-  # secrets intended only for Jaide's own machines.
   automationAccounts =
     { pkgs, ... }:
     let
@@ -64,7 +82,14 @@ let
         autoSubUidGidRange = false;
         description = "Luna automation agent";
         group = "luna";
-        extraGroups = [ "wheel" "networkmanager" ];
+        # `jaide` grants Luna read on /home/jaide (group-readable
+        # homeMode is set in modules/users/users.nix). Kept in
+        # automationAccounts (not privateAccounts) so it applies on
+        # every host that pulls Luna's automation identity — including
+        # TSBW-W01800, which intentionally does NOT pull
+        # privateAccounts (that module disables pam_u2f, which TSBW
+        # enables in its security/yubikey.nix).
+        extraGroups = [ "wheel" "networkmanager" "jaide" ];
         shell = pkgs.bashInteractive;
         hashedPassword = "!";
         openssh.authorizedKeys.keys = [

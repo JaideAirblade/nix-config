@@ -68,7 +68,15 @@ _:
           # 1Password — the NixOS modules (programs._1password / programs._1password-gui)
           # are imported via the shared modules/packages/onepassword module.  We only
           # add the beta GUI package here as the host-specific choice.
+          # NOTE: 1Password is Jaide's *personal* password vault. The work-cred
+          # vault lives in KeePassXC below; do not migrate work secrets into
+          # 1Password so a personal-account compromise does not leak work creds.
           _1password-gui-beta
+
+          # KeePassXC — work-credential vault. Encrypted .kdbx, master
+          # passphrase set on first open by Jaide (never written anywhere).
+          # Sync to Gitea is a separate workflow (not wired here).
+          keepassxc
 
           # Hermes Agent — installed via the shared modules/ai module's overlay,
           # but the work host also wants the CLI on PATH.

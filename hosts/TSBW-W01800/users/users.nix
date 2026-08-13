@@ -17,7 +17,9 @@ _:
         # extraGroups list (work-only override), so we must include
         # it in the forced list here. Adding it to the canonical
         # personal list would silently disappear under mkForce.
-        extraGroups = lib.mkForce [ "networkmanager" "wheel" "wireshark" "_lldpd" "libvirtd" "netbird-mesh" ];
+        # `jaide` is included so Luna's shared supplementary-group
+        # grant (modules/users/users.nix) survives the mkForce here.
+        extraGroups = lib.mkForce [ "networkmanager" "wheel" "wireshark" "_lldpd" "libvirtd" "netbird-mesh" "jaide" ];
         packages = with pkgs; [
           kdePackages.kate
         ];

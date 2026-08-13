@@ -36,9 +36,18 @@ _:
     { lib, ... }:
 
     {
+      # Real, shared `jaide` group — declared here so every host gets a
+      # consistent gid. The supplementary-group grant (Luna in `jaide`)
+      # is layered on top by the automationAccounts role module (in
+      # modules/users/private-accounts.nix) so that work-only / lab
+      # hosts (print server, etc.) which don't pull automationAccounts
+      # don't receive cross-account access they don't need.
+      users.groups."jaide" = { };
+
       users.users."jaide" = {
         isNormalUser = true;
         description = lib.mkDefault "Jaide";
+        homeMode = "0750"; # group can read — required for Luna to operate in this home
         extraGroups = lib.mkDefault [ "networkmanager" "wheel" ];
       };
 
