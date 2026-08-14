@@ -29,6 +29,11 @@ _:
         # at ~/.hermes/skills/officecli/ by the upstream install script.
         officecli
 
+        # Vesktop — Discord client with Vencord. The server is headless, but
+        # jaide wants the same client as on UwU available for X-forwarding /
+        # remote desktop sessions.
+        vesktop
+
         # Octarine — private markdown note-taking app (custom package from pkgs/).
         # Same as on UwU and TSBW-W01800. Workspace at ~/Documents/Life/.
         octarine
