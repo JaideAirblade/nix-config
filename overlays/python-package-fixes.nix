@@ -39,6 +39,11 @@ final: prev: {
         # binary works fine.
         mat2 = super.mat2.overridePythonAttrs (_: {
           doCheck = false;
+          # pytest-check-hook runs pytest in pytestCheckPhase AFTER
+          # installCheckPhase — doCheck/doInstallCheck=false don't stop
+          # it in this nixpkgs revision. Neutralize the phase itself.
+          doInstallCheck = false;
+          pytestCheckPhase = "echo 'mat2: pytestCheckPhase skipped by overlay'";
         });
       });
   });

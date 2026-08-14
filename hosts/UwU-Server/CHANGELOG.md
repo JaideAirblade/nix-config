@@ -29,6 +29,19 @@ runtime and reloading iwlwifi live re-triggers the AX200
 **Rollback:** delete the `boot.extraModprobeConfig` block from
 `network.nix` (or `git revert` the commit) + reboot.
 
+**Deployed 2026-08-14** from a clean worktree (staged tree + this commit,
+system `7qganf2j...`). Deployment also required:
+- `overlays/python-package-fixes.nix` — mat2 override extended with
+  `doInstallCheck = false` (pytest-check-hook runs in pytestCheckPhase
+  after installCheckPhase; `doCheck=false` alone doesn't stop it).
+  Note: the real reason the override wasn't applying was that UwU-Server's
+  `default.nix` never wired the `python-package-fixes` overlay — the
+  wiring is part of the staged (deployed-but-uncommitted) tree.
+- Physical (user-performed, NOT config): aluminium NVMe dock that sat
+  directly below the two antennas was removed 2026-08-14. Measured effect
+  before reboot: 6% loss / avg 59 ms / max 397 ms → 0% loss / avg 8.9 ms /
+  max 54 ms to gateway.
+
 **Verify after reboot:**
 ```
 cat /sys/module/iwlwifi/parameters/bt_coex_active   # must print N
