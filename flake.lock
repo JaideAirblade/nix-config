@@ -56,11 +56,11 @@
     "dank-qml-common_3": {
       "flake": false,
       "locked": {
-        "lastModified": 1786309712,
-        "narHash": "sha256-VMUI9bvzHOXdyp99EoJ917KgsV9AaEg9dMVL6Xh+w4M=",
+        "lastModified": 1786649745,
+        "narHash": "sha256-61G4G6nQqSV4DWNyZAYlZOLAY6+Ug+JQA1SaifacaSI=",
         "owner": "AvengeMedia",
         "repo": "dank-qml-common",
-        "rev": "83518beaf2c28b87ca0b3862eceeb0917a6c47a0",
+        "rev": "3373281fdba24e030ef47325f9db01494780a4a3",
         "type": "github"
       },
       "original": {
@@ -141,11 +141,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1786591812,
-        "narHash": "sha256-9l468baTnPf5X2KzNze75ab1plGNqWZXPy2e0EjWv2o=",
+        "lastModified": 1786667885,
+        "narHash": "sha256-caa7rUar8nJI1lCOf3phyuQ8InBA51ACAmppFpUG63E=",
         "owner": "AvengeMedia",
         "repo": "DankMaterialShell",
-        "rev": "7b9b34b262fdde8aa447a1caff8048ddadcbf877",
+        "rev": "8d9c9616051e71ce6e76544f735c1794ebd59339",
         "type": "github"
       },
       "original": {
@@ -261,11 +261,11 @@
         "uv2nix": "uv2nix"
       },
       "locked": {
-        "lastModified": 1786615485,
-        "narHash": "sha256-tAQbfGKvNp/HC5gs8FLF7klVF8FJx1sbzbiYEUZFKbs=",
+        "lastModified": 1786712529,
+        "narHash": "sha256-THrpPnnGLQNEg61dUtPczrhE2cDFSvOIdHY8AwxZaEc=",
         "owner": "NousResearch",
         "repo": "hermes-agent",
-        "rev": "ecdc25cacc8dc7534b33abf9e9b09a9bf41e59b7",
+        "rev": "c896c09c42910c584c4c7d2325b58c14713ea42c",
         "type": "github"
       },
       "original": {
@@ -295,23 +295,6 @@
         "type": "github"
       }
     },
-    "honcho": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1786388167,
-        "narHash": "sha256-nsDb1zumWJYHI9O1RLj1BlNbMGmwCERb1LeYmkS7jM8=",
-        "owner": "plastic-labs",
-        "repo": "honcho",
-        "rev": "93dcf59c4a4225bb020b20c628799737fefae318",
-        "type": "github"
-      },
-      "original": {
-        "owner": "plastic-labs",
-        "ref": "v3.0.12",
-        "repo": "honcho",
-        "type": "github"
-      }
-    },
     "mangowm": {
       "inputs": {
         "flake-parts": "flake-parts_3",
@@ -321,11 +304,11 @@
         "scenefx": "scenefx"
       },
       "locked": {
-        "lastModified": 1786612128,
-        "narHash": "sha256-6T3sHH7h/xxz/3O47KaqNWKyy2C4LDDdeZkiwUYccU0=",
+        "lastModified": 1786692255,
+        "narHash": "sha256-Db+gJB3+Oc2GmeehGyKy1S/zYYmR/tEFnPtgAU3iQCk=",
         "owner": "mangowm",
         "repo": "mango",
-        "rev": "dcde2ae1b8337d5e8c2232d35f6803639e4de8e0",
+        "rev": "4bb918d31ecacd607570f1c258ae8a0c569c7fa4",
         "type": "github"
       },
       "original": {
@@ -448,11 +431,11 @@
     "nixos-secrets": {
       "flake": false,
       "locked": {
-        "lastModified": 1786482496,
-        "narHash": "sha256-KEB2y3TjUWYbKSp4df9MySnURz+x+Aqzj4xc8PXjgTk=",
+        "lastModified": 1786700996,
+        "narHash": "sha256-OWsGFPsMOG9hY6YeeVmSzEbvNnUxHiPtIRDMVFsIQH4=",
         "ref": "main",
-        "rev": "ddede45d87a42e7942d87003ad784ecd51158a80",
-        "revCount": 31,
+        "rev": "5f55faf70b28a6ce1f7bc30c0cb29fa44dc199d4",
+        "revCount": 32,
         "type": "git",
         "url": "ssh://git@github.com/JaideAirblade/nixos-secrets.git"
       },
@@ -480,11 +463,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1786514691,
-        "narHash": "sha256-9dkt1i5JNbEfPb+EjLcSDNs8zqEHQ/1JlSaKgj0SBAg=",
+        "lastModified": 1786599213,
+        "narHash": "sha256-yNJd40f11EzXBjSByCB7IPpeFFAdeoSKKM67dGkfFoU=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "867dcbc30bafe3c862ef88620f2e7a109d7d3be5",
+        "rev": "0e251e24a4f24e036a084b6b4b2d2491af4167f4",
         "type": "github"
       },
       "original": {
@@ -636,7 +619,6 @@
         "flake-parts": "flake-parts",
         "hermes-agent": "hermes-agent",
         "hermes-webui": "hermes-webui",
-        "honcho": "honcho",
         "mangowm": "mangowm",
         "millennium": "millennium",
         "nixos-anywhere": "nixos-anywhere",
@@ -677,11 +659,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1786375908,
-        "narHash": "sha256-G7qDAT98nywA4EFmJCwIRO5wKvDlBBN3BWpsOnjAto8=",
+        "lastModified": 1786629091,
+        "narHash": "sha256-gkig4nPi1CWc4Z50GBsjE4ygSE7hMpl/TwID2an2Cck=",
         "owner": "Mic92",
         "repo": "sops-nix",
-        "rev": "d1337e05ba0a8e88a75d2c0e1595d82f3b3e2ac4",
+        "rev": "a8627b21b9107c5711c96b84f32a9a4b3d45295f",
         "type": "github"
       },
       "original": {

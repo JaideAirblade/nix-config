@@ -57,13 +57,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Honcho v3 — local AI-native memory backend for Hermes on UwU-Server.
-    # Kept as source because upstream's supported self-host path builds its
-    # locked Docker image from the repository checkout.
-    honcho = {
-      url = "github:plastic-labs/honcho/v3.0.12";
-      flake = false;
-    };
+    # Honcho v3 was removed 2026-08-14 — no longer in use on any host.
 
     # Millennium — Steam skin/theme loader.
     millennium = {
@@ -262,7 +256,6 @@
               bash tests/set-private-password-hash-regressions.sh
               python3 tests/net-report-wifi-scan-regressions.py
               python3 tests/mnemosyne-activation-regressions.py
-              python3 tests/local-honcho-regressions.py
               python3 tests/server-hermes-extensions-regressions.py
               python3 tests/server-hermes-mobile-bridge-regressions.py
               python3 tests/server-omniroute-regressions.py
