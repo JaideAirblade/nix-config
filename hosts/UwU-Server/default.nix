@@ -60,6 +60,7 @@
       inputs.self.nixosModules.witr
 
       { nixpkgs.overlays = [ inputs.self.overlays.additions ]; }
+      { nixpkgs.overlays = [ inputs.self.overlays.python-package-fixes ]; }
       { nixpkgs.overlays = [ (import ../../overlays/millennium.nix { millennium-input = inputs.millennium; }) ]; }
       {
         # Netbird mesh — sole mesh on this host as of 2026-08-09.
