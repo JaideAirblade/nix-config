@@ -22,7 +22,7 @@
 _:
 {
   nixos.hosts."UwU" =
-    { ... }:
+    { pkgs, ... }:
 
     let
       linkIface = "enp10s0";
@@ -68,19 +68,165 @@ _:
       };
 
       # --- System DNS (resolv.conf) ----------------------------------------
-      # Pin resolv.conf to AdGuard. The NM profile also sets per-connection
-      # DNS, but we keep this as the system-wide fallback so nothing depends
-      # on NM having connected yet at boot time. The search domain list
-      # mirrors the NM profile: netbird.cloud (magic-DNS) + fritz.box
-      # (LAN).
-      networking.nameservers = [ gatewayIP ];
+      # Pin resolv.conf to AdGuard on UwU-Server with public DNS fallbacks.
+      # The NM profile also sets per-connection DNS, but we keep this as the
+      # system-wide fallback so nothing depends on NM having connected yet at
+      # boot time. Search domains mirror the NM profile: netbird.cloud
+      # (magic-DNS) + fritz.box (LAN).
+      #
+      # Fallback chain: AdGuard on UwU-Server (gatewayIP) → Cloudflare
+      # (1.1.1.1) → Quad9 (9.9.9.9). The `timeout:1 attempts:2 rotate` options
+      # are critical: glibc tries 5s × 5 retries per server by default, which
+      # means when UwU-Server is down (no PSU / off / AdGuard crashed) every
+      # DNS lookup blocks for ~10s before hitting 1.1.1.1. With these tunings,
+      # a dead primary adds at most ~2s of latency before the fallback fires.
+      # `rotate` spreads queries across servers so a single bad resolver
+      # doesn't poison latency for everyone.
+      networking.nameservers = [ gatewayIP "1.1.1.1" "9.9.9.9" ];
       networking.search = [ "netbird.cloud" "fritz.box" ];
       networking.resolvconf.enable = false;
       environment.etc."resolv.conf".text = ''
         nameserver ${gatewayIP}
+        nameserver 1.1.1.1
+        nameserver 9.9.9.9
         search netbird.cloud fritz.box
-        options edns0 trust-ad
+        options edns0 trust-ad timeout:1 attempts:2 rotate
       '';
+
+      # --- Direct-link failover watchdog -----------------------------------
+      # When UwU-Server is down (e.g. forgotten power supply, on the desk
+      # without juice), the /30 link to 10.10.0.1 still comes up because the
+      # Realtek end negotiates fine — but AdGuard is unreachable and the
+      # default route through it blackholes all traffic. Symptom on UwU: every
+      # DNS lookup takes 10s, apps appear offline even though wifi is working.
+      #
+      # We probe the AdGuard DoT/DoH/port-53 endpoint every 30s. When 10.10.0.1
+      # is unreachable for 3 consecutive probes, we bump the NM connection's
+      # route-metric to 1000 (so the wifi default route at metric 300 wins)
+      # AND rewrite /etc/resolv.conf to put the cloud resolvers first. When
+      # the server comes back, we restore metric 100 and put AdGuard first
+      # again. The state file lives in /var/lib/direct-link-watchdog so it
+      # survives rebuilds.
+      systemd.services.direct-link-watchdog = {
+        description = "Failover direct-link to wifi when UwU-Server (10.10.0.1) is unreachable";
+        wantedBy = [ "multi-user.target" ];
+        after = [ "NetworkManager.service" ];
+        wants = [ "NetworkManager.service" "network-online.target" ];
+        serviceConfig = {
+          Type = "simple";
+          Restart = "always";
+          RestartSec = "10s";
+          ExecStart = let
+            watchdogScript = pkgs.writeShellScript "direct-link-watchdog" ''
+              #!/usr/bin/env bash
+              set -u
+              GATEWAY="${gatewayIP}"
+              PROFILE="Direct Link (UwU-Server)"
+              STATE_DIR="/var/lib/direct-link-watchdog"
+              STATE_FILE="$STATE_DIR/mode"
+              RESOLVCONF="/etc/resolv.conf"
+              # Bash ARRAY — not a single string. Without arrays, "1.1.1.1 9.9.9.9"
+              # preserves the space when later passed inside double quotes,
+              # which made the failover-mode resolv.conf contain a literal
+              #   nameserver 1.1.1.1 9.9.9.9
+              # line that glibc refused to parse. Caught in live verification.
+              SECONDARIES=("1.1.1.1" "9.9.9.9")
+              PROBE_HOST="dns.cloudflare.com"
+              FAIL_THRESHOLD=3
+              PASS_THRESHOLD=3
+              mkdir -p "$STATE_DIR"
+
+              # Current state: "primary" or "fallback"
+              mode() {
+                cat "$STATE_FILE" 2>/dev/null || echo primary
+              }
+              set_mode() {
+                echo "$1" > "$STATE_FILE"
+              }
+
+              set_route_metric() {
+                local metric="$1"
+                # `nmcli connection modify` is idempotent — writing the new
+                # metric is enough; NM rebuilds the routes on the next DHCP
+                # lease / SIGHUP. We deliberately do NOT `nmcli connection up`
+                # because that would yank the link down and back up, which
+                # triggers spurious DHCP events and a brief networking blip.
+                # Bail silently if the connection does not exist yet (NM may
+                # still be creating it on first boot).
+                nmcli connection show "$PROFILE" >/dev/null 2>&1 || return 0
+                nmcli connection modify "$PROFILE" \
+                  ipv4.route-metric "$metric" \
+                  ipv6.route-metric "$metric" >/dev/null 2>&1 || true
+              }
+              nudge_routes() {
+                # Force NM to re-evaluate routes after a metric change without
+                # bouncing the link. `device reapply` reapplies the active
+                # connection's settings — this is the modern NM-safe way to
+                # pick up `ipv4.route-metric` from a live modify.
+                nmcli connection show "$PROFILE" >/dev/null 2>&1 || return 0
+                local dev
+                dev="$(nmcli -t -f DEVICE connection show "$PROFILE" --active 2>/dev/null | head -1)"
+                [ -n "$dev" ] || return 0
+                nmcli device reapply "$dev" >/dev/null 2>&1 || true
+              }
+
+              # Atomic resolv.conf swap via mktemp + mv (symlink-safe).
+              write_resolv() {
+                # write_resolv <primary_ip> <secondary_ip> [<secondary_ip> ...]
+                # Emits one `nameserver <ip>` line per IP. Order = the order of
+                # args, since glibc tries them in resolv.conf order.
+                local tmp
+                tmp="$(mktemp)"
+                {
+                  for ns in "$@"; do
+                    echo "nameserver $ns"
+                  done
+                  echo "search netbird.cloud fritz.box"
+                  echo "options edns0 trust-ad timeout:1 attempts:2 rotate"
+                } > "$tmp"
+                mv -f "$tmp" "$RESOLVCONF"
+                chmod 644 "$RESOLVCONF"
+              }
+
+              probe() {
+                # TCP connect to the gateway's port 53 within 1s. Faster than
+                # `dig`, and AdGuard Home always listens on port 53 by default.
+                ${pkgs.busybox}/bin/busybox nc -w 1 -z "$GATEWAY" 53 >/dev/null 2>&1
+              }
+
+              fail_count=0
+              pass_count=0
+              while true; do
+                sleep 30
+                if probe; then
+                  pass_count=$((pass_count + 1))
+                  fail_count=0
+                  if [ "$(mode)" = fallback ] && [ "$pass_count" -ge "$PASS_THRESHOLD" ]; then
+                    echo "[$(date -Iseconds)] UwU-Server reachable again, restoring primary"
+                    set_route_metric 100
+                    nudge_routes
+                    write_resolv "$GATEWAY" "''${SECONDARIES[@]}"
+                    set_mode primary
+                  fi
+                else
+                  fail_count=$((fail_count + 1))
+                  pass_count=0
+                  if [ "$(mode)" = primary ] && [ "$fail_count" -ge "$FAIL_THRESHOLD" ]; then
+                    echo "[$(date -Iseconds)] UwU-Server unreachable ($fail_count consecutive failures), failing over to cloud DNS + wifi route"
+                    set_route_metric 1000
+                    nudge_routes
+                    # Reorder: put cloud fallbacks first, keep gateway last as
+                    # a future-restore target.
+                    write_resolv "''${SECONDARIES[@]}" "$GATEWAY"
+                    set_mode fallback
+                  fi
+                fi
+              done
+            '';
+          in
+            "/bin/sh -c 'exec ${watchdogScript}'";
+        };
+      };
 
     }
   ;
