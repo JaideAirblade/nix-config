@@ -53,12 +53,12 @@ let
   # The build-id string (e.g. `2026.07.29-8228f98`) is embedded in the
   # binary's strings table — `grep -aoE '20[0-9]{2}\.[0-9]{2}\.[0-9]{2}-[a-f0-9]+'`
   # on the unpacked launcher reveals the new pin when Hytale rotates.
-  version = "2026.07.29-8228f98";
+  version = "2026.08.11-f021bf9";
   pname = "hytale-launcher";
 
   src = fetchurl {
     url = "https://launcher.hytale.com/builds/release/linux/amd64/hytale-launcher-${version}.zip";
-    hash = "sha256-k2IKxmkFyGAf05YnLW5T0f1dKK/5PcrX7nbN0etzoaA=";
+    hash = "sha256-pgIZ1ow5PjXrqneVOUa/+n619oG2E4yn2QVSVO0kwA8=";
   };
 
   unwrapped = stdenv.mkDerivation {
