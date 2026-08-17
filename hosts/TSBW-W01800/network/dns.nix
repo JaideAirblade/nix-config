@@ -166,7 +166,21 @@ _:
             + " --fallback https://8.8.8.8/dns-query"
             + " --fallback https://94.140.14.14/dns-query"
             + " --cache"
-            + " --cache-size 4096";
+            + " --cache-size 4096"
+            # Timeout: how long dnsproxy waits for the primary upstream
+            # (UwU-Server AdGuard) before considering it unavailable and
+            # falling back to the DoH servers.  The default is 10s —
+            # when UwU-Server is down, every query hangs for 10s before
+            # the fallback fires.  1s is enough for a mesh-tunnel hop;
+            # if UwU-Server hasn't answered in 1s it's either down or
+            # doing a slow recursive lookup, and the DoH fallback
+            # (Cloudflare/Quad9/Google anycast, ~5-15ms) will answer
+            # faster than waiting for the full 10s timeout.
+            + " --timeout 1s"
+            # Optimistic cache: serve stale entries immediately while
+            # refreshing in the background.  Makes DNS feel instant for
+            # recently-visited domains even when the upstream is slow.
+            + " --cache-optimistic";
           Restart = "on-failure";
           RestartSec = "3s";
           # systemd creates /run/dnsproxy automatically before preStart
