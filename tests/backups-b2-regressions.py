@@ -43,11 +43,12 @@ src = BACKUPS.read_text(encoding="utf-8")
 require("nixos.hosts.\"UwU-Server\"" in src,
         "module must contribute to nixos.hosts.UwU-Server (backups are server-specific)")
 
-# 3. services.restic.backups.b2 enabled.
+# 3. services.restic.backups.b2 — implicit enable (no separate
+# enable field — defining the attrset enables the backup).
 require("services.restic.backups.b2" in src,
-        "module must declare services.restic.backups.b2")
-require("enable = true" in src,
-        "restic backup job must be enabled (default-on for UwU-Server)")
+        "module must declare services.restic.backups.b2 (the b2 name)")
+require("enable = true" not in src,
+        "module must NOT use enable = true (restic backups don't have an enable field — defining the attrset enables them)")
 
 # 3a-c. Schedule.
 require("timerConfig" in src,
@@ -83,11 +84,22 @@ require("environmentFile" in src,
 require("sops.templates.restic-b2-env" in src,
         "restic job must reference the sops-templated env file")
 
-# 3h. Backup opts.
-require("backupOpts" in src,
-        "module must configure backupOpts")
-require("--exclude-caches" in src,
-        "backupOpts must include --exclude-caches (smaller snapshots)")
+# 3h. Backup opts via extraOptions (NOT backupOpts — that doesn't exist).
+require("extraOptions" in src,
+        "module must configure extraOptions (restic's NixOS module uses extraOptions, not backupOpts)")
+# Strip comments + whitespace before checking for the literal attr name.
+src_stripped = "\n".join(
+    line for line in src.splitlines()
+    if not line.lstrip().startswith("#")
+)
+require("backupOpts" not in src_stripped,
+        "module must NOT use backupOpts (doesn't exist in NixOS's restic module)")
+
+# 3i. Post-backup cleanup hook.
+require("backupCleanupCommand" in src,
+        "module must declare backupCleanupCommand (restic's NixOS hook for post-run)")
+require("postPostRestoreScript" not in src,
+        "module must NOT use postPostRestoreScript (doesn't exist in restic's NixOS module)")
 
 # 4. Sops secrets declared with mode 0400.
 for needle in ("restic_b2_key_id", "restic_b2_application_key", "restic_password"):

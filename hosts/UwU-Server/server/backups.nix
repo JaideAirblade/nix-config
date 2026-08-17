@@ -136,9 +136,10 @@ _:
       };
 
       services.restic.backups.b2 = {
-        enable = true;
-        # Timer fires daily at 03:15 UTC. Random delay so multiple
-        # hosts (future) don't hammer B2 at the same instant.
+        # Backup name "b2" — the NixOS module creates a per-name
+        # systemd unit `restic-backups-b2.service` and timer
+        # `restic-backups-b2.timer`. Defining the attrset enables it
+        # implicitly (no separate `enable` field).
         timerConfig = {
           OnCalendar = "03:15";
           RandomizedDelaySec = "30m";
@@ -175,10 +176,14 @@ _:
         # tagged with the CACHEDIR.TAG convention (cache dirs that
         # restic can rebuild). `--tag` adds tags to the snapshot for
         # easier filtering.
-        backupOpts = [
+        #
+        # Note: restic's NixOS module exposes `extraOptions` (a list of
+        # `-o` flags passed to restic), not `backupOpts`. The
+        # `--exclude-caches` flag becomes `-o --exclude-caches`.
+        extraOptions = [
           "--exclude-caches"
-          "--tag" "automated"
-          "--tag" "uwu-server"
+          "tag.automated"
+          "tag.uwu-server"
         ];
 
         # Verification: every Sunday, also run `restic check` to
@@ -188,11 +193,16 @@ _:
           "--read-data-subset=5%"
         ];
 
-        # Post-backup hook: optionally ping a healthcheck URL if the env
-      # var is set (operators can add it via systemd drop-in or
-      # override file without touching this module). Failures
-      # here are non-fatal — restic has already succeeded.
-        postPostRestoreScript = ''
+        # Post-backup hook: ping a healthcheck URL if the env var is
+        # set. Operators can add HEALTHCHECKS_BACKUP_PING_URL via a
+        # systemd drop-in (e.g. a `systemd.services.restic-backups-b2.environment`
+        # override) without rebuilding the module. Failures here
+        # are non-fatal — restic has already succeeded. The hook is
+        # named `backupCleanupCommand` because it runs after restic
+        # finishes; the available hooks are
+        # `backupPrepareCommand` (pre-run) and
+        # `backupCleanupCommand` (post-run).
+        backupCleanupCommand = ''
           if [ -n "''${HEALTHCHECKS_BACKUP_PING_URL:-}" ]; then
             ${pkgs.curl}/bin/curl --silent --show-error --fail --max-time 10 \
               -X GET "$HEALTHCHECKS_BACKUP_PING_URL" \
