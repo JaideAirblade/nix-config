@@ -6,7 +6,6 @@
     "manual_only": {
       "hytale":         "No public GitHub releases endpoint (hytale-studios org returns no releases). Manual: check hytale.com/download for new launcher version, bump version + hash by hand.",
       "octarine":       "No upstream 'latest' symlink on CDN — URL embeds the version explicitly. Manual: see octarine.app/changelog, bump version + hash by hand.",
-      "omniroute":      "Docker image requires content digest (not :latest tag) for reproducibility. Manual: sudo docker pull diegosouzapw/omniroute && sudo docker image ls --digests diegosouzapw/omniroute, then update imageDigest + sha256 by hand.",
       "net-report":     "Local source (./.) — your own code. Updates come from git commits in this repo, not from upstream."
     }
   },

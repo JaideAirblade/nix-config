@@ -18,7 +18,7 @@ to confirm mesh + WAN + DNS are all still up.
 
 ## What this pipeline does NOT do
 
-- It does **not** touch `octarine`, `omniroute`, `hytale`, or `net-report`.
+- It does **not** touch `octarine`, `hytale`, or `net-report`.
   See `pkgs/.update-config.json#scope.manual_only` for per-pkg reasons.
 - It does **not** roll forward automatically after a deploy failure.
   A broken host stays on its previous generation; the next nightly run will

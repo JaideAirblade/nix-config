@@ -138,6 +138,33 @@
         # list — the wiring test (`tests/boot-order-cleanup-regressions.py`)
         # asserts the direct import is paired with this manifest entry.
         "hosts/UwU-Server/boot-order.nix" = "dendritic lower-level NixOS module; imported directly by hosts/UwU-Server/default.nix";
+
+        # Prometheus node_exporter — declares `services.prometheus.exporters.node`
+        # AND `networking.firewall.interfaces.wt0.allowedTCPPorts`, which are
+        # NixOS-level options that flake-parts eagerly rejects when it
+        # evaluates the deferred module at flake-time (it complains
+        # `The option 'networking' does not exist` because `networking`
+        # isn't a flake-parts option). Hosts opt in by importing this
+        # file directly into their `modules = [ ... ]` list — same
+        # pattern as `hosts/UwU-Server/boot-order.nix`. The wiring
+        # test `tests/node-exporter-regressions.py` asserts the
+        # direct-import pattern is preserved.
+        "modules/observability/node-exporter.nix" = "dendritic lower-level NixOS module; imported directly by hosts that opt in";
+
+        # Heartbeat — references `${pkgs.curl}/bin/curl` in its script
+        # body, which forces flake-parts to evaluate the deferred module
+        # with `pkgs` in scope. flake-parts only provides `lib` and
+        # `inputs`, so the read fails with `attribute 'pkgs' missing`.
+        # Hosts opt in by importing this file directly. Same pattern
+        # as the boot-order and node-exporter exceptions above.
+        "modules/maintenance/heartbeat.nix" = "dendritic lower-level NixOS module; imported directly by hosts that opt in";
+
+        # btrfs-scrub — uses `${pkgs.util-linux}/bin/findmnt` and
+        # `${pkgs.btrfs-progs}/bin/btrfs` inside a `writeShellScript`
+        # for the service. Same `pkgs`-out-of-scope issue as heartbeat.
+        # Hosts that opt in import this directly. The wiring test
+        # `tests/btrfs-scrub-regressions.py` asserts the contract.
+        "modules/disko/btrfs-scrub.nix" = "dendritic lower-level NixOS module; imported directly by hosts that opt in";
       };
 
       isException = name: builtins.hasAttr name dendriticExceptions;
@@ -258,12 +285,17 @@
               python3 tests/mnemosyne-activation-regressions.py
               python3 tests/server-hermes-extensions-regressions.py
               python3 tests/server-hermes-mobile-bridge-regressions.py
-              python3 tests/server-omniroute-regressions.py
               python3 tests/chrony-regressions.py
               SOPS_ROOT=${inputs.nixos-secrets} python3 tests/server-hermes-webui-regressions.py
               python3 tests/data-pool-layout-regressions.py
               python3 tests/boot-order-cleanup-regressions.py
               python3 tests/dendritic-import-coverage-regressions.py
+              python3 tests/btrfs-scrub-regressions.py
+              python3 tests/heartbeat-regressions.py
+              python3 tests/smartd-fleet-regressions.py
+              python3 tests/node-exporter-regressions.py
+              python3 tests/backups-b2-regressions.py
+              python3 tests/nm-tailscale-ghost-regressions.py
               touch $out
             '';
           };
