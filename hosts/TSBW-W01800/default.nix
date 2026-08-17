@@ -20,6 +20,10 @@
 
       { nixpkgs.overlays = [ inputs.self.overlays.additions ]; }
       { nixpkgs.overlays = [ inputs.self.overlays.python-package-fixes ]; }
+      # Enable CONFIG_WIFI_DISPLAY=y in wpa_supplicant for Miracast/WFD
+      # support. Required by gnome-network-displays to discover P2P peers
+      # via NetworkManager. See overlays/wpa-supplicant-wifi-display.nix.
+      { nixpkgs.overlays = [ inputs.self.overlays.wpa-supplicant-wifi-display ]; }
       { nixpkgs.overlays = [ (import ../../overlays/millennium.nix { millennium-input = inputs.millennium; }) ]; }
       {
         # Netbird mesh — sole mesh on this host as of 2026-08-09.

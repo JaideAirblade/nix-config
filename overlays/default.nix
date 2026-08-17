@@ -15,4 +15,9 @@
   # Temporary compatibility fixes for Python packages used by OSINT and
   # Windows administration tools. Applied explicitly by the relevant hosts.
   python-package-fixes = import ./python-package-fixes.nix;
+
+  # Enable Wi-Fi Display (Miracast/WFD) support in wpa_supplicant.
+  # nixpkgs omits CONFIG_WIFI_DISPLAY=y, which prevents NetworkManager
+  # from relaying P2P peers to gnome-network-displays.
+  wpa-supplicant-wifi-display = import ./wpa-supplicant-wifi-display.nix;
 }
