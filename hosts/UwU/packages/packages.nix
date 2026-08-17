@@ -274,7 +274,16 @@ _:
       # Nym creates and configures its TUN interfaces itself. If NetworkManager
       # adopts them as external profiles, it rebuilds the links and removes
       # Nym's table-333 routes shortly after they are installed.
-      networking.networkmanager.unmanaged = [ "interface-name:tun*" ];
+      #
+      # We also exclude `tailscale*` because even after the 2026-08-09
+      # migration to Netbird, a stale `tailscale0` tun interface can linger
+      # in the kernel (it was created when tailscaled last ran; tailscaled
+      # is no longer installed but the device persists). NetworkManager's
+      # nm-dispatcher sees the new virtual interface, runs DHCP on it,
+      # and floods the journal with "Set DHCP hostname to <random hostname>"
+      # for a dead interface. Excluding `tailscale*` from management is
+      # the durable fix.
+      networking.networkmanager.unmanaged = [ "interface-name:tun*" "interface-name:tailscale*" ];
 
       # NymVPN's daemon expects these networking tools in its isolated
       # systemd PATH on NixOS.
