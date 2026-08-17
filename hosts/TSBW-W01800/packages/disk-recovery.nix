@@ -31,16 +31,12 @@ _:
         scrounge-ntfs # recover data from corrupted NTFS filesystems
       ];
 
-      # Enable smartd for continuous disk health monitoring
-      # (notifications via system journal / smartd mail if configured)
-      services.smartd = {
-        enable = true;
-        autodetect = true;
-        # Monitor all autodetected drives: SMART health, errors, temperature warnings
-        defaults.autodetected = "-a -o on -S on -n standby -W 4,35,40";
-        # Send wall notifications to all users on SMART failures
-        notifications.wall.enable = true;
-      };
+      # smartd (the daemon) is provided by the shared nixos.modules.maintenance
+      # module (modules/maintenance/smartd.nix), which pulls
+      # smartmontools as a runtime dep so smartctl is on $PATH.
+      # Per-host tuning (battery start/stop) lives in
+      # services/battery-services.nix and uses a systemd unit drop-in,
+      # not a re-declaration of services.smartd.
     }
   ;
 }

@@ -10,10 +10,22 @@
       config.nixos.modules.netbirdMesh
       config.nixos.modules.virtualisation
       config.nixos.modules.office
+      config.nixos.modules.maintenance
+      config.nixos.modules.observability
       config.nixos.hosts."TSBW-W01800"
 
       # Generated lower-level module exception.
       ./hardware-configuration.nix
+
+      # Prometheus node_exporter — direct import (the walker excludes it
+      # from flake-parts imports because networking.firewall.* trips
+      # flake-parts evaluation; see flake.nix's dendriticExceptions).
+      ./../modules/observability/node-exporter.nix
+
+      # Heartbeat dead-man's-switch — same pattern. TSBW doesn't use
+      # btrfs (LUKS + ext4), so no btrfs-scrub here — UwU and
+      # UwU-Server get it instead.
+      ./../modules/maintenance/heartbeat.nix
 
       # witr — process/port/container/file tracing CLI. See flake.nix.
       inputs.self.nixosModules.witr
