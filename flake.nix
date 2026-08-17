@@ -296,6 +296,7 @@
               python3 tests/node-exporter-regressions.py
               python3 tests/backups-b2-regressions.py
               python3 tests/nm-tailscale-ghost-regressions.py
+              python3 tests/captive-portal-uri-regressions.py
               touch $out
             '';
           };

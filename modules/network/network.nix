@@ -28,11 +28,22 @@
       # instead — the dispatcher never fires. NM itself logs a warning if
       # you use HTTPS: "use of HTTPS for connectivity checking is not
       # reliable and is discouraged".
+      #
+      # The default `connectivity.uri` (`http://nmcheck.gnome.org/...`)
+      # is the only URL that actually resolves. The "newer" GNOME URL
+      # `http://connectivity-check.networkmanager.dev/` was deprecated
+      # upstream and no longer resolves — using it as the configured
+      # URL causes every connectivity check to fail, leaving
+      # NetworkManager in `limited` state permanently and the captive
+      # portal dispatcher firing on every state transition (WiFi blips,
+      # VPN reconnects, etc.), spamming Helium with `http://1.1.1.1`.
+      # nmcheck.gnome.org returns 200 + the literal body
+      # "NetworkManager is online" — that's what we want.
       networking.networkmanager.settings = {
         connectivity = {
-          uri = "http://connectivity-check.networkmanager.dev/";
+          uri = "http://nmcheck.gnome.org/check_network_status.txt";
           interval = 300;
-          response = "Connectivity check successful";
+          response = "NetworkManager is online";
         };
       };
 
