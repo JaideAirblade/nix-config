@@ -15,6 +15,27 @@
     {
       networking.networkmanager.enable = true;
 
+      # Enable NetworkManager connectivity checking so it can detect captive
+      # portals. NM hits this URI after connecting to any network; if the
+      # response doesn't match the expected string (or is a redirect), NM sets
+      # CONNECTIVITY_STATE=PORTAL, which the dispatcher script below
+      # (30-captive-portal.sh) listens for to auto-open a browser.
+      #
+      # CRITICAL: the URI MUST be plain HTTP, not HTTPS. Captive portals
+      # intercept HTTP requests and redirect to their login page. NM sees
+      # the redirect and reports PORTAL. With HTTPS, TLS prevents the
+      # intercept, NM just sees "can't reach server", and reports LIMITED
+      # instead — the dispatcher never fires. NM itself logs a warning if
+      # you use HTTPS: "use of HTTPS for connectivity checking is not
+      # reliable and is discouraged".
+      networking.networkmanager.settings = {
+        connectivity = {
+          uri = "http://connectivity-check.networkmanager.dev/";
+          interval = 300;
+          response = "Connectivity check successful";
+        };
+      };
+
       # Capability-bearing network diagnostics are executable only by this
       # dedicated group. This grants jaide access without adding her to root.
       users.groups.net-report = { };
@@ -306,6 +327,103 @@
             ipv6.dhcp-hostname "$rand" \
             2>/dev/null && echo "Set DHCP hostname to $rand for $CONNECTION_ID" \
             || true
+        '';
+      };
+
+      # --- Captive portal detection --------------------------------------------
+      # NetworkManager performs connectivity checks after connecting to a
+      # network. When it detects a captive portal (CONNECTIVITY_STATE=PORTAL
+      # or LIMITED), this dispatcher opens Helium to an HTTP URL that the
+      # portal intercepts and redirects to its login page.
+      #
+      # We use http://1.1.1.1 (Cloudflare's DNS resolver, which responds to
+      # HTTP on port 80) instead of a hostname like captive.apple.com because
+      # captive portals block DNS resolution — the browser can't resolve any
+      # hostname until after login. A direct IP needs no DNS. The captive
+      # portal intercepts the HTTP request and redirects to its login page.
+      #
+      # Implementation notes:
+      #   - We use systemd-run --uid (not su) because su requires a TTY and
+      #     fails in the NM dispatcher context ("must be run from a terminal").
+      #   - We call helium directly (not xdg-open) because xdg-open doesn't
+      #     recognize XDG_CURRENT_DESKTOP=mango and falls through to a
+      #     hardcoded browser list that doesn't find helium in the
+      #     systemd-run PATH.
+      #   - On Wayland we need WAYLAND_DISPLAY + XDG_RUNTIME_DIR, not
+      #     DISPLAY/XAUTHORITY.
+      #
+      # DMS issue #2632 tracks native captive portal integration, but until
+      # that ships, this dispatcher is the standard approach.
+      environment.etc."NetworkManager/dispatcher.d/30-captive-portal.sh" = {
+        mode = "0755";
+        text = ''
+          #!/bin/sh
+          # Open captive portal login page when NM detects captive state.
+          # $1 = interface, $2 = action
+          #
+          # We listen on TWO actions:
+          #   connectivity-change — fires when NM's connectivity state
+          #     transitions (e.g. FULL→PORTAL). This is the standard path.
+          #   up — fires when a connection is established. We check the
+          #     connectivity state ourselves because NM may already report
+          #     LIMITED/PORTAL at connection-up without ever firing a
+          #     separate connectivity-change event (the state was never
+          #     FULL, so there's no transition to detect).
+          export PATH="/run/current-system/sw/bin:/run/wrappers/bin:$PATH"
+
+          case "$2" in
+            connectivity-change)
+              # $CONNECTIVITY_STATE is set by NM for this action.
+              case "$CONNECTIVITY_STATE" in
+                PORTAL|LIMITED) ;;
+                *) exit 0 ;;
+              esac
+              ;;
+            up)
+              # Wait for NM to complete its connectivity check before
+              # querying the state. NM checks immediately on connect,
+              # but the result takes a few seconds (HTTP request + DNS).
+              sleep 5
+              STATE=$(nmcli -t -f CONNECTIVITY general 2>/dev/null)
+              case "$STATE" in
+                "portal"|"limited") ;;
+                *) exit 0 ;;
+              esac
+              ;;
+            *) exit 0 ;;
+          esac
+
+          # Find active Wayland sessions and launch browser as each user.
+          loginctl --no-legend list-sessions 2>/dev/null | while read -r sess uid user seat type; do
+            [ -n "$uid" ] || continue
+            runtime="/run/user/$uid"
+            [ -d "$runtime" ] || continue
+
+            # Find the Wayland display socket for this session.
+            wl_display=""
+            for d in "$runtime"/wayland-*; do
+              [ -S "$d" ] || continue
+              wl_display=$(basename "$d")
+              break
+            done
+            [ -n "$wl_display" ] || continue
+
+            # Launch Helium as the session user with the Wayland env.
+            # systemd-run is used instead of su because su requires a TTY
+            # and fails in the NM dispatcher context. Helium is called
+            # directly because xdg-open doesn't recognize mango as a DE
+            # and can't find helium in the restricted systemd-run PATH.
+            #
+            # We use http://1.1.1.1 (direct IP, no DNS) because captive
+            # portals block DNS — the browser can't resolve hostnames
+            # until after login. The portal intercepts HTTP on port 80
+            # and redirects to its login page.
+            systemd-run --uid="$uid" --collect --quiet \
+              --property=Environment=XDG_RUNTIME_DIR="$runtime" \
+              --property=Environment=WAYLAND_DISPLAY="$wl_display" \
+              --property=Environment=DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime/bus" \
+              -- helium http://1.1.1.1 2>/dev/null &
+          done
         '';
       };
 
