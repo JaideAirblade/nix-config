@@ -27,40 +27,50 @@
 #   1. Add the NixOS option declaration here.
 #   2. Add the config in a new file under modules/observability/,
 #      written as `{ pkgs, lib, ... }: { ... }` (no `config` arg).
-{ lib, ... }:
+#
+#      If the config reads `pkgs` or `networking.firewall.*` at
+#      flake-time, exclude the file in flake.nix's `dendriticExceptions`
+#      and import it directly into the host entry point instead.
+_:
 {
-  options.observability.nodeExporter = {
-    enable = lib.mkEnableOption "Prometheus node_exporter on this host";
+  nixos.modules.observability =
+    { lib, ... }:
 
-    # Bind address — typically a Netbird mesh IP of THIS host.
-    # Leaving empty binds to 0.0.0.0 (NOT recommended; exposes
-    # metrics to whatever can reach the port). The fleet uses
-    # Netbird with wt0 + 100.77.0.0/16 (see pkgs/.update-config.json
-    # #fleet.hosts for per-host IPs).
-    listenAddress = lib.mkOption {
-      type = lib.types.str;
-      default = "";
-      example = "100.77.119.175";
-      description = "IP address to bind node_exporter on. Default: empty (= 0.0.0.0). Recommended: a Netbird mesh IP.";
-    };
+    {
+      options.observability.nodeExporter = {
+        enable = lib.mkEnableOption "Prometheus node_exporter on this host";
 
-    port = lib.mkOption {
-      type = lib.types.port;
-      default = 9100;
-      description = "TCP port for node_exporter's metrics endpoint";
-    };
+        # Bind address — typically a Netbird mesh IP of THIS host.
+        # Leaving empty binds to 0.0.0.0 (NOT recommended; exposes
+        # metrics to whatever can reach the port). The fleet uses
+        # Netbird with wt0 + 100.77.0.0/16 (see pkgs/.update-config.json
+        # #fleet.hosts for per-host IPs).
+        listenAddress = lib.mkOption {
+          type = lib.types.str;
+          default = "";
+          example = "100.77.119.175";
+          description = "IP address to bind node_exporter on. Default: empty (= 0.0.0.0). Recommended: a Netbird mesh IP.";
+        };
 
-    # Extra collectors to enable beyond the module defaults. Common
-    # additions:
-    #   systemd      : systemd unit state metrics (active/failed counts)
-    #   processes    : per-process CPU/mem
-    #   logind       : seat/session state
-    #   systemd-timer: pending/running timer count (great for catching
-    #                  missed btrfs-scrub / heartbeat timers)
-    extraCollectors = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = [ "systemd" ];
-      description = "Additional collectors to enable (--collector.<name>)";
-    };
-  };
+        port = lib.mkOption {
+          type = lib.types.port;
+          default = 9100;
+          description = "TCP port for node_exporter's metrics endpoint";
+        };
+
+        # Extra collectors to enable beyond the module defaults. Common
+        # additions:
+        #   systemd      : systemd unit state metrics (active/failed counts)
+        #   processes    : per-process CPU/mem
+        #   logind       : seat/session state
+        #   systemd-timer: pending/running timer count (great for catching
+        #                  missed btrfs-scrub / heartbeat timers)
+        extraCollectors = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [ "systemd" ];
+          description = "Additional collectors to enable (--collector.<name>)";
+        };
+      };
+    }
+  ;
 }

@@ -55,7 +55,7 @@
       # Heartbeat dead-man's-switch — same pattern as on UwU/TSBW.
       # Printserver is on the LAN so it can reach UwU-Server's
       # Uptime Kuma directly without mesh routing.
-      ./../modules/maintenance/heartbeat.nix
+      ./../../modules/maintenance/heartbeat.nix
 
       # witr — process/port/container/file tracing CLI. See flake.nix.
       inputs.self.nixosModules.witr

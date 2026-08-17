@@ -97,9 +97,9 @@ require('"tailscale0"' not in src,
 # for the raw path literal. Pull the value between the surrounding
 # quotes on the *config* line (not the docstring comment which has a
 # shorter variant). Config lines start with `--collector.` and live
-# inside `extraArgs = [...]`.
+# inside `extraFlags = [...]`.
 mount_re = re.search(
-    r'extraArgs\s*=\s*\[[^\]]*?"[^"]*mount-points-exclude=(\^[^"]+)',
+    r'extraFlags\s*=\s*\[[^\]]*?"[^"]*mount-points-exclude=(\^[^"]+)',
     src,
     re.DOTALL,
 )

@@ -60,7 +60,7 @@
       # system where `networking.firewall.*` is a valid option.
       # The wiring test (`tests/node-exporter-regressions.py`)
       # asserts the direct-import pattern is preserved.
-      ./../modules/observability/node-exporter.nix
+      ./../../modules/observability/node-exporter.nix
 
       # Heartbeat dead-man's-switch — same pattern as node-exporter.nix.
       # The walker excludes it because it references `${pkgs.curl}/bin/curl`
@@ -68,13 +68,13 @@
       # with `pkgs` in scope (flake-parts only provides `lib`/`inputs`).
       # The host imports directly so it runs through the NixOS module
       # system where `pkgs` is provided.
-      ./../modules/maintenance/heartbeat.nix
+      ./../../modules/maintenance/heartbeat.nix
 
       # btrfs monthly scrub — same pattern as node-exporter.nix.
       # The walker excludes it because the systemd unit references
       # `${pkgs.util-linux}/bin/findmnt` and `${pkgs.btrfs-progs}/bin/btrfs`
       # inside a `writeShellScript`. The host imports directly.
-      ./../modules/disko/btrfs-scrub.nix
+      ./../../modules/disko/btrfs-scrub.nix
 
       # ./disk-layout.nix is auto-imported by `flake.nix`'s `collectModules`
       # walker. See the comment at the top of this file for the full

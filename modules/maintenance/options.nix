@@ -29,30 +29,40 @@
 #   2. Add the config in a new file under modules/maintenance/, written
 #      as `{ lib, ... }: { ... }` or `{ pkgs, lib, ... }: { ... }` (no
 #      `config` arg — see comment above).
-{ lib, ... }:
+#
+#      If the config reads `pkgs` or `config` at flake-time, exclude
+#      the file in flake.nix's `dendriticExceptions` and import it
+#      directly into the host entry point.
+_:
 {
-  options.maintenance.heartbeat = {
-    enable = lib.mkEnableOption "Send dead-man's-switch heartbeat pings to Uptime Kuma";
+  nixos.modules.maintenance =
+    { lib, ... }:
 
-    # Sops key holding the Uptime Kuma push URL. The file is rendered
-    # to `/run/secrets/<key-with-underscores-replaced-by-hyphens>` —
-    # e.g. `heartbeat_endpoint` renders to `/run/secrets/heartbeat-endpoint`.
-    # The host's `users.nix` or service-specific module must declare
-    #   sops.secrets.heartbeat_endpoint = { ... };
-    # for this to work.
-    sopsKey = lib.mkOption {
-      type = lib.types.str;
-      default = "heartbeat_endpoint";
-      description = "Key inside the sops file holding the Uptime Kuma push URL";
-    };
+    {
+      options.maintenance.heartbeat = {
+        enable = lib.mkEnableOption "Send dead-man's-switch heartbeat pings to Uptime Kuma";
 
-    # How often to ping. 300s = 5 minutes (matches Uptime Kuma default
-    # retry interval). Hosts that miss >3 consecutive pings are flagged
-    # DOWN.
-    intervalSeconds = lib.mkOption {
-      type = lib.types.ints.between 30 86400;
-      default = 300;
-      description = "Heartbeat ping interval in seconds";
-    };
-  };
+        # Sops key holding the Uptime Kuma push URL. The file is rendered
+        # to `/run/secrets/<key-with-underscores-replaced-by-hyphens>` —
+        # e.g. `heartbeat_endpoint` renders to `/run/secrets/heartbeat-endpoint`.
+        # The host's `users.nix` or service-specific module must declare
+        #   sops.secrets.heartbeat_endpoint = { ... };
+        # for this to work.
+        sopsKey = lib.mkOption {
+          type = lib.types.str;
+          default = "heartbeat_endpoint";
+          description = "Key inside the sops file holding the Uptime Kuma push URL";
+        };
+
+        # How often to ping. 300s = 5 minutes (matches Uptime Kuma default
+        # retry interval). Hosts that miss >3 consecutive pings are flagged
+        # DOWN.
+        intervalSeconds = lib.mkOption {
+          type = lib.types.ints.between 30 86400;
+          default = 300;
+          description = "Heartbeat ping interval in seconds";
+        };
+      };
+    }
+  ;
 }

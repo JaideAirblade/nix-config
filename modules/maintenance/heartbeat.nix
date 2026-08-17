@@ -1,37 +1,26 @@
 # Heartbeat — dead-man's-switch ping to Uptime Kuma.
 #
-# This module is the CONFIG-ONLY contributor to `nixos.modules.maintenance`
-# for heartbeat functionality. All NixOS option declarations live in
-# `modules/maintenance/default.nix` (the umbrella). This split mirrors
-# the disko convention: `disko.nix` declares options, `btrfs-dedup.nix`
-# contributes config only. flake-parts merges all files under
-# `nixos.modules.maintenance` into a single deferred module, which
-# the NixOS module system then processes on each host that imports
-# the role.
+# Pure NixOS module (no `nixos.modules.maintenance = ...` wrapper).
+# Hosts import it directly into their `modules = [ ... ]` list:
 #
-# ## Why config-only here
+#   ./../../modules/maintenance/heartbeat.nix
 #
-# flake-parts evaluates each `nixos.modules.<key>` deferred module at
-# flake-time when processing the flake outputs. At that point, the
-# module function only has `lib` and `inputs` in scope — reading
-# `config.sops.placeholder.<key>` or `config.<NixOS-option>` fails.
-# The clean fix is for the function to take only `{ pkgs, lib, ... }:`
-# (no `config`), and contribute config without reading options. The
-# umbrella declares options; the NixOS module system wires everything
-# at host eval time.
+# ## Why pure NixOS module shape (no dendritic role wrapper)
 #
-# The trade-off: this file hardcodes `5min` as the heartbeat interval
-# rather than reading `config.maintenance.heartbeat.intervalSeconds`.
-# Hosts that need a different interval can override the timer unit
-# directly via `systemd.timers.heartbeat.timerConfig.OnUnitActiveSec`
-# in their host module (after this module's contribution), or by
-# redefining the timer via an `mkForce` override.
+# flake-parts evaluates all `imports = [ ... ]` as NixOS modules.
+# When a module's top-level return value is
+# `{ nixos.modules.maintenance = <function> }`, flake-parts errors
+# with `error: The option 'nixos' does not exist` because `nixos`
+# isn't in flake-parts's top-level option set. The `nixos.modules.X`
+# wrapper only works for files auto-imported by the dendritic walker
+# (where flake-parts processes them as flake-parts modules first).
+# Direct imports need pure NixOS options at the top level.
 #
 # ## Per-host wiring
 #
-# Each host that wants heartbeats imports the maintenance role:
+# Each host that wants heartbeats imports this module directly:
 #
-#   config.nixos.modules.maintenance  # in modules = [ ... ]
+#   ./../../modules/maintenance/heartbeat.nix
 #
 # And declares a sops secret with the Uptime Kuma push URL:
 #
@@ -54,7 +43,9 @@
 # If the sops secret is missing (host deployed before secret was
 # populated) the service silently no-ops with a "no endpoint"
 # warning. Non-fatal.
+
 { pkgs, ... }:
+
 {
   systemd.services.heartbeat = {
     description = "Heartbeat ping to Uptime Kuma (dead-man's switch)";
@@ -64,8 +55,7 @@
     };
     script = ''
       # sops-nix renders `sops.secrets.heartbeat_endpoint` to
-      # /run/secrets/heartbeat-endpoint. The umbrella declares
-      # `sopsKey` defaulting to "heartbeat_endpoint" — same file.
+      # /run/secrets/heartbeat-endpoint.
       endpoint_file="/run/secrets/heartbeat-endpoint"
       if [ ! -f "$endpoint_file" ]; then
         echo "heartbeat: no endpoint configured at $endpoint_file — skipping ping"
@@ -93,8 +83,8 @@
     description = "Periodic heartbeat ping to Uptime Kuma";
     wantedBy = [ "timers.target" ];
     timerConfig = {
-      # Hardcoded to 5min — see module header for override path.
-      # Hosts that need different cadences can `mkForce` the timer
+      # Hardcoded to 5min — hosts that need different cadences can
+      # override with `systemd.timers.heartbeat.timerConfig.OnUnitActiveSec`
       # in their host module.
       OnUnitActiveSec = "5min";
       # Don't run immediately after boot — give UwU-Server / Uptime

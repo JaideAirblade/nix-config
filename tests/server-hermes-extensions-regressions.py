@@ -5,7 +5,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / "hosts/UwU-Server/ai/hermes-router.nix"
-LOCAL_STACK = ROOT / "hosts/UwU-Server/ai/honcho.nix"
+# honcho.nix was removed in commit 1021eff
+# ("refactor(UwU-Server): remove honcho — no longer in use on any host").
+# The local stack reference is kept here as None so the negative
+# assertion ("managed local profile must not revert to Honcho") stays
+# meaningful — if anyone re-adds a honcho import we want to know.
+LOCAL_STACK = None
 ROUTER_PATCH = ROOT / "hosts/UwU-Server/ai/patches/hermes-router-disable-admin-surfaces.patch"
 ROUTER_MINIMAX_PATCH = ROOT / "hosts/UwU-Server/ai/patches/hermes-router-minimax-provider.patch"
 MATH_PATCH = ROOT / "hosts/UwU-Server/ai/patches/math-via-code-secure-tempdir.patch"
@@ -227,9 +232,23 @@ require(
     "default Mnemosyne selection must not be skipped on a fresh Hermes home",
 )
 
-local_stack = LOCAL_STACK.read_text(encoding="utf-8")
-require("provider: mnemosyne" in local_stack, "managed local profile must select Mnemosyne")
-require("provider: honcho" not in local_stack, "managed local profile must not revert to Honcho")
+# honcho.nix was removed in commit 1021eff; no LOCAL_STACK file
+# exists any more. The previous mnemosyne/honcho provider
+# assertions is dropped because there's no file to read. The
+# negative assertion ("must not revert to Honcho") is preserved
+# as a guard against re-introduction — if any file under
+# hosts/UwU-Server/ai/ contains "provider: honcho" the test fails.
+require(
+    not any(
+        "provider: honcho" in (ROOT / "hosts/UwU-Server/ai" / path).read_text(
+            encoding="utf-8", errors="replace"
+        )
+        for path in __import__("os").listdir(ROOT / "hosts/UwU-Server/ai")
+        if (ROOT / "hosts/UwU-Server/ai" / path).is_file()
+    ),
+    "managed local profile must not revert to Honcho "
+    "(honcho.nix was removed in 1021eff)",
+)
 require("http://127.0.0.1:8319" not in source, "default Hermes inference must not switch to the unprovisioned router")
 
 print("server Hermes pins, hardened router, reviewed skills/plugins, and Mnemosyne persistence: PASS")

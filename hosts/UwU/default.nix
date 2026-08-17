@@ -29,15 +29,15 @@
       # from flake-parts imports because networking.firewall.* trips
       # flake-parts evaluation; see flake.nix's dendriticExceptions).
       # Opt-in by adding this direct import.
-      ./../modules/observability/node-exporter.nix
+      ./../../modules/observability/node-exporter.nix
 
       # Heartbeat dead-man's-switch — same pattern as node-exporter.nix.
       # See flake.nix's dendriticExceptions for the rationale.
-      ./../modules/maintenance/heartbeat.nix
+      ./../../modules/maintenance/heartbeat.nix
 
       # btrfs monthly scrub — same pattern as node-exporter.nix.
       # See flake.nix's dendriticExceptions for the rationale.
-      ./../modules/disko/btrfs-scrub.nix
+      ./../../modules/disko/btrfs-scrub.nix
 
       # witr — process/port/container/file tracing CLI. See flake.nix.
       inputs.self.nixosModules.witr
