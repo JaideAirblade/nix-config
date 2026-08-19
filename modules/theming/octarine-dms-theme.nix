@@ -52,33 +52,6 @@
                     return mode
             return "dark"
 
-        # --- Stop Octarine if running ----------------------------------------
-        OCTARINE_COMM = ".octarine-wrapp"
-
-        try:
-            result = subprocess.run(
-                ["pgrep", "-x", OCTARINE_COMM],
-                capture_output=True, text=True, check=False,
-            )
-            octarine_was_running = result.returncode == 0
-        except FileNotFoundError:
-            octarine_was_running = False
-
-        if octarine_was_running:
-            subprocess.run(["pkill", "-x", OCTARINE_COMM], check=False)
-            for _ in range(100):
-                result = subprocess.run(
-                    ["pgrep", "-x", OCTARINE_COMM],
-                    capture_output=True, check=False,
-                )
-                if result.returncode != 0:
-                    break
-                time.sleep(0.1)
-            else:
-                print("WARNING: octarine did not exit within 10s, proceeding anyway",
-                      file=sys.stderr)
-            time.sleep(1)
-
         # --- Read DMS palette cache -----------------------------------------
         home = Path.home()
         cache_home = Path(os.environ.get("XDG_CACHE_HOME", home / ".cache"))
@@ -183,10 +156,12 @@
         base_theme = "catppuccin-macchiato" if mode == "dark" else "catppuccin-latte"
         now_ms = int(time.time() * 1000)
 
-        # --- Update the DMS theme in every workspace's themes.json ----------
-        # We ONLY update the variables of the existing "DMS" custom theme.
-        # We do NOT touch .store.dat or localStorage — the user selects the
-        # DMS theme through Octarine's GUI, and we just keep its colours synced.
+        # --- Write DMS colours into the existing DMS theme (no kill/restart) ---
+        # Unlike the previous approach, we do NOT kill Octarine. We write
+        # themes.json in-place and rely on Octarine's filesystem watcher
+        # (or the user's next theme switch) to pick up the changes.
+        # If Octarine doesn't watch themes.json, the colours will apply
+        # on next app launch.
         store_path = data_home / "Octarine.app" / ".store.dat"
         updated_count = 0
 
@@ -232,21 +207,6 @@
                 updated_count += 1
         else:
             print("WARNING: Octarine .store.dat not found, skipping", file=sys.stderr)
-
-        # --- Clear WebKit cache so theme reloads fresh ---------------------
-        webkit_cache = data_home / "Octarine.app" / "WebKitCache"
-        if webkit_cache.exists():
-            import shutil
-            shutil.rmtree(str(webkit_cache), ignore_errors=True)
-
-        # --- Restart Octarine if it was running -----------------------------
-        if octarine_was_running:
-            subprocess.Popen(
-                ["octarine"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
 
         print(f"Synced Octarine DMS theme colours (mode={mode}, "
               f"workspaces={updated_count})")

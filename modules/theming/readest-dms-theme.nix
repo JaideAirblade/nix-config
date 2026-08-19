@@ -58,44 +58,6 @@
                 raise ValueError(f"DMS palette is missing a valid {role!r} color")
             return value.lower()
 
-        # --- Stop Readest if running ----------------------------------------
-        # Readest overwrites settings.json and localStorage on exit from its
-        # in-memory state. We must stop it BEFORE writing, and wait for the
-        # process to fully exit so its final write lands before our write.
-        # SIGTERM lets Readest save reading progress and flush settings.
-        #
-        # The nixpkgs wrapper binary is named '.readest-wrapped', which Linux
-        # truncates to '.readest-wrappe' in /proc/.../comm (15-char limit).
-        # pgrep -x 'readest' never matches — we match on the full comm name.
-        READEST_COMM = ".readest-wrappe"
-
-        try:
-            result = subprocess.run(
-                ["pgrep", "-x", READEST_COMM],
-                capture_output=True, text=True, check=False,
-            )
-            readest_was_running = result.returncode == 0
-        except FileNotFoundError:
-            readest_was_running = False
-
-        if readest_was_running:
-            subprocess.run(["pkill", "-x", READEST_COMM], check=False)
-            for _ in range(100):  # up to 10 seconds — WebKit WAL checkpoint
-                result = subprocess.run(
-                    ["pgrep", "-x", READEST_COMM],
-                    capture_output=True, check=False,
-                )
-                if result.returncode != 0:
-                    break
-                time.sleep(0.1)
-            else:
-                print("WARNING: readest did not exit within 10s, proceeding anyway",
-                      file=sys.stderr)
-            # Give WebKit's SQLite WAL a moment to finish checkpointing
-            # after the process exits. The WAL file is checkpointed by
-            # WebKit on clean shutdown, but the filesystem write may lag.
-            time.sleep(1)
-
         # --- Read DMS palette cache -----------------------------------------
         home = Path.home()
         cache_home = Path(os.environ.get("XDG_CACHE_HOME", home / ".cache"))
@@ -220,26 +182,6 @@
         # --- Clear WebKit HTTP cache for the sync API -----------------------
         # Readest's cloud sync fetches settings from
         # web.readest.com/api/sync/replicas?kind=settings. WebKit caches
-        # this HTTP response on disk. Even after we disable cloud sync in
-        # settings, the cached response (with old customThemes colors) is
-        # served from the WebKitCache on startup, clobbering our local write.
-        # Clearing the entire WebKitCache is heavy-handed but reliable —
-        # Readest re-fetches everything it needs on next access.
-        webkit_cache = data_home / "com.bilingify.readest" / "WebKitCache"
-        if webkit_cache.exists():
-            import shutil
-            shutil.rmtree(str(webkit_cache), ignore_errors=True)
-
-        # --- Restart Readest if it was running ------------------------------
-        if readest_was_running:
-            # Detach so the service (oneshot) doesn't hold the child open.
-            subprocess.Popen(
-                ["readest"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
-
         print("Synced Readest DMS theme (themeMode=auto, custom theme=dms)")
       '';
 
@@ -247,8 +189,8 @@
     {
       # Oneshot that regenerates the Readest custom theme from the current
       # DMS palette, enforcing themeMode=auto and the DMS custom theme in
-      # both settings.json and localStorage. If Readest is running, it is
-      # stopped before writing (to prevent clobber) and restarted after.
+      # both settings.json and localStorage. Writes in-place without killing
+      # the app — colours apply on next app launch or theme switch.
       systemd.user.services.readest-dms-theme-sync = {
         description = "Sync Readest theme with DankMaterialShell";
         unitConfig.ConditionUser = "jaide";
