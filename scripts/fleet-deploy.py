@@ -239,20 +239,25 @@ def nar_roundtrip(host: str, ip: str, out_path: str, ssh_user_: str) -> bool:
     # progress text filling Python's 64KB pipe buffer.
     is_nat_relayed = host == "TSBW-W01800"
     copy_timeout = 1800 if is_nat_relayed else 600
-    script = NAR_SCRIPT_PATCHED if is_nat_relayed else NAR_SCRIPT
+    # 2026-08-19: always use the PATCHED streaming script, not just for
+    # NAT-relayed targets. The upstream script's capture_output=True pipe
+    # buffer hangs on multi-GB closures, and 80 max-attempts is too few
+    # for a first-time multi-thousand-path copy (UwU's gaming closure
+    # exhausted 80 attempts on 2026-08-19 and aborted). The patched
+    # script streams output to a log file and we give it 300 attempts.
+    script = NAR_SCRIPT_PATCHED
     log(f"  NAR-roundtrip closure to {host} (copy_timeout={copy_timeout}s, "
-        f"script={'patched' if is_nat_relayed else 'upstream'})")
+        f"script=patched)")
+    log_file = LOG_DIR / f"nar-{host}-{int(time.time())}.log"
+    log_file.parent.mkdir(parents=True, exist_ok=True)
     # Patched script takes --log-file; upstream does not.
     cmd = ["python3", str(script),
            "--target-path", out_path,
            "--remote-host", ip,
            "--remote-user", ssh_user_,
-           "--max-attempts", "80",
-           "--copy-timeout", str(copy_timeout)]
-    if is_nat_relayed:
-        log_file = LOG_DIR / f"nar-{host}-{int(time.time())}.log"
-        log_file.parent.mkdir(parents=True, exist_ok=True)
-        cmd += ["--log-file", str(log_file)]
+           "--max-attempts", "300",
+           "--copy-timeout", str(copy_timeout),
+           "--log-file", str(log_file)]
     r = run(cmd, timeout=7200)
     if r.returncode != 0:
         log(f"  ! NAR-roundtrip FAILED for {host}")
