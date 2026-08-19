@@ -14,8 +14,8 @@ _:
         # Firefox — web browser
         firefox
 
-        # Readest — ebook reader (Jaide's library syncs)
-        readest
+        # Readest is provided by modules/theming/readest-dms-theme.nix as a
+        # wrapped version with WEBKIT_INSPECTOR_HTTP_SERVER=127.0.0.1:9223
 
         # Octarine — notes (custom package from overlay)
         octarine

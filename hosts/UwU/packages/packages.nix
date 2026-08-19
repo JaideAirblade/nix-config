@@ -73,8 +73,8 @@ _:
         # with PipeWire screen capture for recording.
         obs-studio
 
-        # Readest — modern ebook reader.
-        readest
+        # Readest is provided by modules/theming/readest-dms-theme.nix as a
+        # wrapped version with WEBKIT_INSPECTOR_HTTP_SERVER=127.0.0.1:9223
 
         # Calibre — ebook management. Used with ACSM Input + DeDRM plugins
         # to download EPUBs from Google Play Books (ACSM → DRM-free EPUB).

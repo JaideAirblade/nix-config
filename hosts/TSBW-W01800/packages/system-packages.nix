@@ -46,7 +46,8 @@ _:
 
           # Note-taking & reading
           octarine # Private markdown note-taking app (custom package from pkgs/)
-          readest # Modern ebook reader (epub, pdf, mobi, cbz, etc.)
+          # readest is provided by modules/theming/readest-dms-theme.nix as a
+          # wrapped version with WEBKIT_INSPECTOR_HTTP_SERVER=127.0.0.1:9223
 
           # Browser — Helium (Chromium-based, privacy-focused; custom package)
           helium-bin

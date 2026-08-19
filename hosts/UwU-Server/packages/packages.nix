@@ -21,8 +21,8 @@ _:
         # extensions are consistent across machines.
         helium-bin
 
-        # Readest — modern ebook reader. Same as on UwU.
-        readest
+        # Readest is provided by modules/theming/readest-dms-theme.nix as a
+        # wrapped version with WEBKIT_INSPECTOR_HTTP_SERVER=127.0.0.1:9223
 
         # OfficeCLI — Office suite for AI agents (.docx/.xlsx/.pptx via CLI).
         # Single .NET binary, autoPatchelf'd for NixOS. Skill auto-installed
