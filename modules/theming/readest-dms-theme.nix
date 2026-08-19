@@ -181,82 +181,92 @@
 
         # --- Inject CSS variables into the running Readest webview ----------
         # Readest runs with WEBKIT_INSPECTOR_HTTP_SERVER=127.0.0.1:9223.
-        # Same CDP approach as Octarine.
+        # Same WebKit inspector protocol as Octarine: connect to WebSocket,
+        # find page target, inject CSS variables via Target.sendMessageToTarget.
         try:
-            import socket as sock_mod
+            import socket
             import struct
             import base64
-            import urllib.request as url_req
+            import urllib.request
 
-            # Build CSS for the Readest custom theme palette
-            dms_css_vars = "\n".join(
-                f"  {k}: {v};" for k, v in {
-                    "--bg": dark.get("surface_container_lowest", "#0c0e17"),
-                    "--fg": dark.get("on_surface", "#e2e1ef"),
-                    "--primary": dark.get("primary", "#bbc3ff"),
-                }.items()
-            )
-            # Readest uses a different variable scheme — inject the custom
-            # theme's light/dark bg/fg/primary so the book pages match DMS.
-            js_code = (
-                "(function(){"
-                "var s=document.getElementById('dms-theme-inject');"
-                "if(!s){s=document.createElement('style');"
-                "s.id='dms-theme-inject';document.head.appendChild(s);}"
-                f"s.textContent=':root{{\\n{dms_css_vars}\\n}}';"
-                "})();"
-            )
+            port = 9223
+            try:
+                resp = urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=2)
+                html = resp.read().decode()
+                ws_match = re.search(r"'/socket/(\d+)/(\d+)/WebPage'", html)
+                if not ws_match:
+                    raise RuntimeError("no WebSocket path")
+                ws_path = f"/socket/{ws_match.group(1)}/{ws_match.group(2)}/WebPage"
 
-            injected = False
-            for port in [9223]:
+                ws = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                ws.settimeout(5)
+                ws.connect(("127.0.0.1", port))
+                key = base64.b64encode(os.urandom(16)).decode()
+                ws.send((
+                    f"GET {ws_path} HTTP/1.1\r\n"
+                    f"Host: 127.0.0.1:{port}\r\n"
+                    f"Upgrade: websocket\r\n"
+                    f"Connection: Upgrade\r\n"
+                    f"Sec-WebSocket-Key: {key}\r\n"
+                    f"Sec-WebSocket-Version: 13\r\n"
+                    f"\r\n"
+                ).encode())
+                if b"101" not in ws.recv(4096):
+                    raise RuntimeError("WebSocket upgrade failed")
+
+                ws.settimeout(2)
+                raw = b""
                 try:
-                    test_sock = sock_mod.socket(sock_mod.AF_INET, sock_mod.SOCK_STREAM)
-                    test_sock.settimeout(0.5)
-                    test_sock.connect(("127.0.0.1", port))
-                    test_sock.close()
+                    while True:
+                        raw += ws.recv(4096)
+                except socket.timeout:
+                    pass
+                target_match = re.search(rb'"targetId":"(page-[^"]+)"', raw)
+                if not target_match:
+                    raise RuntimeError("no page target")
+                target_id = target_match.group(1).decode()
 
-                    resp = url_req.urlopen(f"http://127.0.0.1:{port}/json", timeout=2)
-                    targets = json.loads(resp.read())
-                    page_target = next((t for t in targets if t.get("type") == "page"), None)
-                    if not page_target or not page_target.get("webSocketDebuggerUrl"):
-                        continue
-
-                    ws_sock = sock_mod.socket(sock_mod.AF_INET, sock_mod.SOCK_STREAM)
-                    ws_sock.settimeout(5)
-                    ws_sock.connect(("127.0.0.1", port))
-                    key = base64.b64encode(os.urandom(16)).decode()
-                    ws_sock.send((
-                        f"GET / HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n"
-                        f"Upgrade: websocket\r\nConnection: Upgrade\r\n"
-                        f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n"
-                    ).encode())
-                    if b"101" not in ws_sock.recv(4096):
-                        ws_sock.close()
-                        continue
-
-                    msg = json.dumps({"id": 1, "method": "Runtime.evaluate",
-                                      "params": {"expression": js_code}})
-                    payload = msg.encode()
+                def ws_send(msg):
+                    payload = json.dumps(msg).encode()
                     mask = os.urandom(4)
                     hdr = bytearray([0x81])
-                    if len(payload) < 126:
-                        hdr.append(0x80 | len(payload))
-                    elif len(payload) < 65536:
+                    plen = len(payload)
+                    if plen < 126:
+                        hdr.append(0x80 | plen)
+                    elif plen < 65536:
                         hdr.append(0x80 | 126)
-                        hdr.extend(struct.pack(">H", len(payload)))
+                        hdr.extend(struct.pack(">H", plen))
                     hdr.extend(mask)
-                    ws_sock.send(bytes(hdr) + bytes(b ^ mask[i % 4] for i, b in enumerate(payload)))
-                    ws_sock.recv(4096)
-                    ws_sock.close()
-                    injected = True
-                    print(f"Injected CSS variables via inspector on port {port}")
-                    break
-                except (ConnectionRefusedError, sock_mod.timeout, OSError):
-                    continue
+                    ws.send(bytes(hdr) + bytes(b ^ mask[i % 4] for i, b in enumerate(payload)))
 
-            if not injected:
-                print("Readest not running or inspector not available — "
-                      "colours will apply on next launch", file=sys.stderr)
+                # Inject Readest custom theme CSS variables
+                css_vars = ";".join(
+                    f"{k}:{v}" for k, v in {
+                        "--bg": dark.get("surface_container_lowest", "#0c0e17"),
+                        "--fg": dark.get("on_surface", "#e2e1ef"),
+                        "--primary": dark.get("primary", "#bbc3ff"),
+                    }.items()
+                )
+                js = (
+                    "(function(){var s=document.getElementById('dms-live-theme');"
+                    "if(!s){s=document.createElement('style');"
+                    "s.id='dms-live-theme';document.head.appendChild(s);}"
+                    "s.textContent=':root{" + css_vars + "}';"
+                    "})()"
+                )
+                inner = json.dumps({"id": 1, "method": "Runtime.evaluate",
+                                    "params": {"expression": js}})
+                ws_send({"id": 1, "method": "Target.sendMessageToTarget",
+                         "params": {"targetId": target_id, "message": inner}})
+                ws.settimeout(3)
+                try:
+                    ws.recv(8192)
+                except socket.timeout:
+                    pass
+                ws.close()
+                print(f"Injected CSS variables via WebKit inspector (port {port})")
+            except (ConnectionRefusedError, socket.timeout, OSError, RuntimeError) as e:
+                print(f"Readest inspector not available: {e}", file=sys.stderr)
         except Exception as e:
             print(f"WARNING: live CSS injection failed: {e}", file=sys.stderr)
 

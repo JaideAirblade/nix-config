@@ -275,20 +275,21 @@
                     hdr.extend(mask)
                     ws.send(bytes(hdr) + bytes(b ^ mask[i % 4] for i, b in enumerate(payload)))
 
-                # Call save_custom_theme for each workspace via Tauri IPC
+                # Call save_custom_theme for each workspace via Tauri IPC,
+                # then inject CSS variables directly for immediate live update.
+                # save_custom_theme persists to themes.json; the CSS injection
+                # makes the running frontend apply the new colours instantly.
                 for ws_path_str, dms_theme_obj in workspaces_to_update:
                     theme_json = json.dumps(dms_theme_obj)
-                    js = (
-                        "window.__dmsResult='pending';"
+                    # 1. Persist via Tauri IPC
+                    js_save = (
                         "window.__TAURI_INTERNALS__.invoke('save_custom_theme',{"
                         f"workspacePath:{json.dumps(ws_path_str)},"
                         f"theme:{theme_json}"
-                        "}).then(function(r){window.__dmsResult='ok';})"
-                        ".catch(function(e){window.__dmsResult='err:'+String(e);});"
-                        "'queued'"
+                        "}).catch(function(){});'saved'"
                     )
                     inner = json.dumps({"id": 1, "method": "Runtime.evaluate",
-                                        "params": {"expression": js}})
+                                        "params": {"expression": js_save}})
                     ws_send({"id": 1, "method": "Target.sendMessageToTarget",
                              "params": {"targetId": target_id, "message": inner}})
                     ws.settimeout(3)
@@ -296,7 +297,28 @@
                         ws.recv(8192)
                     except socket.timeout:
                         pass
-                    print(f"  Triggered save_custom_theme for {ws_path_str}")
+
+                    # 2. Inject CSS variables for immediate visual update
+                    css_vars = ";".join(
+                        f"{k}:{v}" for k, v in dms_theme_obj["variables"].items()
+                    )
+                    js_inject = (
+                        "(function(){var s=document.getElementById('dms-live-theme');"
+                        "if(!s){s=document.createElement('style');"
+                        "s.id='dms-live-theme';document.head.appendChild(s);}"
+                        "s.textContent=':root{" + css_vars + "}';"
+                        "})()"
+                    )
+                    inner2 = json.dumps({"id": 2, "method": "Runtime.evaluate",
+                                         "params": {"expression": js_inject}})
+                    ws_send({"id": 2, "method": "Target.sendMessageToTarget",
+                             "params": {"targetId": target_id, "message": inner2}})
+                    ws.settimeout(3)
+                    try:
+                        ws.recv(8192)
+                    except socket.timeout:
+                        pass
+                    print(f"  Updated theme for {ws_path_str}")
 
                 ws.close()
                 print(f"Triggered live theme reload via WebKit inspector (port {port})")
