@@ -45,11 +45,11 @@ stdenv.mkDerivation (finalAttrs: {
   # defends against silent URL rotation: if the file at this exact URL
   # changes without a version bump here, nix build fails with a hash
   # mismatch.
-  version = "0.49.1";
+  version = "0.50.0";
 
   src = fetchurl {
     url = "https://pub-3d35bc018fc54f11bde129e3e73e8002.r2.dev/${finalAttrs.version}/linux/Octarine-bin-${finalAttrs.version}-1-x86_64.pkg.tar.zst";
-    hash = "sha256-waU1NohGzcTKRWcZucw5lWyI/lTAqVOCMgez2zvmuxI=";
+    hash = "sha256-BDKGxUCDyEdauUf7jDKMrNpipWw3o6K9KacJmi5xSms=";
   };
 
   nativeBuildInputs = [
