@@ -154,19 +154,6 @@
         gvs = settings.setdefault("globalViewSettings", {})
         gvs["theme"] = "dms"
 
-        # Disable Readest Cloud settings sync so it cannot pull stale
-        # customThemes from the cloud and clobber our local write. The user
-        # is logged in to Readest Cloud (supabase auth token in localStorage),
-        # and the 'settings' syncCategory defaults to True. On startup Readest
-        # pulls the cloud settings — which have the old customThemes — and
-        # overwrites both settings.json and localStorage before our colors
-        # take effect. Setting readestCloud.enabled = False explicitly
-        # disables the cloud sync backend, and syncCategories.settings =
-        # False prevents the settings replica from syncing.
-        settings["readestCloud"] = {"enabled": False}
-        sync_cats = settings.setdefault("syncCategories", {})
-        sync_cats["settings"] = False
-
         settings_path.parent.mkdir(parents=True, exist_ok=True)
         tmp = settings_path.with_suffix(".json.tmp")
         with tmp.open("w", encoding="utf-8") as f:
@@ -242,81 +229,6 @@
         if webkit_cache.exists():
             import shutil
             shutil.rmtree(str(webkit_cache), ignore_errors=True)
-
-        # --- Push updated settings to Readest Cloud --------------------------
-        # Readest Cloud's replica sync pulls the 'settings' kind on startup.
-        # If the cloud has stale customThemes (e.g., a previous DMS palette
-        # from an earlier sync), Readest overwrites our local write with the
-        # stale cloud version. We must push our updated settings to the cloud
-        # so the cloud and local are in sync.
-        #
-        # The push API is POST /api/sync/replicas with { rows: [ReplicaRow] }.
-        # Each ReplicaRow has: user_id, kind, replica_id, fields_jsonb,
-        # updated_at_ts, deleted_at_ts, schema_version, manifest_jsonb.
-        # fields_jsonb is a flat map of dotted paths to CRDT cells {s, t, v}.
-        import urllib.request
-        import urllib.error
-
-        try:
-            ls_conn = sqlite3.connect(str(ls_dir / "tauri_localhost_0.localstorage"))
-            token_row = ls_conn.execute(
-                "SELECT value FROM ItemTable WHERE key='sb-readest-auth-token'"
-            ).fetchone()
-            user_row = ls_conn.execute(
-                "SELECT value FROM ItemTable WHERE key='user'"
-            ).fetchone()
-            ls_conn.close()
-            if token_row and user_row:
-                token_data = json.loads(token_row[0].decode("utf-16-le"))
-                user_data = json.loads(user_row[0].decode("utf-16-le"))
-                access_token = token_data.get("access_token", "")
-                user_id = user_data.get("id", "")
-                replica_device_id = settings.get("replicaDeviceId", "")
-
-                # Build the fields_jsonb for the settings replica.
-                # Each field is a dotted path mapped to a CRDT cell:
-                # {s: source_device_id, t: hlc_timestamp, v: value}.
-                # The HLC timestamp format is:
-                #   ${"$"}{physicalMs:13-hex}-${"$"}{counter:8-hex}-${"$"}{deviceId}
-                # The physicalMs must be close to the server's wall clock
-                # or the push is rejected with 409 CLOCK_SKEW.
-                hlc_ts = f"{int(time.time() * 1000):013x}-00000001-{replica_device_id}"
-                fields = {
-                    "globalReadSettings.customThemes": {
-                        "s": replica_device_id, "t": hlc_ts, "v": custom_themes,
-                    },
-                    "globalViewSettings.theme": {
-                        "s": replica_device_id, "t": hlc_ts, "v": "dms",
-                    },
-                }
-
-                row = {
-                    "user_id": user_id,
-                    "kind": "settings",
-                    "replica_id": "singleton",
-                    "fields_jsonb": fields,
-                    "updated_at_ts": hlc_ts,
-                    "deleted_at_ts": None,
-                    "reincarnation": None,
-                    "schema_version": 1,
-                    "manifest_jsonb": None,
-                }
-
-                payload = json.dumps({"rows": [row]}).encode("utf-8")
-
-                req = urllib.request.Request(
-                    "https://web.readest.com/api/sync/replicas",
-                    data=payload,
-                    headers={
-                        "Authorization": f"Bearer {access_token}",
-                        "Content-Type": "application/json",
-                    },
-                    method="POST",
-                )
-                urllib.request.urlopen(req, timeout=10)
-                print("Pushed updated settings to Readest Cloud")
-        except Exception as e:
-            print(f"WARNING: failed to push to Readest Cloud: {e}", file=sys.stderr)
 
         # --- Restart Readest if it was running ------------------------------
         if readest_was_running:
