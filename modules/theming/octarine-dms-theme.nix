@@ -25,7 +25,7 @@
     let
       syncScript = pkgs.writers.writePython3Bin "sync-octarine-dms-theme"
         {
-          flakeIgnore = [ "E501" "E302" "E305" "F401" "E402" "E241" "W191" "E221" ];
+          flakeIgnore = [ "E501" "E302" "E305" "F401" "E402" "E241" "W191" "E221" "E401" ];
         } ''
         import json
         import os
@@ -207,6 +207,108 @@
                 updated_count += 1
         else:
             print("WARNING: Octarine .store.dat not found, skipping", file=sys.stderr)
+
+        # --- Inject CSS variables into the running Octarine webview --------
+        # If Octarine is running with WEBKIT_SHOW_ALL_INSPECTORS=1, the WebKit
+        # inspector exposes a TCP port (usually 9222+). We connect via the
+        # Chrome DevTools Protocol and inject a <style> tag that overrides
+        # the CSS variables on :root, making the theme update live without
+        # restarting the app.
+        try:
+            import socket
+            import json as json_mod
+
+            # Build the CSS override string
+            css_vars = "\n".join(
+                f"  {k}: {v};" for k, v in dms_variables.items()
+            )
+            js_code = (
+                "(function(){"
+                "var s=document.getElementById('dms-theme-inject');"
+                "if(!s){s=document.createElement('style');"
+                "s.id='dms-theme-inject';document.head.appendChild(s);}"
+                f"s.textContent=':root{{\\n{css_vars}\\n}}';"
+                "})();"
+            )
+
+            # Scan for WebKit inspector ports (9222-9230)
+            injected = False
+            for port in range(9222, 9231):
+                try:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.settimeout(0.5)
+                    sock.connect(("127.0.0.1", port))
+                    sock.close()
+
+                    # Found a port — use the CDP HTTP API to get the page target,
+                    # then evaluate JS via WebSocket.
+                    import urllib.request
+                    resp = urllib.request.urlopen(
+                        f"http://127.0.0.1:{port}/json", timeout=2
+                    )
+                    targets = json_mod.loads(resp.read())
+                    page_target = next(
+                        (t for t in targets if t.get("type") == "page"), None
+                    )
+                    if page_target and page_target.get("webSocketDebuggerUrl"):
+                        ws_url = page_target["webSocketDebuggerUrl"]
+                        # Use a minimal WebSocket client to send Runtime.evaluate
+                        import struct
+                        ws_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        ws_sock.settimeout(5)
+                        ws_sock.connect(("127.0.0.1", port))
+
+                        # WebSocket handshake
+                        import os as os_mod, hashlib, base64
+                        key = base64.b64encode(os_mod.urandom(16)).decode()
+                        handshake = (
+                            f"GET / HTTP/1.1\r\n"
+                            f"Host: 127.0.0.1:{port}\r\n"
+                            f"Upgrade: websocket\r\n"
+                            f"Connection: Upgrade\r\n"
+                            f"Sec-WebSocket-Key: {key}\r\n"
+                            f"Sec-WebSocket-Version: 13\r\n"
+                            f"\r\n"
+                        )
+                        ws_sock.send(handshake.encode())
+                        resp = ws_sock.recv(4096)
+                        if b"101" not in resp:
+                            continue
+
+                        # Send Runtime.evaluate with the JS code
+                        msg = json_mod.dumps({
+                            "id": 1,
+                            "method": "Runtime.evaluate",
+                            "params": {"expression": js_code},
+                        })
+                        # WebSocket text frame (masked)
+                        payload = msg.encode()
+                        mask = os_mod.urandom(4)
+                        header = bytearray([0x81])  # FIN + text
+                        if len(payload) < 126:
+                            header.append(0x80 | len(payload))
+                        elif len(payload) < 65536:
+                            header.append(0x80 | 126)
+                            header.extend(struct.pack(">H", len(payload)))
+                        else:
+                            header.append(0x80 | 127)
+                            header.extend(struct.pack(">Q", len(payload)))
+                        header.extend(mask)
+                        masked = bytearray(b ^ mask[i % 4] for i, b in enumerate(payload))
+                        ws_sock.send(bytes(header) + bytes(masked))
+                        ws_sock.recv(4096)
+                        ws_sock.close()
+                        injected = True
+                        print(f"Injected CSS variables via inspector on port {port}")
+                        break
+                except (ConnectionRefusedError, socket.timeout, OSError):
+                    continue
+
+            if not injected:
+                print("Octarine not running or inspector not available — "
+                      "colours will apply on next launch", file=sys.stderr)
+        except Exception as e:
+            print(f"WARNING: live CSS injection failed: {e}", file=sys.stderr)
 
         print(f"Synced Octarine DMS theme colours (mode={mode}, "
               f"workspaces={updated_count})")

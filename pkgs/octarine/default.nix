@@ -96,6 +96,7 @@ stdenv.mkDerivation (finalAttrs: {
       --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath [ libayatana-appindicator ]}
       --prefix PATH : ${lib.makeBinPath [ desktop-file-utils ]}
       --set WEBKIT_DISABLE_DMABUF_RENDERER 1
+      --set WEBKIT_SHOW_ALL_INSPECTORS 1
       --prefix GST_PLUGIN_PATH : ${lib.makeSearchPathOutput "lib/gstreamer-1.0" "lib/gstreamer-1.0" [ gst_all_1.gst-plugins-base gst_all_1.gst-plugins-good gst_all_1.gst-plugins-bad gst_all_1.gst-plugins-ugly gst_all_1.gst-libav ]}
     )
   '';

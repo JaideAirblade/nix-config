@@ -73,8 +73,16 @@ _:
         # with PipeWire screen capture for recording.
         obs-studio
 
-        # Readest — modern ebook reader.
-        readest
+        # Readest — modern ebook reader. Wrapped with WEBKIT_SHOW_ALL_INSPECTORS=1
+        # so the DMS theme sync script can inject CSS variable updates live via
+        # the WebKit inspector protocol without restarting the app.
+        (readest.overrideAttrs (old: {
+          preFixup = (old.preFixup or "") + ''
+            gappsWrapperArgs+=(
+              --set WEBKIT_SHOW_ALL_INSPECTORS 1
+            )
+          '';
+        }))
 
         # Calibre — ebook management. Used with ACSM Input + DeDRM plugins
         # to download EPUBs from Google Play Books (ACSM → DRM-free EPUB).

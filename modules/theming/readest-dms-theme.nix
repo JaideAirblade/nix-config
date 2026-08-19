@@ -179,9 +179,88 @@
                 if wal_file.exists():
                     wal_file.unlink()
 
-        # --- Clear WebKit HTTP cache for the sync API -----------------------
-        # Readest's cloud sync fetches settings from
-        # web.readest.com/api/sync/replicas?kind=settings. WebKit caches
+        # --- Inject CSS variables into the running Readest webview ----------
+        # Same approach as Octarine: if the WebKit inspector is available
+        # (WEBKIT_SHOW_ALL_INSPECTORS=1), connect via CDP and inject a
+        # <style> tag with the DMS custom theme colours.
+        try:
+            import socket as sock_mod
+            import struct
+            import base64
+            import urllib.request as url_req
+
+            # Build CSS for the Readest custom theme palette
+            dms_css_vars = "\n".join(
+                f"  {k}: {v};" for k, v in {
+                    "--bg": dark.get("surface_container_lowest", "#0c0e17"),
+                    "--fg": dark.get("on_surface", "#e2e1ef"),
+                    "--primary": dark.get("primary", "#bbc3ff"),
+                }.items()
+            )
+            # Readest uses a different variable scheme — inject the custom
+            # theme's light/dark bg/fg/primary so the book pages match DMS.
+            js_code = (
+                "(function(){"
+                "var s=document.getElementById('dms-theme-inject');"
+                "if(!s){s=document.createElement('style');"
+                "s.id='dms-theme-inject';document.head.appendChild(s);}"
+                f"s.textContent=':root{{\\n{dms_css_vars}\\n}}';"
+                "})();"
+            )
+
+            injected = False
+            for port in range(9222, 9231):
+                try:
+                    test_sock = sock_mod.socket(sock_mod.AF_INET, sock_mod.SOCK_STREAM)
+                    test_sock.settimeout(0.5)
+                    test_sock.connect(("127.0.0.1", port))
+                    test_sock.close()
+
+                    resp = url_req.urlopen(f"http://127.0.0.1:{port}/json", timeout=2)
+                    targets = json.loads(resp.read())
+                    page_target = next((t for t in targets if t.get("type") == "page"), None)
+                    if not page_target or not page_target.get("webSocketDebuggerUrl"):
+                        continue
+
+                    ws_sock = sock_mod.socket(sock_mod.AF_INET, sock_mod.SOCK_STREAM)
+                    ws_sock.settimeout(5)
+                    ws_sock.connect(("127.0.0.1", port))
+                    key = base64.b64encode(os.urandom(16)).decode()
+                    ws_sock.send((
+                        f"GET / HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n"
+                        f"Upgrade: websocket\r\nConnection: Upgrade\r\n"
+                        f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n"
+                    ).encode())
+                    if b"101" not in ws_sock.recv(4096):
+                        ws_sock.close()
+                        continue
+
+                    msg = json.dumps({"id": 1, "method": "Runtime.evaluate",
+                                      "params": {"expression": js_code}})
+                    payload = msg.encode()
+                    mask = os.urandom(4)
+                    hdr = bytearray([0x81])
+                    if len(payload) < 126:
+                        hdr.append(0x80 | len(payload))
+                    elif len(payload) < 65536:
+                        hdr.append(0x80 | 126)
+                        hdr.extend(struct.pack(">H", len(payload)))
+                    hdr.extend(mask)
+                    ws_sock.send(bytes(hdr) + bytes(b ^ mask[i % 4] for i, b in enumerate(payload)))
+                    ws_sock.recv(4096)
+                    ws_sock.close()
+                    injected = True
+                    print(f"Injected CSS variables via inspector on port {port}")
+                    break
+                except (ConnectionRefusedError, sock_mod.timeout, OSError):
+                    continue
+
+            if not injected:
+                print("Readest not running or inspector not available — "
+                      "colours will apply on next launch", file=sys.stderr)
+        except Exception as e:
+            print(f"WARNING: live CSS injection failed: {e}", file=sys.stderr)
+
         print("Synced Readest DMS theme (themeMode=auto, custom theme=dms)")
       '';
 
