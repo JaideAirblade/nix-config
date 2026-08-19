@@ -25,7 +25,7 @@
     let
       syncScript = pkgs.writers.writePython3Bin "sync-octarine-dms-theme"
         {
-          flakeIgnore = [ "E501" "E302" "E305" "F401" "E402" "E241" "W191" "E221" "E401" ];
+          flakeIgnore = [ "E501" "E302" "E305" "F401" "E402" "E241" "W191" "E221" "E401" "E741" ];
         } ''
         import json
         import os
@@ -164,6 +164,7 @@
         # on next app launch.
         store_path = data_home / "Octarine.app" / ".store.dat"
         updated_count = 0
+        workspaces_to_update = []
 
         if store_path.exists():
             with store_path.open(encoding="utf-8") as f:
@@ -205,109 +206,104 @@
                     f.write("\n")
                 tmp.replace(themes_file)
                 updated_count += 1
+                workspaces_to_update.append((str(ws_path), target))
         else:
             print("WARNING: Octarine .store.dat not found, skipping", file=sys.stderr)
 
-        # --- Inject CSS variables into the running Octarine webview --------
+        # --- Trigger live theme reload in running Octarine ---------------
         # Octarine runs with WEBKIT_INSPECTOR_HTTP_SERVER=127.0.0.1:9222.
-        # We connect via the Chrome DevTools Protocol and inject a <style>
-        # tag that overrides the CSS variables on :root, making the theme
-        # update live without restarting the app.
+        # We connect via the WebKit inspector protocol and call the Tauri
+        # IPC command `save_custom_theme` with the updated DMS theme data.
+        # This triggers Octarine to re-read and apply the theme live —
+        # same path the GUI uses when editing a theme — without restart.
         try:
             import socket
-            import json as json_mod
+            import struct
+            import base64
+            import urllib.request
 
-            # Build the CSS override string
-            css_vars = "\n".join(
-                f"  {k}: {v};" for k, v in dms_variables.items()
-            )
-            js_code = (
-                "(function(){"
-                "var s=document.getElementById('dms-theme-inject');"
-                "if(!s){s=document.createElement('style');"
-                "s.id='dms-theme-inject';document.head.appendChild(s);}"
-                f"s.textContent=':root{{\\n{css_vars}\\n}}';"
-                "})();"
-            )
+            port = 9222
+            try:
+                # Find WebSocket path from inspector page
+                resp = urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=2)
+                html = resp.read().decode()
+                ws_match = re.search(r"'/socket/(\d+)/(\d+)/WebPage'", html)
+                if not ws_match:
+                    raise RuntimeError("no WebSocket path")
+                ws_path = f"/socket/{ws_match.group(1)}/{ws_match.group(2)}/WebPage"
 
-            # Scan for WebKit inspector on port 9222 (Octarine)
-            injected = False
-            for port in [9222]:
+                # WebSocket connect
+                ws = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                ws.settimeout(5)
+                ws.connect(("127.0.0.1", port))
+                key = base64.b64encode(os.urandom(16)).decode()
+                ws.send((
+                    f"GET {ws_path} HTTP/1.1\r\n"
+                    f"Host: 127.0.0.1:{port}\r\n"
+                    f"Upgrade: websocket\r\n"
+                    f"Connection: Upgrade\r\n"
+                    f"Sec-WebSocket-Key: {key}\r\n"
+                    f"Sec-WebSocket-Version: 13\r\n"
+                    f"\r\n"
+                ).encode())
+                if b"101" not in ws.recv(4096):
+                    raise RuntimeError("WebSocket upgrade failed")
+
+                # Read initial events for page target ID
+                ws.settimeout(2)
+                raw = b""
                 try:
-                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    sock.settimeout(0.5)
-                    sock.connect(("127.0.0.1", port))
-                    sock.close()
+                    while True:
+                        raw += ws.recv(4096)
+                except socket.timeout:
+                    pass
+                target_match = re.search(rb'"targetId":"(page-[^"]+)"', raw)
+                if not target_match:
+                    raise RuntimeError("no page target")
+                target_id = target_match.group(1).decode()
 
-                    # Found a port — use the CDP HTTP API to get the page target,
-                    # then evaluate JS via WebSocket.
-                    import urllib.request
-                    resp = urllib.request.urlopen(
-                        f"http://127.0.0.1:{port}/json", timeout=2
+                def ws_send(msg):
+                    payload = json.dumps(msg).encode()
+                    mask = os.urandom(4)
+                    hdr = bytearray([0x81])
+                    l = len(payload)
+                    if l < 126:
+                        hdr.append(0x80 | l)
+                    elif l < 65536:
+                        hdr.append(0x80 | 126)
+                        hdr.extend(struct.pack(">H", l))
+                    hdr.extend(mask)
+                    ws.send(bytes(hdr) + bytes(b ^ mask[i % 4] for i, b in enumerate(payload)))
+
+                # Call save_custom_theme for each workspace via Tauri IPC
+                for ws_path_str, dms_theme_obj in workspaces_to_update:
+                    theme_json = json.dumps(dms_theme_obj)
+                    js = (
+                        "window.__dmsResult='pending';"
+                        "window.__TAURI_INTERNALS__.invoke('save_custom_theme',{"
+                        f"workspacePath:{json.dumps(ws_path_str)},"
+                        f"theme:{theme_json}"
+                        "}).then(function(r){window.__dmsResult='ok';})"
+                        ".catch(function(e){window.__dmsResult='err:'+String(e);});"
+                        "'queued'"
                     )
-                    targets = json_mod.loads(resp.read())
-                    page_target = next(
-                        (t for t in targets if t.get("type") == "page"), None
-                    )
-                    if page_target and page_target.get("webSocketDebuggerUrl"):
-                        ws_url = page_target["webSocketDebuggerUrl"]
-                        # Use a minimal WebSocket client to send Runtime.evaluate
-                        import struct
-                        ws_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                        ws_sock.settimeout(5)
-                        ws_sock.connect(("127.0.0.1", port))
+                    inner = json.dumps({"id": 1, "method": "Runtime.evaluate",
+                                        "params": {"expression": js}})
+                    ws_send({"id": 1, "method": "Target.sendMessageToTarget",
+                             "params": {"targetId": target_id, "message": inner}})
+                    ws.settimeout(3)
+                    try:
+                        ws.recv(8192)
+                    except socket.timeout:
+                        pass
+                    print(f"  Triggered save_custom_theme for {ws_path_str}")
 
-                        # WebSocket handshake
-                        import os as os_mod, hashlib, base64
-                        key = base64.b64encode(os_mod.urandom(16)).decode()
-                        handshake = (
-                            f"GET / HTTP/1.1\r\n"
-                            f"Host: 127.0.0.1:{port}\r\n"
-                            f"Upgrade: websocket\r\n"
-                            f"Connection: Upgrade\r\n"
-                            f"Sec-WebSocket-Key: {key}\r\n"
-                            f"Sec-WebSocket-Version: 13\r\n"
-                            f"\r\n"
-                        )
-                        ws_sock.send(handshake.encode())
-                        resp = ws_sock.recv(4096)
-                        if b"101" not in resp:
-                            continue
-
-                        # Send Runtime.evaluate with the JS code
-                        msg = json_mod.dumps({
-                            "id": 1,
-                            "method": "Runtime.evaluate",
-                            "params": {"expression": js_code},
-                        })
-                        # WebSocket text frame (masked)
-                        payload = msg.encode()
-                        mask = os_mod.urandom(4)
-                        header = bytearray([0x81])  # FIN + text
-                        if len(payload) < 126:
-                            header.append(0x80 | len(payload))
-                        elif len(payload) < 65536:
-                            header.append(0x80 | 126)
-                            header.extend(struct.pack(">H", len(payload)))
-                        else:
-                            header.append(0x80 | 127)
-                            header.extend(struct.pack(">Q", len(payload)))
-                        header.extend(mask)
-                        masked = bytearray(b ^ mask[i % 4] for i, b in enumerate(payload))
-                        ws_sock.send(bytes(header) + bytes(masked))
-                        ws_sock.recv(4096)
-                        ws_sock.close()
-                        injected = True
-                        print(f"Injected CSS variables via inspector on port {port}")
-                        break
-                except (ConnectionRefusedError, socket.timeout, OSError):
-                    continue
-
-            if not injected:
-                print("Octarine not running or inspector not available — "
-                      "colours will apply on next launch", file=sys.stderr)
+                ws.close()
+                print(f"Triggered live theme reload via WebKit inspector (port {port})")
+            except (ConnectionRefusedError, socket.timeout, OSError, RuntimeError) as e:
+                print(f"Octarine inspector not available: {e}", file=sys.stderr)
         except Exception as e:
-            print(f"WARNING: live CSS injection failed: {e}", file=sys.stderr)
+            print(f"WARNING: live theme reload failed: {e}", file=sys.stderr)
 
         print(f"Synced Octarine DMS theme colours (mode={mode}, "
               f"workspaces={updated_count})")
