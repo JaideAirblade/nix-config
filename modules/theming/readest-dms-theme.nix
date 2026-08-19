@@ -180,9 +180,8 @@
                     wal_file.unlink()
 
         # --- Inject CSS variables into the running Readest webview ----------
-        # Same approach as Octarine: if the WebKit inspector is available
-        # (WEBKIT_SHOW_ALL_INSPECTORS=1), connect via CDP and inject a
-        # <style> tag with the DMS custom theme colours.
+        # Readest runs with WEBKIT_INSPECTOR_HTTP_SERVER=127.0.0.1:9223.
+        # Same CDP approach as Octarine.
         try:
             import socket as sock_mod
             import struct
@@ -209,7 +208,7 @@
             )
 
             injected = False
-            for port in range(9222, 9231):
+            for port in [9223]:
                 try:
                     test_sock = sock_mod.socket(sock_mod.AF_INET, sock_mod.SOCK_STREAM)
                     test_sock.settimeout(0.5)

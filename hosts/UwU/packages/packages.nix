@@ -79,7 +79,7 @@ _:
         (readest.overrideAttrs (old: {
           preFixup = (old.preFixup or "") + ''
             gappsWrapperArgs+=(
-              --set WEBKIT_SHOW_ALL_INSPECTORS 1
+              --set WEBKIT_INSPECTOR_HTTP_SERVER 127.0.0.1:9223
             )
           '';
         }))

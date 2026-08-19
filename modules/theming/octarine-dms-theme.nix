@@ -209,11 +209,10 @@
             print("WARNING: Octarine .store.dat not found, skipping", file=sys.stderr)
 
         # --- Inject CSS variables into the running Octarine webview --------
-        # If Octarine is running with WEBKIT_SHOW_ALL_INSPECTORS=1, the WebKit
-        # inspector exposes a TCP port (usually 9222+). We connect via the
-        # Chrome DevTools Protocol and inject a <style> tag that overrides
-        # the CSS variables on :root, making the theme update live without
-        # restarting the app.
+        # Octarine runs with WEBKIT_INSPECTOR_HTTP_SERVER=127.0.0.1:9222.
+        # We connect via the Chrome DevTools Protocol and inject a <style>
+        # tag that overrides the CSS variables on :root, making the theme
+        # update live without restarting the app.
         try:
             import socket
             import json as json_mod
@@ -231,9 +230,9 @@
                 "})();"
             )
 
-            # Scan for WebKit inspector ports (9222-9230)
+            # Scan for WebKit inspector on port 9222 (Octarine)
             injected = False
-            for port in range(9222, 9231):
+            for port in [9222]:
                 try:
                     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     sock.settimeout(0.5)
