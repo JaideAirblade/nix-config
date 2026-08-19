@@ -73,23 +73,8 @@ _:
         # with PipeWire screen capture for recording.
         obs-studio
 
-        # Readest — modern ebook reader. Wrapped with a custom bin name
-        # so the writeShellScriptBin wrapper takes precedence over the
-        # upstream binary. Sets WEBKIT_INSPECTOR_HTTP_SERVER=127.0.0.1:9223
-        # so the DMS theme sync script can inject CSS variable updates live.
-        (pkgs.symlinkJoin {
-          name = "readest-wrapped";
-          paths = [ pkgs.readest ];
-          postBuild = ''
-            rm $out/bin/readest
-            cat > $out/bin/readest << 'WRAPPER'
-            #!/bin/sh
-            exec env WEBKIT_INSPECTOR_HTTP_SERVER=127.0.0.1:9223 \
-              ${pkgs.readest}/bin/.readest-wrapped "$@"
-            WRAPPER
-            chmod +x $out/bin/readest
-          '';
-        })
+        # Readest — modern ebook reader.
+        readest
 
         # Calibre — ebook management. Used with ACSM Input + DeDRM plugins
         # to download EPUBs from Google Play Books (ACSM → DRM-free EPUB).

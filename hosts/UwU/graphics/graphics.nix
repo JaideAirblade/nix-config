@@ -67,10 +67,6 @@ _:
       # tearing page flips are rejected by nvidia-drm's atomic commit path.
       # Set in the session environment so greetd passes it to mango at startup.
       environment.sessionVariables.WLR_DRM_NO_ATOMIC = "1";
-      # Enable WebKitGTK remote inspector for Tauri apps (Octarine, Readest)
-      # so DMS theme sync scripts can inject CSS variable updates live via
-      # the WebKit inspector protocol without restarting the apps.
-      environment.sessionVariables.WEBKIT_INSPECTOR_HTTP_SERVER = "127.0.0.1:9222";
     }
   ;
 }

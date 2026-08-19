@@ -275,6 +275,25 @@
 
     in
     {
+      # Wrap readest to set a separate WebKit inspector port (9223) so
+      # both Octarine (9222, set in octarine-dms-theme.nix) and Readest
+      # can run their inspectors simultaneously.
+      environment.systemPackages = [
+        (pkgs.symlinkJoin {
+          name = "readest-wrapped";
+          paths = [ pkgs.readest ];
+          postBuild = ''
+            rm $out/bin/readest
+            cat > $out/bin/readest << 'WRAPPER'
+            #!/bin/sh
+            exec env WEBKIT_INSPECTOR_HTTP_SERVER=127.0.0.1:9223 \
+              ${pkgs.readest}/bin/.readest-wrapped "$@"
+            WRAPPER
+            chmod +x $out/bin/readest
+          '';
+        })
+      ];
+
       # Oneshot that regenerates the Readest custom theme from the current
       # DMS palette, enforcing themeMode=auto and the DMS custom theme in
       # both settings.json and localStorage. Writes in-place without killing

@@ -333,6 +333,10 @@
 
     in
     {
+      # Enable WebKitGTK remote inspector so the sync script can inject
+      # CSS variable updates live via the WebKit inspector protocol.
+      environment.sessionVariables.WEBKIT_INSPECTOR_HTTP_SERVER = "127.0.0.1:9222";
+
       systemd.user.services.octarine-dms-theme-sync = {
         description = "Sync Octarine DMS theme colours with DankMaterialShell";
         unitConfig.ConditionUser = "jaide";
