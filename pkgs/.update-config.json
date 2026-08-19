@@ -89,13 +89,13 @@
   "fleet": {
     "_comment": "Per-host Netbird IPs (2026-08-11). Updates must be applied to every host that consumes pkgs/. Override via --hosts when running scripts/fleet-deploy.py manually.",
     "hosts": {
-      "UwU-Server":    "100.77.228.137",
+      "Luna-Server":    "100.77.228.137",
       "UwU":           "100.77.119.175",
       "TSBW-W01800":   "100.77.44.152",
       "uwu-phone":     "100.77.152.164"
     },
     "ssh_user": "luna",
-    "deploy_order": ["UwU-Server", "UwU", "TSBW-W01800"],
+    "deploy_order": ["Luna-Server", "UwU", "TSBW-W01800"],
     "_deploy_order_note": "uwu-phone deploys separately on mobile schedule (only when online + charging). Default order: server first (build host), then UwU, then TSBW. Phone skipped unless --include-phone."
   },
 

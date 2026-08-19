@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regression tests for the UwU-Server chrony NTP+NTS server module
+"""Regression tests for the Luna-Server chrony NTP+NTS server module
 and the per-host chrony-client opt-in (TSBW).
 
 Verifies that the chrono-ntp modules wire up correctly in the flake
@@ -8,21 +8,21 @@ evaluates the flake and asserts the resolved config attribute.
 
 Invariants:
 
-  1. UwU-Server: services.chrony.enable is true
-  2. UwU-Server: services.chrony.enableNTS is true (NTS-KE server)
-  3. UwU-Server: services.timesyncd.enable is false (asserted by
+  1. Luna-Server: services.chrony.enable is true
+  2. Luna-Server: services.chrony.enableNTS is true (NTS-KE server)
+  3. Luna-Server: services.timesyncd.enable is false (asserted by
      chrony module; we set it explicitly to make intent clear)
-  4. UwU-Server: services.chrony.servers are pool.ntp.org with iburst
-  5. UwU-Server: extraConfig has bindaddress lines for both the
+  4. Luna-Server: services.chrony.servers are pool.ntp.org with iburst
+  5. Luna-Server: extraConfig has bindaddress lines for both the
      NetBird IP (100.77.228.137) and the direct-link IP (10.10.0.1)
-  6. UwU-Server: extraConfig references the *.jaidechan.moe cert
-  7. UwU-Server: extraConfig contains a commented GPS refclock
+  6. Luna-Server: extraConfig references the *.jaidechan.moe cert
+  7. Luna-Server: extraConfig contains a commented GPS refclock
      block (the future-proofing hook)
-  8. UwU-Server: the chrony user is in the nginx group (so it can
+  8. Luna-Server: the chrony user is in the nginx group (so it can
      read the acme-installed cert with mode 0640)
-  9. UwU-Server: the chrony service is in the acme cert's
+  9. Luna-Server: the chrony service is in the acme cert's
      reloadServices list (so cert renewal reloads it)
-  10. UwU-Server: the firewall opens 123/UDP and 4460/TCP on both
+  10. Luna-Server: the firewall opens 123/UDP and 4460/TCP on both
      the NetBird interface (wt0) and the direct-link interface (eth0)
   11. TSBW-W01800: services.chrony.enable is true
   12. TSBW-W01800: services.chrony.servers includes the mesh-DNS
@@ -44,8 +44,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 
 # The NetBird IP and direct-link IP the server binds to. These come
-# from the actual UwU-Server config (modules/network/netbird-mesh.nix
-# and hosts/UwU-Server/network/direct-link.nix respectively) and are
+# from the actual Luna-Server config (modules/network/netbird-mesh.nix
+# and hosts/Luna-Server/network/direct-link.nix respectively) and are
 # hardcoded in the server module. If they rotate, this test must
 # rotate with them.
 NB_IP = "100.77.228.137"
@@ -78,9 +78,9 @@ def nix_eval(expr: str) -> object:
 
 
 def uwu(value_expr: str) -> object:
-    """Eval `value_expr` against UwU-Server's resolved config."""
+    """Eval `value_expr` against Luna-Server's resolved config."""
     return nix_eval(
-        f'(builtins.getFlake "path:{REPO}").nixosConfigurations.UwU-Server.config.{value_expr}'
+        f'(builtins.getFlake "path:{REPO}").nixosConfigurations.Luna-Server.config.{value_expr}'
     )
 
 
@@ -118,7 +118,7 @@ def check_match(label: str, value: str, pattern: str) -> None:
 
 
 def main() -> None:
-    print("── 1. UwU-Server chrony server is enabled and configured ──")
+    print("── 1. Luna-Server chrony server is enabled and configured ──")
 
     check("services.chrony.enable = true", uwu("services.chrony.enable"), True)
     # enableNTS must stay FALSE: the nixpkgs module appends `nts` to every
@@ -174,7 +174,7 @@ def main() -> None:
         r"refclock PPS /dev/pps0",
     )
 
-    print("\n── 2. UwU-Server chrony user can read the acme cert ──")
+    print("\n── 2. Luna-Server chrony user can read the acme cert ──")
     extra_groups = uwu("users.users.chrony.extraGroups")
     check(
         "users.users.chrony.extraGroups includes 'nginx'",
@@ -182,7 +182,7 @@ def main() -> None:
         True,
     )
 
-    print("\n── 3. UwU-Server acme cert renewal reloads chrony ──")
+    print("\n── 3. Luna-Server acme cert renewal reloads chrony ──")
     reload = uwu('security.acme.certs."jaidechan.moe".reloadServices')
     check(
         "security.acme.certs.jaidechan.moe.reloadServices includes 'chrony.service'",
@@ -190,7 +190,7 @@ def main() -> None:
         True,
     )
 
-    print("\n── 4. UwU-Server firewall opens NTP+NTS-KE on mesh and direct-link ──")
+    print("\n── 4. Luna-Server firewall opens NTP+NTS-KE on mesh and direct-link ──")
     # On wt0 (NetBird): ports 123/UDP, 4460/TCP must be present.
     wt0_tcp = uwu('networking.firewall.interfaces."wt0".allowedTCPPorts')
     wt0_udp = uwu('networking.firewall.interfaces."wt0".allowedUDPPorts')
@@ -214,7 +214,7 @@ def main() -> None:
     check("firewall.eno1 does NOT open 4460/TCP (public side)", 4460 in eno1_tcp, False)
     check("firewall.eno1 does NOT open 123/UDP (public side)", 123 in eno1_udp, False)
 
-    print("\n── 5. TSBW-W01800 chrony client is enabled and pointing at UwU-Server ──")
+    print("\n── 5. TSBW-W01800 chrony client is enabled and pointing at Luna-Server ──")
     check("services.chrony.enable = true", tsbw("services.chrony.enable"), True)
     check(
         "services.timesyncd.enable = false (chrony module asserts on this)",

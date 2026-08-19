@@ -110,12 +110,12 @@ check_health() {
     failures+=("DNS resolution failed for github.com")
   fi
 
-  # Check 5: per-host critical services listening (uwu-server has more)
+  # Check 5: per-host critical services listening (luna-server has more)
   local host_short
   host_short="$(hostname)"
   local expected_ports
   case "$host_short" in
-    UwU-Server) expected_ports=(22 53 3000 5335) ;;
+    Luna-Server) expected_ports=(22 53 3000 5335) ;;
     UwU|TSBW-W01800) expected_ports=(22 53) ;;
     *) expected_ports=(22) ;;
   esac

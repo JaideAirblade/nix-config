@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 fixture="$ROOT/tests/fixtures/nixos-secrets"
 
-for host in UwU UwU-Server; do
+for host in UwU Luna-Server; do
   enabled=$(nix eval --json ".#nixosConfigurations.$host.config.security.pam.services" \
     --override-input nixos-secrets "path:$fixture" \
     --apply 'services: builtins.filter (name: services.${name}.u2f.enable) (builtins.attrNames services)')

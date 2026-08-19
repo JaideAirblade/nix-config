@@ -34,7 +34,7 @@ watchdog reports rolled_back, halt the rollout — don't deploy to host 2.
 
 Usage:
     scripts/fleet-deploy.py                       # normal deploy
-    scripts/fleet-deploy.py --hosts UwU UwU-Server  # subset
+    scripts/fleet-deploy.py --hosts UwU Luna-Server  # subset
     scripts/fleet-deploy.py --include-phone       # also push to uwu-phone
     scripts/fleet-deploy.py --rollback            # revert + redeploy prev
     scripts/fleet-deploy.py --skip-build          # use existing build
@@ -156,7 +156,7 @@ def schedule_watchdog(ip: str, ssh_user_: str, prev_gen: str,
     # exit 127 ("bash: No such file or directory") and never writes the
     # verdict file — fleet-deploy then mis-classifies the deploy as failed
     # even though the activation itself succeeded.
-    # 2026-08-13 — first observed: UwU-Server watchdog died with exit 127,
+    # 2026-08-13 — first observed: Luna-Server watchdog died with exit 127,
     # deploy halted, no rollback needed (system was healthy).
     nixos_system_path = (
         "/run/current-system/sw/bin:"
@@ -356,7 +356,7 @@ def main() -> int:
     cfg = load_config()
     fleet_cfg = cfg["fleet"]
     ssh_user_ = fleet_cfg["ssh_user"]
-    deploy_host_ip = fleet_cfg["hosts"].get("UwU-Server", "127.0.0.1")
+    deploy_host_ip = fleet_cfg["hosts"].get("Luna-Server", "127.0.0.1")
     deploy_order = list(fleet_cfg["deploy_order"])
     if args.include_phone:
         deploy_order.append("uwu-phone")

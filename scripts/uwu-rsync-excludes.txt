@@ -1,4 +1,4 @@
-# UwU → UwU-Server rsync excludes
+# UwU → Luna-Server rsync excludes
 # Pattern matches are rsync-side, applied to the SOURCE tree.
 # Rules: skip anything that's a game, a download, a cache, a rebuildable
 # build artifact, or anything that wouldn't be useful on a headless server.

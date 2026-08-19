@@ -1,6 +1,6 @@
 # OmniRoute (diegosouzapw/OmniRoute @ 976d670, 2026-08-07) — NixOS Replacement Audit
 
-**Scope.** Read-only audit of `/tmp/OmniRoute-inspect` (HEAD 976d670ff3a7712df0c695f13095c43eace5e29b, v3.8.50) against the existing `hermes-router.nix` target on UwU-Server (127.0.0.1:8319). Cross-referenced with `~/nixos/hosts/UwU-Server/ai/hermes-router.nix` and the prior pre-flight at `~/.hermes/skills/software-development/nix-server-extension/references/nix-server-feasibility-preflight.md`.
+**Scope.** Read-only audit of `/tmp/OmniRoute-inspect` (HEAD 976d670ff3a7712df0c695f13095c43eace5e29b, v3.8.50) against the existing `hermes-router.nix` target on Luna-Server (127.0.0.1:8319). Cross-referenced with `~/nixos/hosts/Luna-Server/ai/hermes-router.nix` and the prior pre-flight at `~/.hermes/skills/software-development/nix-server-extension/references/nix-server-feasibility-preflight.md`.
 
 ## 1. Upstream Nix posture (Q1)
 
@@ -61,7 +61,7 @@ First-boot layer (auto-generated and persisted to `${DATA_DIR}/server.env`):
 
 ### Bind-address / firewall constraints
 - `PORT=20128`, `API_PORT=20129`, `LIVE_WS_PORT=20132` by default — three ports.
-- For the UwU-Server hermes-router replacement the canonical loopback-only config is `HOST=127.0.0.1` mirroring `hermes-router.nix:345`. The `LIVE_WS_HOST=127.0.0.1` default already matches.
+- For the Luna-Server hermes-router replacement the canonical loopback-only config is `HOST=127.0.0.1` mirroring `hermes-router.nix:345`. The `LIVE_WS_HOST=127.0.0.1` default already matches.
 - `allowedTCPPorts` MUST NOT include 20128, 20129, or 20132 (mirror the `tests/server-hermes-extensions-regressions.py:77` assertion that `allowedTCPPorts = [ 8319 ]` is absent for hermes-router).
 
 ## 4. Network / API compatibility with the existing 127.0.0.1:8319 router
@@ -78,7 +78,7 @@ First-boot layer (auto-generated and persisted to `${DATA_DIR}/server.env`):
 | `POST /v1/responses` (newer OpenAI Responses API) | `POST /api/v1/responses` (`src/app/api/v1/responses/route.ts:1`) | ✓+ Additions; OmniRoute supports it natively, hermes-router does not |
 | `POST /v1/audio/speech`, `/v1/audio/transcriptions` | `/api/v1/audio/speech`, `/api/v1/audio/transcriptions` | ✓ OmniRoute has extras |
 | `POST /v1/images/generations` | `/api/v1/images/generations`, `/images/edits`, `/upscale` | ✓ OmniRoute has extras |
-| Admin: `/v1/config/*`, `/v1/instances/*`, `/dashboard` | Many `/api/*` routes + management proxy CRUD | ⚠ OmniRoute replaces these with `/api/v1/management/*` + dashboard. The disable-admin-surfaces patch from `hosts/UwU-Server/ai/patches/hermes-router-disable-admin-surfaces.patch` does NOT translate cleanly — OmniRoute's `LOCAL_ONLY_API_PREFIXES` (`src/server/authz/routeGuard.ts:30-58`) is the new gate**: 23 prefixes enforce loopback via peer-stamp token (not Host header, see `management.ts:28-41`) |
+| Admin: `/v1/config/*`, `/v1/instances/*`, `/dashboard` | Many `/api/*` routes + management proxy CRUD | ⚠ OmniRoute replaces these with `/api/v1/management/*` + dashboard. The disable-admin-surfaces patch from `hosts/Luna-Server/ai/patches/hermes-router-disable-admin-surfaces.patch` does NOT translate cleanly — OmniRoute's `LOCAL_ONLY_API_PREFIXES` (`src/server/authz/routeGuard.ts:30-58`) is the new gate**: 23 prefixes enforce loopback via peer-stamp token (not Host header, see `management.ts:28-41`) |
 
 ### Auth-model delta — **CRITICAL BREAK**
 
@@ -93,17 +93,17 @@ First-boot layer (auto-generated and persisted to `${DATA_DIR}/server.env`):
 2. **Adopt OmniRoute's key model**: let OmniRoute mint a key on first boot, rotate the sops secret to point at the new key, accept the auth-model migration. This is the cleaner path and the one the upstream pre-flight's Q4 ("integration collision") already flagged as ✗.
 
 ### Endianness of route prefixes
-The UwU-Server config currently uses hermes-router on port 8319. **OmniRoute does NOT support custom base port-of-call** beyond the three-port scheme. To preserve the `127.0.0.1:8319` endpoint, you must put a reverse proxy in front (Caddy/nginx mapping `:8319 → 127.0.0.1:20128`). Cleaner: rename the consumer to `:20128` and let the loopback bind do its job.
+The Luna-Server config currently uses hermes-router on port 8319. **OmniRoute does NOT support custom base port-of-call** beyond the three-port scheme. To preserve the `127.0.0.1:8319` endpoint, you must put a reverse proxy in front (Caddy/nginx mapping `:8319 → 127.0.0.1:20128`). Cleaner: rename the consumer to `:20128` and let the loopback bind do its job.
 
 ## 5. Nix flake / module integration approach
 
 ### Recommended shape (no upstream `nixosModules.default` exists)
 
 ```nix
-# hosts/UwU-Server/ai/omniroute.nix
+# hosts/Luna-Server/ai/omniroute.nix
 { inputs, ... }:
 {
-  nixos.hosts."UwU-Server" =
+  nixos.hosts."Luna-Server" =
     { config, lib, pkgs, ... }:
     let
       # Pin upstream tarball — `npm pack` the 3.8.50 release, build via npm.
@@ -263,10 +263,10 @@ The UwU-Server config currently uses hermes-router on port 8319. **OmniRoute doe
 
 ### Stage 0 — Pre-flight (1 commit, no activation)
 1. Add `omniroute` flake input pinned to a specific npm tarball SHA (NOT a git rev — upstream `prepublishOnly` is the source of truth).
-2. Add `hosts/UwU-Server/ai/omniroute.nix` (above) but with `enable = false`.
+2. Add `hosts/Luna-Server/ai/omniroute.nix` (above) but with `enable = false`.
 3. Add the 5 new sops secrets to `nixos-secrets` repo (push separately, then `nix flake lock --update-input nixos-secrets`).
 4. Add `tests/server-omniroute-regressions.py` mirroring hermes-router's test shape.
-5. `nix flake check --no-build` + `just dry UwU-Server` green.
+5. `nix flake check --no-build` + `just dry Luna-Server` green.
 
 ### Stage 1 — Shadow (1 commit, hermes-router stays primary)
 1. Enable `omniroute.service` on `127.0.0.1:20128`, firewalled off.
@@ -277,10 +277,10 @@ The UwU-Server config currently uses hermes-router on port 8319. **OmniRoute doe
    - `POST /v1/messages` (Anthropic SDK shape)
    - `GET /v1/models` (curl, no auth)
    - `POST /v1/embeddings` (curl with bearer key)
-5. `just deploy UwU-Server`, verify both `:8319` and `:20128` respond.
+5. `just deploy Luna-Server`, verify both `:8319` and `:20128` respond.
 
 ### Stage 2 — Consumer migration (1 commit per consumer)
-1. Update `modules/ai/hermes-mobile-bridge.nix` and `hosts/UwU-Server/ai/hermes-router.nix:327-333` — replace `ROUTER_API_KEY` with `OMNIROUTE_API_KEY` in `/etc/pam/environment`, plus rework hermes-agent's `key_env` resolution to read both names.
+1. Update `modules/ai/hermes-mobile-bridge.nix` and `hosts/Luna-Server/ai/hermes-router.nix:327-333` — replace `ROUTER_API_KEY` with `OMNIROUTE_API_KEY` in `/etc/pam/environment`, plus rework hermes-agent's `key_env` resolution to read both names.
 2. Update `Justfile` / deploy scripts that pin the old port.
 3. Update regression tests under `tests/server-hermes-extensions-regressions.py` to assert the new port.
 
@@ -340,7 +340,7 @@ The OmniRoute replacement is the right call **only** if the user explicitly opts
 | WebSocket Origin allowlist | `/tmp/OmniRoute-inspect/docker-compose.yml:43` |
 | CSP / security headers | `/tmp/OmniRoute-inspect/next.config.mjs:12-58` |
 | Minimal-build profile (skip 4 privileged modules) | `/tmp/OmniRoute-inspect/package.json:93` |
-| Existing hermes-router target (port, sandbox, env) | `/home/luna/nixos/hosts/UwU-Server/ai/hermes-router.nix:339-412` |
+| Existing hermes-router target (port, sandbox, env) | `/home/luna/nixos/hosts/Luna-Server/ai/hermes-router.nix:339-412` |
 | Existing hermes-router regression test | `/home/luna/nixos/tests/server-hermes-extensions-regressions.py:1-100` |
-| Existing hermes-router admin-surface patch | `/home/luna/nixos/hosts/UwU-Server/ai/patches/hermes-router-disable-admin-surfaces.patch:1-50` |
+| Existing hermes-router admin-surface patch | `/home/luna/nixos/hosts/Luna-Server/ai/patches/hermes-router-disable-admin-surfaces.patch:1-50` |
 | Pre-flight prior verdict | `/home/luna/.hermes/skills/software-development/nix-server-extension/references/nix-server-feasibility-preflight.md:1-180` |

@@ -148,7 +148,7 @@ status:
 # Safely provision a fresh machine. The script verifies the remote disk,
 # prepares and tests the host's sops key before installation, pauses to prove
 # the EFI boot path, and only then reboots. This WIPES the confirmed target.
-# Usage: just provision UwU-Server 192.168.1.50
+# Usage: just provision Luna-Server 192.168.1.50
 [arg('hostname', pattern='[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?')]
 [arg('ip', pattern='[A-Za-z0-9][A-Za-z0-9.:-]*')]
 provision $hostname $ip:
@@ -172,7 +172,7 @@ vm-test $hostname:
 # Builds the closure LOCALLY (fast, uses this machine's CPU + nix store),
 # copies the store paths to the target, and activates remotely via
 # jaide@ + sudo. No root SSH access needed (PermitRootLogin=no is fine).
-# Usage: just deploy-remote UwU-Server 192.168.1.50
+# Usage: just deploy-remote Luna-Server 192.168.1.50
 deploy-remote $hostname $ip:
     nixos-rebuild switch \
       --flake ".#$hostname" \
@@ -182,7 +182,7 @@ deploy-remote $hostname $ip:
 
 # Build a remote host's closure locally without activating — dry-run
 # pre-check. Same local-build strategy as deploy-remote.
-# Usage: just dry-remote UwU-Server 192.168.1.50
+# Usage: just dry-remote Luna-Server 192.168.1.50
 dry-remote $hostname $ip:
     nixos-rebuild dry-activate \
       --flake ".#$hostname" \

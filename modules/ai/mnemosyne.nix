@@ -24,7 +24,7 @@ _:
       mnemosyne-hermes-dir = "${mnemosyne-hermes}/lib/python3.12/site-packages/mnemosyne_hermes";
 
       # Hermes plugin discovery paths for every Hermes user on this host.
-      # On UwU the user is jaide; on UwU-Server the user is luna. We link
+      # On UwU the user is jaide; on Luna-Server the user is luna. We link
       # the plugin into every existing ~/.hermes/plugins/mnemosyne/ so
       # both single-user and server-side installs discover it.
       hermes-users = [ "jaide" "luna" ];

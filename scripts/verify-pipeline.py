@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """verify-pipeline.py — post-deploy network + host-state verification.
 
-This runs on the deploying host (uwu-server) AFTER fleet-deploy.py
+This runs on the deploying host (luna-server) AFTER fleet-deploy.py
 reports success. It is the SECOND of two watchdog layers — the first is
 the target-side watchdog (target-rollback-watchdog.sh) which can
 auto-rollback a broken target without any input from us.
@@ -161,11 +161,11 @@ def main() -> int:
 
     expected = args.expected_toplevel
     if not expected:
-        # Use the explicit flake-parts attribute path. `.#UwU-Server` is
+        # Use the explicit flake-parts attribute path. `.#Luna-Server` is
         # the nixos-rebuild shorthand and does NOT resolve via plain `nix build`.
         r = run(["nix", "--extra-experimental-features", "nix-command flakes",
                  "build", "--no-link", "--print-out-paths",
-                 ".#nixosConfigurations.UwU-Server.config.system.build.toplevel"],
+                 ".#nixosConfigurations.Luna-Server.config.system.build.toplevel"],
                 cwd=NIXOS, timeout=60)
         if r.returncode == 0:
             expected = r.stdout.strip().splitlines()[-1]

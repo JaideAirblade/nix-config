@@ -381,7 +381,7 @@ def test_current_repo_known_findings():
     rc, out, issues = run_checker(REPO_ROOT)
     results = []
     # Known issue: modules/ai/hermes-mobile-bridge.nix is misplaced
-    # (lives under modules/ but declares nixos.hosts."UwU-Server").
+    # (lives under modules/ but declares nixos.hosts."Luna-Server").
     results.append((
         "current repo: pattern-mismatch on hermes-mobile-bridge.nix still caught",
         bool(issues_matching(issues, "pattern-mismatch", "hermes-mobile-bridge.nix")),

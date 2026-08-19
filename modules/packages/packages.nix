@@ -68,7 +68,7 @@ _:
       ];
 
       # Firefox is enabled by default for all hosts. Hosts that don't want
-      # Firefox (e.g. UwU-Server, which uses Helium as its primary browser
+      # Firefox (e.g. Luna-Server, which uses Helium as its primary browser
       # and doesn't need a second) opt out via the per-host config:
       #   programs.firefox.enable = lib.mkForce false;
       programs.firefox.enable = true;

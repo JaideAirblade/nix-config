@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Regression policy for sister-sync cross-account read access.
 
-Jaide (admin) and luna (automation) on the private devices (UwU, UwU-Server)
+Jaide (admin) and luna (automation) on the private devices (UwU, Luna-Server)
 share group-readable access to /home/jaide so luna can read wallpapers, .config,
-and other personalisation state to mirror Jaide's laptop onto UwU-Server and
+and other personalisation state to mirror Jaide's laptop onto Luna-Server and
 to make state portable for trips (e.g. visiting family with a sibling setup).
 
 The shape of the policy:
@@ -22,7 +22,7 @@ import re
 ROOT = Path(__file__).resolve().parents[1]
 
 UWU_USERS = ROOT / "hosts/UwU/users/users.nix"
-SERVER_USERS = ROOT / "hosts/UwU-Server/users/users.nix"
+SERVER_USERS = ROOT / "hosts/Luna-Server/users/users.nix"
 
 
 def require(condition: bool, message: str) -> None:
@@ -39,7 +39,7 @@ server_users = SERVER_USERS.read_text()
 # Both private hosts must declare jaide's primary group as `jaide` so luna
 # can read /home/jaide via group membership rather than the shared system
 # `users` group. Using a dedicated group keeps the trust boundary explicit.
-for label, text in (("UwU", uwu_users), ("UwU-Server", server_users)):
+for label, text in (("UwU", uwu_users), ("Luna-Server", server_users)):
     require(
         re.search(
             r'users\.users\."jaide"\s*=\s*\{[^}]*group\s*=\s*"jaide";',
@@ -54,7 +54,7 @@ for label, text in (("UwU", uwu_users), ("UwU-Server", server_users)):
 # (a member of the `jaide` group) can read it for the sister-sync use case.
 # Mode 0750 is the only acceptable value here — 0700 blocks luna, 0755
 # exposes the home to the world, anything in between is wrong.
-for label, text in (("UwU", uwu_users), ("UwU-Server", server_users)):
+for label, text in (("UwU", uwu_users), ("Luna-Server", server_users)):
     require(
         re.search(
             r'users\.users\."jaide"\s*=\s*\{[^}]*homeMode\s*=\s*"0750";',
@@ -68,7 +68,7 @@ for label, text in (("UwU", uwu_users), ("UwU-Server", server_users)):
 # Both private hosts must add luna to the `jaide` group so the group-read
 # bits actually admit her. The NixOS-idiomatic way is
 # `users.groups.jaide.members = [ "luna" ]`.
-for label, text in (("UwU", uwu_users), ("UwU-Server", server_users)):
+for label, text in (("UwU", uwu_users), ("Luna-Server", server_users)):
     require(
         re.search(
             r'users\.groups\.jaide\.members\s*=\s*\[\s*"luna"\s*\];',
@@ -82,7 +82,7 @@ for label, text in (("UwU", uwu_users), ("UwU-Server", server_users)):
 # account membership — that group is shared by every service on the host
 # (e.g. hermes-webui.group = "users"). luna on its own is fine because
 # the sister-sync is private-host-only.
-for label, text in (("UwU", uwu_users), ("UwU-Server", server_users)):
+for label, text in (("UwU", uwu_users), ("Luna-Server", server_users)):
     require(
         'users.groups.users.members' not in text,
         f"{label} adds luna to the shared `users` group — must use the dedicated `jaide` group instead",
@@ -92,7 +92,7 @@ for label, text in (("UwU", uwu_users), ("UwU-Server", server_users)):
 # existing files inside /home/jaide are reachable too (not just the dir
 # itself). The service must be idempotent — `-group 100` matches nothing
 # once everything is migrated, so re-runs are no-ops.
-for label, text in (("UwU", uwu_users), ("UwU-Server", server_users)):
+for label, text in (("UwU", uwu_users), ("Luna-Server", server_users)):
     require(
         "migrate-jaide-home-group" in text
         and "-group 100" in text
@@ -119,7 +119,7 @@ if WORK_USERS.is_file():
 # /home/jaide" capability would be a trust-boundary violation — the
 # sister-sync is a one-way read. Note: this is scoped to /home/jaide only;
 # chowns that touch luna's own home or other unrelated paths are fine.
-for label, text in (("UwU", uwu_users), ("UwU-Server", server_users)):
+for label, text in (("UwU", uwu_users), ("Luna-Server", server_users)):
     require(
         "chown luna:/home/jaide" not in text
         and "chown -R luna /home/jaide" not in text

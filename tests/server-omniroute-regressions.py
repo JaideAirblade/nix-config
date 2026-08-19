@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Regression contract for the staged OmniRoute Docker deployment on
-UwU-Server. Enforces: Hermes Router stays enabled, OmniRoute runs in
+Luna-Server. Enforces: Hermes Router stays enabled, OmniRoute runs in
 a pinned-content-digest container, binds only to 127.0.0.1:8320 during
 the staged phase, sops key is reused from the existing
 hermes_router_proxy_api_key, and the image is consumed from
@@ -10,9 +10,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "pkgs/omniroute/default.nix"
-MODULE = ROOT / "hosts/UwU-Server/ai/omniroute.nix"
+MODULE = ROOT / "hosts/Luna-Server/ai/omniroute.nix"
 FLAKE = ROOT / "flake.nix"
-ROUTER = ROOT / "hosts/UwU-Server/ai/hermes-router.nix"
+ROUTER = ROOT / "hosts/Luna-Server/ai/hermes-router.nix"
 DEFAULTS = ROOT / "pkgs/default.nix"
 
 
@@ -22,7 +22,7 @@ def require(condition: bool, message: str) -> None:
 
 
 require(PACKAGE.exists(), "pkgs/omniroute/default.nix is missing")
-require(MODULE.exists(), "hosts/UwU-Server/ai/omniroute.nix is missing")
+require(MODULE.exists(), "hosts/Luna-Server/ai/omniroute.nix is missing")
 require(ROUTER.exists(), "legacy hermes-router module is missing")
 require(FLAKE.exists(), "flake.nix is missing")
 require(DEFAULTS.exists(), "pkgs/default.nix is missing")

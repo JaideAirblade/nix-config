@@ -1,0 +1,48 @@
+--- a/router.py
++++ b/router.py
+@@ -386,6 +386,7 @@
+     "gemini": 30, "openrouter": 35, "cerebras": 40, "nvidia": 45,
+     "groq": 50, "mistral": 55, "cohere": 60, "sambanova": 65,
+     "kimi": 70, "zai": 75, "naga": 80, "github_models": 85,
++    "minimax": 68, "nemotron": 99,
+     "huggingface": 90, "local": 95,
+ }
+ _provider_state: dict = {}   # populated at startup by _initialize_ratings()
+@@ -706,6 +707,29 @@
+             "keys":     [os.environ.get("LOCAL_API_KEY", "local")],
+         })
+ 
++    # MiniMax subscription endpoint — OpenAI-compatible chat completions with a
++    # plain plan API key. Keys come from auth.json "minimax" entries (primary)
++    # or MINIMAX_API_KEYS in .env (fallback), like every other keyed provider.
++    minimax_keys = _keys_for("minimax", "MINIMAX_API_KEYS")
++    if minimax_keys or os.environ.get("MINIMAX_MODEL"):
++        providers.append({
++            "name":     "minimax",
++            "base_url": os.environ.get("MINIMAX_BASE_URL", "https://api.minimax.io/v1"),
++            "model":    os.environ.get("MINIMAX_MODEL", "MiniMax-M3"),
++            "keys":     minimax_keys,
++        })
++
++    # On-box Nemotron backup (llama.cpp server on Luna-Server) — the
++    # last-resort provider when every cloud provider is unreachable
++    # (connection cut). Keyless like any local server; sentinel key for the pool.
++    if os.environ.get("NEMOTRON_BASE_URL") or os.environ.get("NEMOTRON_MODEL"):
++        providers.append({
++            "name":     "nemotron",
++            "base_url": os.environ.get("NEMOTRON_BASE_URL", "http://127.0.0.1:9001/v1"),
++            "model":    os.environ.get("NEMOTRON_MODEL", "unsloth/Nemotron-3-Nano-30B-A3B"),
++            "keys":     [os.environ.get("NEMOTRON_API_KEY", "local")],
++        })
++
+     if not providers:
+         log.warning("No providers configured — set GEMINI_API_KEYS, OPENROUTER_API_KEYS, etc. in .env")
+ 
+@@ -1472,6 +1496,7 @@
+     "gemini", "gpt-4o", "gpt-4.1", "gpt-4-turbo", "gpt-5", "o1", "o3",
+     "claude-3", "claude-opus", "claude-sonnet", "claude-haiku",
+     "pixtral", "llava", "-vl", "vl-", "llama-4", "grok", "vision",
++    "minimax",
+ )
+ 
+ 

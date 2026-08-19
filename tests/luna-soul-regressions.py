@@ -2,8 +2,8 @@
 """Regressions for the canonical Luna SOUL.md.
 
 Asserts that the canonical Luna persona content is present in BOTH:
-  - /home/luna/.hermes/SOUL.md  (UwU-Server, default profile)
-  - /home/luna/.hermes/profiles/local/SOUL.md  (UwU-Server, local profile)
+  - /home/luna/.hermes/SOUL.md  (Luna-Server, default profile)
+  - /home/luna/.hermes/profiles/local/SOUL.md  (Luna-Server, local profile)
 
 And that the two copies are byte-identical (so the local profile stays
 in sync with the default).

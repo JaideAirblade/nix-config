@@ -45,7 +45,7 @@
 # modules/network/netbird-mesh.nix.
 { inputs, ... }:
 {
-  nixos.hosts."UwU-Server" =
+  nixos.hosts."Luna-Server" =
     { config
     , lib
     , pkgs
@@ -282,7 +282,7 @@
       # rejects requests without a strong token, and the installer
       # refuses to print a QR if the key is weak.
       sops.secrets.hermes_mobile_bridge_api_key = {
-        sopsFile = "${inputs.nixos-secrets}/secrets/UwU-Server/hermes-mobile-bridge.yaml";
+        sopsFile = "${inputs.nixos-secrets}/secrets/Luna-Server/hermes-mobile-bridge.yaml";
         key = "hermes_mobile_bridge_api_key";
         owner = herUser;
         group = herGroup;

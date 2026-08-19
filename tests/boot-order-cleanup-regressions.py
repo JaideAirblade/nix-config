@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Regression tests for the UwU-Server boot-order cleanup module.
+"""Regression tests for the Luna-Server boot-order cleanup module.
 
-The boot-order cleanup module (hosts/UwU-Server/boot-order.nix) ensures
+The boot-order cleanup module (hosts/Luna-Server/boot-order.nix) ensures
 the UEFI NVRAM BootOrder only contains entries that point at the Crucial
 E100 ESP. After years of multiple OS installs (Ubuntu, debian, Windows,
 Limine, MemTest) plus a live USB session, the NVRAM had ~12 stale entries
@@ -34,8 +34,8 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-BOOT_ORDER = REPO / "hosts/UwU-Server/boot-order.nix"
-DEFAULT_NIX = REPO / "hosts/UwU-Server/default.nix"
+BOOT_ORDER = REPO / "hosts/Luna-Server/boot-order.nix"
+DEFAULT_NIX = REPO / "hosts/Luna-Server/default.nix"
 FLAKE_NIX = REPO / "flake.nix"
 
 results: list[tuple[str, bool, str]] = []
@@ -50,7 +50,7 @@ def check(name: str, ok: bool, detail: str = "") -> None:
 
 # ── 1. file presence and host entry point linkage ─────────────────
 print("── 1. boot-order.nix exists and is reached through the host ──")
-check("hosts/UwU-Server/boot-order.nix exists", BOOT_ORDER.exists())
+check("hosts/Luna-Server/boot-order.nix exists", BOOT_ORDER.exists())
 if BOOT_ORDER.exists():
     text = BOOT_ORDER.read_text()
     check("boot-order.nix is non-trivial (>100 lines)", len(text.splitlines()) > 100,
@@ -187,8 +187,8 @@ print()
 print("── 5. boot-order.nix is excluded from the flake-parts walker ──")
 flake_text = FLAKE_NIX.read_text()
 check(
-    "flake.nix dendriticExceptions lists 'hosts/UwU-Server/boot-order.nix'",
-    '"hosts/UwU-Server/boot-order.nix"' in flake_text,
+    "flake.nix dendriticExceptions lists 'hosts/Luna-Server/boot-order.nix'",
+    '"hosts/Luna-Server/boot-order.nix"' in flake_text,
     "the walker otherwise tries to import the file as a top-level "
     "flake-parts module, which fails because the file needs the "
     "NixOS module system's `{ config, pkgs, lib, ... }` args",

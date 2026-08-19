@@ -26,11 +26,11 @@ if re.search(r"^\s*exit(?:\s|$)", snippet, re.MULTILINE):
 if "continue" not in snippet and "else" not in snippet:
     raise SystemExit("FAIL: first-install skip is not scoped to the Mnemosyne snippet")
 
-# The module must link the plugin for both jaide (UwU) and luna (UwU-Server).
+# The module must link the plugin for both jaide (UwU) and luna (Luna-Server).
 # These appear in the hermes-users list, not in the bash snippet itself.
 if '"jaide"' not in text:
     raise SystemExit("FAIL: module does not handle jaide's home")
 if '"luna"' not in text:
-    raise SystemExit("FAIL: module does not handle luna's home (UwU-Server)")
+    raise SystemExit("FAIL: module does not handle luna's home (Luna-Server)")
 
 print("mnemosyne activation regressions: PASS")

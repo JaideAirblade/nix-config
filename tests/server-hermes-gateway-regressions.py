@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Regressions for the UwU-Server hermes-gateway user-scope service.
+"""Regressions for the Luna-Server hermes-gateway user-scope service.
 
 Asserts that:
-  - hosts/UwU-Server/ai/hermes-gateway.nix exists
+  - hosts/Luna-Server/ai/hermes-gateway.nix exists
   - it declares a user-scope systemd service named hermes-gateway
   - it targets luna (ConditionUser = "luna")
   - ExecStart uses pkgs.hermes-agent (NOT an imperatively installed binary)
@@ -27,7 +27,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE = ROOT / "hosts/UwU-Server/ai/hermes-gateway.nix"
+MODULE = ROOT / "hosts/Luna-Server/ai/hermes-gateway.nix"
 
 
 def require(condition: bool, message: str) -> None:
@@ -35,7 +35,7 @@ def require(condition: bool, message: str) -> None:
         raise SystemExit(f"FAIL: {message}")
 
 
-require(MODULE.exists(), "UwU-Server hermes-gateway module is missing")
+require(MODULE.exists(), "Luna-Server hermes-gateway module is missing")
 
 source = MODULE.read_text(encoding="utf-8")
 

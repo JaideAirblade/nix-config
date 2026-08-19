@@ -3,7 +3,7 @@
   "groups": [
     {
       "name": "private",
-      "description": "Personal private fleet — UwU and UwU-Server. Owns the bulk of the mesh services."
+      "description": "Personal private fleet — UwU and Luna-Server. Owns the bulk of the mesh services."
     },
     {
       "name": "work",

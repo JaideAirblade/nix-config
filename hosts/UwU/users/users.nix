@@ -18,7 +18,7 @@
         description = lib.mkForce "Jaide";
         # Dedicated primary group for jaide's home so luna (a member of the
         # `jaide` group) can read wallpapers and .config for the sister-sync
-        # use case. Mirrors the same change in hosts/UwU-Server/users/users.nix.
+        # use case. Mirrors the same change in hosts/Luna-Server/users/users.nix.
         group = "jaide";
         extraGroups = [ "networkmanager" "wheel" "wireshark" "_lldpd" ];
         # Group-readable so luna can read /home/jaide.
@@ -80,13 +80,13 @@
       # config the one rendered by nixos.modules.automationAccounts at
       # /etc/luna/ssh_config. Without this symlink, ~/.ssh/config does
       # not exist and the per-host fleet aliases (ssh uwu, ssh
-      # uwu-server, ssh tsbw) defined in the automationAccounts module
+      # luna-server, ssh tsbw) defined in the automationAccounts module
       # are unreachable from interactive shells.
       #
       # The same pattern wires /home/luna/.ssh/id_ed25519 to the
-      # SOPS-rendered luna identity so `ssh uwu-server` from this host
-      # can actually authenticate. UwU-Server has the equivalent
-      # symlink in hosts/UwU-Server/users/users.nix; UwU was missing
+      # SOPS-rendered luna identity so `ssh luna-server` from this host
+      # can actually authenticate. Luna-Server has the equivalent
+      # symlink in hosts/Luna-Server/users/users.nix; UwU was missing
       # it before 2026-08-11, so SSH aliases from UwU were silently
       # broken with "no such identity" until the key was exposed.
       systemd.tmpfiles.rules = [

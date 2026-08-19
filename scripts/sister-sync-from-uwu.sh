@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# sister-sync-from-uwu.sh — Copy jaide's home dir from UwU to UwU-Server.
+# sister-sync-from-uwu.sh — Copy jaide's home dir from UwU to Luna-Server.
 #
 # Usage:
 #   just sister-sync              # dry-run
