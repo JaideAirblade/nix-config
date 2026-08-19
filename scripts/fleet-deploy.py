@@ -258,7 +258,10 @@ def nar_roundtrip(host: str, ip: str, out_path: str, ssh_user_: str) -> bool:
            "--max-attempts", "300",
            "--copy-timeout", str(copy_timeout),
            "--log-file", str(log_file)]
-    r = run(cmd, timeout=7200)
+    # 2026-08-19: 14400s — a first-time multi-GB gaming closure (UwU) needs
+    # >2h to ship even with the streaming script; 7200 killed a healthy
+    # copy mid-flight on 2026-08-19.
+    r = run(cmd, timeout=14400)
     if r.returncode != 0:
         log(f"  ! NAR-roundtrip FAILED for {host}")
         log(f"    stderr: {r.stderr[-2000:] if r.stderr else r.stdout[-2000:]}")
