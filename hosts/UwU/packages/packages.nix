@@ -73,16 +73,13 @@ _:
         # with PipeWire screen capture for recording.
         obs-studio
 
-        # Readest — modern ebook reader. Wrapped with WEBKIT_SHOW_ALL_INSPECTORS=1
-        # so the DMS theme sync script can inject CSS variable updates live via
-        # the WebKit inspector protocol without restarting the app.
-        (readest.overrideAttrs (old: {
-          preFixup = (old.preFixup or "") + ''
-            gappsWrapperArgs+=(
-              --set WEBKIT_INSPECTOR_HTTP_SERVER 127.0.0.1:9223
-            )
-          '';
-        }))
+        # Readest — modern ebook reader. Wrapped to set a separate WebKit
+        # inspector port (9223) so both Octarine (9222) and Readest can run
+        # their inspectors simultaneously.
+        (pkgs.writeShellScriptBin "readest" ''
+          exec env WEBKIT_INSPECTOR_HTTP_SERVER=127.0.0.1:9223 \
+            ${pkgs.readest}/bin/readest "$@"
+        '')
 
         # Calibre — ebook management. Used with ACSM Input + DeDRM plugins
         # to download EPUBs from Google Play Books (ACSM → DRM-free EPUB).

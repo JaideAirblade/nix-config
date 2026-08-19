@@ -180,9 +180,9 @@
                     wal_file.unlink()
 
         # --- Inject CSS variables into the running Readest webview ----------
-        # Readest runs with WEBKIT_INSPECTOR_HTTP_SERVER=127.0.0.1:9223.
-        # Same WebKit inspector protocol as Octarine: connect to WebSocket,
-        # find page target, inject CSS variables via Target.sendMessageToTarget.
+        # Readest runs with WEBKIT_INSPECTOR_HTTP_SERVER=127.0.0.1:9223
+        # (set via a writeShellScriptBin wrapper in packages.nix).
+        # Same WebKit inspector protocol as Octarine.
         try:
             import socket
             import struct
