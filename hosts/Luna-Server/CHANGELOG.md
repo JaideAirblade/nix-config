@@ -6,6 +6,28 @@ rollback step.
 
 ---
 
+## 2026-08-19 — RENAMED: UwU-Server → Luna-Server
+
+**Commit:** `baf6811` (config) + nixos-secrets `9adc2d4` (secrets repo, moved first)
+
+**Files changed:** `hosts/UwU-Server/` → `hosts/Luna-Server/` (whole tree),
+flake attr `nixosConfigurations.Luna-Server`, `networking.hostName`,
+sops paths `secrets/Luna-Server/*`, ssh alias `luna-server`, fleet deploy
+tables (`pkgs/.update-config.json`), all referencing tests/scripts/docs.
+
+**Why:** Jaide's call — "since you always confuse uwu-server with uwu in
+everything". The server is now named after Luna.
+
+**Rollback:** `git revert baf6811` + revert nixos-secrets `9adc2d4` +
+re-run `nix flake lock --update-input nixos-secrets` + redeploy. Hostname
+flips back on activation.
+
+**Unchanged:** netbird IP 100.77.228.137, `*.jaidechan.moe` domains,
+NM profile "Direct Link (UwU-Server)" on UwU (label matched by the
+failover script — do not rename casually), AdGuard/nginx/chrony data.
+
+---
+
 ## 2026-08-14 — WiFi: disable iwlwifi BT coexistence (`bt_coex_active=0`)
 
 **Commit:** see `git log --oneline` (message: `fix(Luna-Server): iwlwifi bt_coex_active=0 — stop BT stealing WiFi antenna time`)
