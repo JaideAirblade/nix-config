@@ -1,50 +1,38 @@
 # Overlay for Millennium — Steam skin/theme loader.
 #
-# Millennium's official flake pins its own nixpkgs internally, so overlays
-# on the host's nixpkgs don't reach its build. Instead, we call the
-# Millennium package expressions (millennium.nix + steam.nix) directly from
-# the flake source with our own pkgs, where we CAN override
-# pkgsi686Linux.minizip-ng to skip its test suite (which fails in the sandbox).
+# Millennium ships its own Nix expressions via flake input
+# `inputs.millennium` (a flake that packages the C++/TS source against
+# the flake's own nixpkgs). Re-export the upstream `millennium-steam`
+# as `pkgs.millennium-steam` so host modules can use it without needing
+# to know about flake inputs.
 #
-# We fetch millennium-src ourselves via fetchFromGitHub with the same rev
-# the flake pins.
+# Why no callPackage: previously this overlay used callPackage to
+# `inputs.millennium.packages.<system>` so we could host-fix
+# pkgsi686Linux.minizip-ng (doCheck=false; sandbox test failures).
+# That pattern broke on 2026-08-20 because pinning a hardcoded
+# `millennium-src` rev here drifted from the flake's own
+# `millennium-src` input (the upstream restructured patch_engine/ into
+# loopback/, the Nix expr here was no longer the right shape for the
+# pinned src). Per the user's rule "nix flake update should always
+# work", just delegate to the flake's pre-built packages: any future
+# flake update bumps inputs.millennium which brings the new src + the
+# fixed Nix expr together.
+#
+# minizip-ng note: with the upstream-flake delegation, the minizip-ng
+# test issue (if it returns) will be fixed in the upstream flake's
+# nixpkgs instance, not here. Track at
+# https://github.com/SteamClientHomebrew/Millennium if regressions
+# show up.
 { millennium-input }:
 
 final: _prev:
 let
-  # Import the Millennium package Nix expressions from the flake source.
-  # millennium-input is the flake output, and its source tree lives at
-  # the flake's outPath under packages/nix/.
-  srcStr = builtins.toString millennium-input;
-
-  # The Millennium C++/TS source, pinned by the flake to a specific rev.
-  # We fetch it ourselves so we control the nixpkgs instance.
-  millennium-src = final.fetchFromGitHub {
-    owner = "SteamClientHomebrew";
-    repo = "Millennium";
-    rev = "f37f05bdbd4727d873a1ad83ce72d062ef9a0c48";
-    hash = "sha256-MJLJ0I48HXgfOpISTAbDMYMUdWj9A6M+jGQz4uAvwyw=";
-  };
-
-  # Our pkgsi686Linux with minizip-ng tests disabled (sandbox test failures).
-  pkgsi686LinuxFixed = final.pkgsi686Linux.extend (_iFinal: iPrev: {
-    minizip-ng = iPrev.minizip-ng.overrideAttrs {
-      doCheck = false;
-    };
-  });
-
-  # Build Millennium using the flake's own millennium.nix expression,
-  # but with our fixed pkgsi686Linux.
-  millennium = final.callPackage "${srcStr}/millennium.nix" {
-    inherit millennium-src;
-    pkgsi686Linux = pkgsi686LinuxFixed;
-  };
-
-  # Wrap Steam with Millennium using the flake's steam.nix expression.
-  millennium-steam = final.callPackage "${srcStr}/steam.nix" {
-    inherit millennium;
-  };
+  sys = final.stdenv.hostPlatform.system;
+  millennium-pkgs = millennium-input.packages.${sys} or {};
 in
 {
-  inherit millennium-steam;
+  millennium-steam =
+    if millennium-pkgs ? millennium-steam
+    then millennium-pkgs.millennium-steam
+    else throw "millennium flake input does not expose 'millennium-steam' for system ${sys}; check that inputs.millennium is set to github:AvengeMedia/DankMaterialShell/.../packages/nix";
 }
