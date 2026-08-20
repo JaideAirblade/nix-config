@@ -31,9 +31,9 @@ let
 in
 rustPlatform.buildRustPackage rec {
   pname = "orbolay";
-  version = "3.6.0-unstable-2026-07-24";
+  version = "3.6.0-unstable-2026-08-15";
 
-  rev = "ba9eb0d6e446511aa8af5af8141e7e6b63d07333";
+  rev = "1855287ec5fccebf680328567eeb53655fa96c75";
 
   src = fetchFromGitHub {
     owner = "SpikeHD";
