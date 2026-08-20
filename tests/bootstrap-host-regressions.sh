@@ -106,7 +106,7 @@ provision_body=$(just --dump --dump-format json | python3 -c 'import json,sys; p
 if just --dry-run provision 'UwU; printf INJECTED' '127.0.0.1' >/dev/null 2>&1; then
   fail "just provision accepts a shell-metacharacter hostname"
 fi
-if just --dry-run provision 'UwU-Server' '127.0.0.1; printf INJECTED' >/dev/null 2>&1; then
+if just --dry-run provision 'Luna-Server' '127.0.0.1; printf INJECTED' >/dev/null 2>&1; then
   fail "just provision accepts a shell-metacharacter target"
 fi
 

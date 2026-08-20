@@ -110,7 +110,7 @@ require(
 # `nixos.modules.common` by every host. Walk the four canonical host
 # entry points and assert they all evaluate to `enable = true`.
 
-for host in ("UwU", "UwU-Server", "TSBW-W01800", "Projet-Printserver"):
+for host in ("UwU", "Luna-Server", "TSBW-W01800", "Projet-Printserver"):
     r = subprocess.run(
         [
             "nix", "--extra-experimental-features", "nix-command flakes",

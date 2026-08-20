@@ -26,7 +26,7 @@ later move if desired.
 | Node | Group | May initiate SSH | May receive SSH |
 |---|---|---:|---:|
 | `UwU` | `private` | yes | yes |
-| `UwU-Server` | `private` | yes | yes |
+| `Luna-Server` | `private` | yes | yes |
 | `TSBW-W01800` | `work` | yes | yes |
 | `Projet-Printserver` | `printserver` | **no** | yes |
 | explicitly approved personal devices | `personal` | yes | yes |
@@ -68,7 +68,7 @@ removed only after every reachable peer has been verified on Netbird.
 
 The cutover is host-by-host, in this order:
 
-1. **UwU-Server** — the bastion (hosts AdGuard, the dashboard, Gitea, etc.).
+1. **Luna-Server** — the bastion (hosts AdGuard, the dashboard, Gitea, etc.).
 2. **UwU** — desktop client.
 3. **TSBW-W01800** — work laptop, when physically at the machine.
 4. **Projet-Printserver** — last, because it's the deny-by-default source.
@@ -83,7 +83,7 @@ From every private/work/personal node:
 
 ```sh
 netbird-mesh status
-netbird-mesh ping uwu-server
+netbird-mesh ping luna-server
 netbird-mesh ping uwu
 netbird-mesh ping tsbw-w01800
 ssh -o BatchMode=yes jaide@<destination> true
@@ -100,7 +100,7 @@ this design.
 
 ## Direct-link DNS split (deferred to Phase 3)
 
-The current direct-link configuration in `hosts/UwU-Server/network/direct-link.nix`
+The current direct-link configuration in `hosts/Luna-Server/network/direct-link.nix`
 references `tail542648.ts.net` (the Tailscale suffix) in the AdGuard
 upstream-DNS split. After the Netbird mesh is verified live, this
 hard-coded suffix is replaced with the Netbird magic-DNS suffix

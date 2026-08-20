@@ -145,14 +145,14 @@
         # When set, the netbird daemon serves `*.netbird.cloud` queries
         # on this address+port instead of the default (the daemon's own
         # mesh IP at an implementation-chosen port, currently 5053).
-        # The only host that opts in today is UwU-Server: its daemon
+        # The only host that opts in today is Luna-Server: its daemon
         # binds on 127.0.0.1:5353 so AdGuard can forward `*.netbird.cloud`
         # via a single `[/netbird.cloud/]127.0.0.1:5353` upstream entry
         # (port 53 is taken by AdGuard; 5353 is the standard mDNS port
         # and avoids the CAP_NET_BIND_SERVICE cap the daemon would
         # otherwise need for ports < 1024). UwU and TSBW leave this
         # null — their daemons bind on the default mesh IP:5053 and
-        # their system resolvers route `*.netbird.cloud` to UwU-Server's
+        # their system resolvers route `*.netbird.cloud` to Luna-Server's
         # AdGuard over the mesh, which then forwards to the loopback
         # daemon.
         #
@@ -166,7 +166,7 @@
           type = lib.types.nullOr lib.types.str;
           default = null;
           example = "127.0.0.1";
-          description = "Address that the netbird-mesh daemon should serve `*.netbird.cloud` DNS on. null means the daemon's default (its own mesh IP at port 5053). See module header for the UwU-Server / UwU / TSBW-W01800 split.";
+          description = "Address that the netbird-mesh daemon should serve `*.netbird.cloud` DNS on. null means the daemon's default (its own mesh IP at port 5053). See module header for the Luna-Server / UwU / TSBW-W01800 split.";
         };
 
         dnsResolverPort = lib.mkOption {
@@ -203,7 +203,7 @@
         #
         # Hosts that DON'T need this (LaptopAP — no DMS; Projet-
         # Printserver — printserver role, no DMS) leave it at the
-        # default `false`. Hosts that run DMS (UwU, UwU-Server,
+        # default `false`. Hosts that run DMS (UwU, Luna-Server,
         # TSBW-W01800) opt in.
         dms = {
           enable = lib.mkOption {
@@ -287,7 +287,7 @@
           # the local resolver chain can forward to a known socket)
           # set `dnsResolverAddress` via `services.netbirdMesh`.
           # See the option doc on `dnsResolverAddress` for the
-          # UwU-Server / UwU / TSBW-W01800 split.
+          # Luna-Server / UwU / TSBW-W01800 split.
           dns-resolver = lib.mkIf (cfg.dnsResolverAddress != null) {
             address = cfg.dnsResolverAddress;
             port = cfg.dnsResolverPort;
@@ -299,7 +299,7 @@
         # ------------------------------------------------------------------
         # Enables IP forwarding and the routing-peer features — required
         # for any peer that may route traffic on behalf of others (e.g.
-        # UwU-Server routing UwU's direct-link traffic to the internet).
+        # Luna-Server routing UwU's direct-link traffic to the internet).
         # Restricted to "client" mode: nodes are not exit nodes for the
         # whole mesh.
         services.netbird.useRoutingFeatures = "client";

@@ -110,15 +110,33 @@ check_health() {
     failures+=("DNS resolution failed for github.com")
   fi
 
-  # Check 5: per-host critical services listening (uwu-server has more)
+  # Check 5: per-host critical services listening (luna-server has more)
   local host_short
   host_short="$(hostname)"
   local expected_ports
   case "$host_short" in
-    UwU-Server) expected_ports=(22 53 3000 5335) ;;
+    Luna-Server) expected_ports=(22 53 3000 5335) ;;
     UwU|TSBW-W01800) expected_ports=(22 53) ;;
     *) expected_ports=(22) ;;
   esac
+  # 2026-08-20: TSBW's dnsproxy is battery-gated (dnsproxy-battery.service
+  # stops it on battery by design — see hosts/TSBW-W01800/services/
+  # battery-services.nix). When she is on battery, port 53 is NOT expected
+  # to listen; requiring it made the watchdog roll back healthy deploys.
+  # Detection mirrors dnsproxy-battery's own script: any Mains supply online.
+  if [[ "$host_short" == "TSBW-W01800" ]]; then
+    local ac=0 supply
+    for supply in /sys/class/power_supply/*; do
+      if [ "$(cat "$supply/type" 2>/dev/null)" = "Mains" ] \
+         && [ "$(cat "$supply/online" 2>/dev/null)" = "1" ]; then
+        ac=1
+        break
+      fi
+    done
+    if [ "$ac" = "0" ]; then
+      expected_ports=(22)
+    fi
+  fi
   for port in "${expected_ports[@]}"; do
     if ! ss -tulnH 2>/dev/null | awk '{print $5}' | grep -qE ":$port$"; then
       failures+=("critical port $port not listening")

@@ -32,7 +32,7 @@ Intentional lower-level exceptions are excluded from recursive importing:
 | Host | Hardware | Roles | Use case |
 |------|----------|-------|----------|
 | UwU | AMD CPU, NVIDIA RTX 3080, 32GB RAM | common, personal, disk, virtualisation | Personal desktop — gaming, media, development |
-| UwU-Server | Ryzen AI 9 HX 470, Radeon 890M, 64GB RAM | common, file manager, disk, gaming, SSH | Headless-capable server/desktop provisioned with Disko |
+| Luna-Server | Ryzen AI 9 HX 470, Radeon 890M, 64GB RAM | common, file manager, disk, gaming, SSH | Headless-capable server/desktop provisioned with Disko |
 | TSBW-W01800 | AMD APU, LUKS, Thunderbolt dock | common | Work laptop — YubiKey login, printing, recovery tools |
 | OwO-Family | Family desktop | common, file manager, virtualisation | Preserved but not exported; provisioning waits for a verified disk by-id |
 

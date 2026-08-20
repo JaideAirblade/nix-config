@@ -24,7 +24,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / "modules/ai/hermes-mobile-bridge.nix"
-SECRETS_REL = "secrets/UwU-Server/hermes-mobile-bridge.yaml"
+SECRETS_REL = "secrets/Luna-Server/hermes-mobile-bridge.yaml"
 
 # Pinned upstream contract — must be kept in sync with the comments
 # and assertions in the module itself. Bumping xP3ta's bridge version
