@@ -38,6 +38,38 @@
         # Calendar: DankCalendar (dcal) replaces khal in DMS 1.5+
         # DMS auto-detects the dcal daemon via IPC at runtime
         enableCalendarEvents = lib.mkForce false; # Don't install khal — using DankCalendar instead
+
+        # Plugins — declarative install via the dms-plugin-registry flake.
+        # The registry exposes each plugin under
+        # `programs.dank-material-shell.plugins.<id>.enable` and pre-fetches
+        # the source via fetchFromGitHub (rev + hash in plugins-prefetch.json).
+        # TSBW's 7 existing plugins (which were manually cloned into
+        # ~/.config/DankMaterialShell/plugins) plus 4 new ones requested
+        # 2026-08-20:
+        #   sshConnections    — SSH host launcher (merdely/dms-plugins)
+        #   usbManager        — USB device notifications (NordicsSys)
+        #   emojiLauncher     — emoji & unicode picker (devnullvoid)
+        #   quickCapture      — quick capture / clipboard (hthienloc)
+        # Plugin set mirrors UwU's current install; pinned to the registry's
+        # last-synced commits (currently 422e564, 2026-08-20). A few plugins
+        # get a small upstream bump on first deploy (e.g. dmsThemeSync
+        # 2607942 → 7bdd41d1, networkIndicator 619a552 → 81d948db) — those
+        # are the latest upstream tokens and are the docs-recommended approach.
+        plugins = {
+          # TSBW-pre-existing plugins (7)
+          animeCalendar.enable = true;
+          audioInhibit.enable = true;
+          batteryPlus.enable = true;
+          calculator.enable = true;
+          dmsThemeSync.enable = true;
+          netbirdStatus.enable = true;
+          networkIndicator.enable = true;
+          # Newly added on 2026-08-20 (4)
+          sshConnections.enable = true;
+          usbManager.enable = true;
+          emojiLauncher.enable = true;
+          quickCapture.enable = true;
+        };
       };
 
       # DankCalendar — standalone calendar app (replaces khal for DMS 1.5+)

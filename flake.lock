@@ -154,6 +154,26 @@
         "type": "github"
       }
     },
+    "dms-plugin-registry": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1787187081,
+        "narHash": "sha256-VB8+TqSS5HwN85oowbBncSlwOJOAM6+GWSvmAK0RVMc=",
+        "owner": "AvengeMedia",
+        "repo": "dms-plugin-registry",
+        "rev": "422e564cf9a3e1b03f69e4ad5d8743fb70de76fd",
+        "type": "github"
+      },
+      "original": {
+        "owner": "AvengeMedia",
+        "repo": "dms-plugin-registry",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -616,6 +636,7 @@
         "dankcalendar": "dankcalendar",
         "disko": "disko",
         "dms": "dms",
+        "dms-plugin-registry": "dms-plugin-registry",
         "flake-parts": "flake-parts",
         "hermes-agent": "hermes-agent",
         "hermes-webui": "hermes-webui",

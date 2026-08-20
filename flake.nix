@@ -30,6 +30,17 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # DMS plugin registry — declarative install for community DMS plugins.
+    # Provides nixosModules.default that exposes
+    # `programs.dank-material-shell.plugins.<id>.enable` for every plugin
+    # listed in the registry's plugins-prefetch.json. Plugins are pinned to
+    # the registry's last-synced commit (currently 422e564, 2026-08-20).
+    # Documentation: https://danklinux.com/docs/dankmaterialshell/nixos
+    dms-plugin-registry = {
+      url = "github:AvengeMedia/dms-plugin-registry";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # DankCalendar — calendar backend for DMS 1.5+ (replaces khal).
     dankcalendar = {
       url = "github:AvengeMedia/dankcalendar";

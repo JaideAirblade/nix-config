@@ -25,6 +25,11 @@
       imports = [
         inputs.dms.nixosModules.dank-material-shell
         inputs.dank-greeter.nixosModules.default
+        # DMS plugin registry — exposes programs.dank-material-shell.plugins.<id>
+        # for every plugin in the registry, with src already wired to a
+        # fetchFromGitHub call against the prefetched rev. Hosts opt in via
+        # `programs.dank-material-shell.plugins.<id>.enable = true;`
+        inputs.dms-plugin-registry.nixosModules.default
       ];
 
       # DMS ships its own polkit authentication agent (enabled by default;
