@@ -36,6 +36,21 @@ _:
         narinfo-cache-negative-ttl = 86400; # 24h
       };
 
+      # GitHub Personal Access Token for `nix flake update`. Without a
+      # token, nix falls back to GitHub's anonymous API and hits 60 req/h
+      # per IP — easily exceeded by a 30-input flake. With a token, the
+      # limit is 5000/h. The token comes from sops (see
+      # modules/secrets/secrets.nix — sops.secrets.github_token); the
+      # resolved value lands at /run/secrets/github_token at activation.
+      # We then have sops write a fragment file /etc/nix/access-tokens.conf
+      # containing the actual access-tokens line, and `include` it
+      # from /etc/nix/nix.conf via nix.extraOptions. The fragment file
+      # is mode 0440 root:nixbld so non-root nix commands (e.g. jaide
+      # running nix flake update) can read it.
+      nix.extraOptions = ''
+        include /etc/nix/access-tokens.conf
+      '';
+
       # Avoid pulling every package's optional HTML documentation output into
       # the system closure. In the pinned nixpkgs revision, Python 3.12's docs
       # also fail to build with the Python 3.14 Sphinx/docutils toolchain.

@@ -77,7 +77,7 @@
 { inputs, ... }:
 {
   nixos.modules.common =
-    { pkgs, lib, ... }:
+    { config, pkgs, lib, ... }:
 
     {
       # Import the sops-nix NixOS module
@@ -141,6 +141,35 @@
           group = "users";
           mode = "0600";
         };
+
+        # GitHub Personal Access Token (PAT) for `nix flake update` —
+        # raises the API rate limit from 60/h to 5000/h. See
+        # modules/nix/nix.nix for how the resolved value flows into
+        # /etc/nix/nix.conf via an sops template + nix.extraOptions.
+        # Create the token at https://github.com/settings/tokens?type=beta
+        # (fine-grained, no scopes needed for public flake fetches —
+        # Nix sends the OAuth token via Authorization: Bearer header).
+        # Put the value in nixos-secrets/secrets/shared/github-token.yaml
+        # as the top-level key `github_token`.
+        secrets.github_token = {
+          sopsFile = "${inputs.nixos-secrets}/secrets/shared/github-token.yaml";
+          owner = "root";
+          group = "nixbld";
+          mode = "0440";
+        };
+      };
+
+      # Render /etc/nix/access-tokens.conf from the sops secret.
+      # Written at activation BEFORE the nix-daemon reads nix.conf, so
+      # the `include` in nix.extraOptions resolves correctly. The file
+      # contents are literally: `access-tokens = github.com=<token>` —
+      # nix.conf parses that and uses it for all GitHub API calls.
+      sops.templates."nix-access-tokens" = {
+        content = "access-tokens = github.com=${config.sops.placeholder.github_token}\n";
+        file = "/etc/nix/access-tokens.conf";
+        owner = "root";
+        group = "nixbld";
+        mode = "0440";
       };
 
       # ── Deploy SSH key from sops to ~/.ssh/ ──────────────────────────────
