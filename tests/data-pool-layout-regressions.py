@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Static regressions for the UwU-Server disko disk layout.
+"""Static regressions for the Luna-Server disko disk layout.
 
 The single most important invariant this test enforces:
 
   The string ``nvme1n1`` (the OS drive) appears in
-  ``hosts/UwU-Server/disk-layout.nix`` EXACTLY ONCE — and that one
+  ``hosts/Luna-Server/disk-layout.nix`` EXACTLY ONCE — and that one
   reference is the root pool's ``device`` field. A future edit that
   adds a second reference to ``nvme1n1`` (e.g. by accident in a new
   data-disk block) would cause ``disko -m format,mount`` to wipe the
@@ -43,8 +43,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DISK_LAYOUT = ROOT / "hosts/UwU-Server/disk-layout.nix"
-DEFAULT_NIX = ROOT / "hosts/UwU-Server/default.nix"
+DISK_LAYOUT = ROOT / "hosts/Luna-Server/disk-layout.nix"
+DEFAULT_NIX = ROOT / "hosts/Luna-Server/default.nix"
 
 results: list[tuple[str, bool, str]] = []
 
@@ -285,9 +285,9 @@ if data_media_block and data_backup_block:
             "sibling of /media/l1",
         )
 
-# ── Linkage: hosts/UwU-Server/default.nix references disk-layout.nix ──
+# ── Linkage: hosts/Luna-Server/default.nix references disk-layout.nix ──
 check(
-    "hosts/UwU-Server/default.nix mentions disk-layout.nix (linkage is documented)",
+    "hosts/Luna-Server/default.nix mentions disk-layout.nix (linkage is documented)",
     "disk-layout.nix" in default_text,
     "the host entry point should reference its disk layout file by name",
 )

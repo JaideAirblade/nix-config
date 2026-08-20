@@ -3,7 +3,7 @@
 #
 # dnsproxy (AdGuard) with a multi-tier upstream chain:
 #   1. Per-domain (most specific first):
-#      a. *.netbird.cloud → UwU-Server's AdGuard at 100.77.228.137:53.
+#      a. *.netbird.cloud → Luna-Server's AdGuard at 100.77.228.137:53.
 #         AdGuard forwards *.netbird.cloud to its local netbird daemon
 #         on 127.0.0.1:5353 — so a single hardcoded upstream here
 #         resolves every mesh hostname from this host.
@@ -13,7 +13,7 @@
 #         them through AdGuard would add a mesh hop and end in
 #         NXDOMAIN (AdGuard → Unbound doesn't know tsbw.de).
 #   2. Default catch-all:
-#      Public domains → UwU-Server's AdGuard at 100.77.228.137:53.
+#      Public domains → Luna-Server's AdGuard at 100.77.228.137:53.
 #      AdGuard does ad-blocking locally and forwards to its own
 #      Unbound for full recursive resolution (no third-party leak).
 #      One resolver chain across the fleet.
@@ -21,7 +21,7 @@
 #      on NXDOMAIN, per the dnsproxy docs and confirmed in our
 #      earlier session notes):
 #      DoH upstreams (Cloudflare, Quad9, Google, AdGuard) — used
-#      only when UwU-Server's AdGuard is unreachable, so the work
+#      only when Luna-Server's AdGuard is unreachable, so the work
 #      laptop's DNS keeps working even when the apartment server is
 #      offline.
 #
@@ -144,7 +144,7 @@ _:
             + " --listen 127.0.0.1"
             + " --port 53"
             # Per-domain (most specific first):
-            #   *.netbird.cloud → AdGuard on UwU-Server (mesh DNS chain)
+            #   *.netbird.cloud → AdGuard on Luna-Server (mesh DNS chain)
             + " --upstream [/netbird.cloud/]100.77.228.137:53"
             #   *.tsbw.de / *.ausbildung.tsbw.de → DHCP DNS file
             #   (NM dispatcher writes the DHCP-discovered IPs into
@@ -153,12 +153,12 @@ _:
             #   AdGuard upstream so internal queries never leave the LAN)
             + " --upstream /run/dnsproxy/internal-upstreams.txt"
             # Default catch-all:
-            #   Public domains → UwU-Server's AdGuard (ad-blocking +
+            #   Public domains → Luna-Server's AdGuard (ad-blocking +
             #   Unbound recursive resolution). One resolver chain for
             #   the whole fleet, with ad-blocking uniformly applied.
             + " --upstream 100.77.228.137:53"
             # Fallback (fires ONLY on connection error, NOT on NXDOMAIN):
-            #   Public DoH upstreams, used when UwU-Server's AdGuard is
+            #   Public DoH upstreams, used when Luna-Server's AdGuard is
             #   unreachable. Keeps TSBW DNS working even when the
             #   apartment server is offline.
             + " --fallback https://1.1.1.1/dns-query"
@@ -168,11 +168,11 @@ _:
             + " --cache"
             + " --cache-size 4096"
             # Timeout: how long dnsproxy waits for the primary upstream
-            # (UwU-Server AdGuard) before considering it unavailable and
+            # (Luna-Server AdGuard) before considering it unavailable and
             # falling back to the DoH servers.  The default is 10s —
-            # when UwU-Server is down, every query hangs for 10s before
+            # when Luna-Server is down, every query hangs for 10s before
             # the fallback fires.  1s is enough for a mesh-tunnel hop;
-            # if UwU-Server hasn't answered in 1s it's either down or
+            # if Luna-Server hasn't answered in 1s it's either down or
             # doing a slow recursive lookup, and the DoH fallback
             # (Cloudflare/Quad9/Google anycast, ~5-15ms) will answer
             # faster than waiting for the full 10s timeout.

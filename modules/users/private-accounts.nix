@@ -2,7 +2,7 @@
 # (Luna). Two role modules are exposed from this file:
 #
 #   automationAccounts — Luna's account + SSH keys + sudo rules. Imported
-#     on every host where Luna operates (UwU, UwU-Server, TSBW-W01800,
+#     on every host where Luna operates (UwU, Luna-Server, TSBW-W01800,
 #     OwO-Family, ...). Grants Luna the `jaide` supplementary group so
 #     she can read /home/jaide and operate the nix-config repo on those
 #     hosts. Does NOT touch pam_u2f or the sops password hash wiring.
@@ -10,7 +10,7 @@
 #   privateAccounts — automationAccounts + SOPS unwrapped password hash
 #     for the Jaide account + pam_u2f *option* wiring (enable = false
 #     by default; hosts enable it via their security/yubikey.nix).
-#     Imported only on Jaide's personal devices (UwU, UwU-Server)
+#     Imported only on Jaide's personal devices (UwU, Luna-Server)
 #     because TSBW intentionally keeps its own yubikey.nix as the
 #     authority on pam_u2f there.
 #
@@ -94,7 +94,7 @@ let
         hashedPassword = "!";
         openssh.authorizedKeys.keys = [
           "restrict ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGumwUfMQeD3XItqgrKe9RBzj6w6FqtjnD8QKImskVoQ luna-agent@UwU"
-          "restrict ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINU3saHF0DsvE0PkmQgU7sBlrfjol4R0BxaLRjZSPuRv luna-agent@UwU-Server"
+          "restrict ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINU3saHF0DsvE0PkmQgU7sBlrfjol4R0BxaLRjZSPuRv luna-agent@Luna-Server"
         ];
       };
 
@@ -143,15 +143,15 @@ let
         # netbird daemon's DNS resolver being reachable from the
         # calling host. HostKeyAlias keeps the known_hosts entry
         # under the human-readable hostname (so `ssh -o
-        # HostKeyAlias=uwu` and `ssh -o HostKeyAlias=uwu-server` are
+        # HostKeyAlias=uwu` and `ssh -o HostKeyAlias=luna-server` are
         # both happy when the IP changes on re-enrollment).
-        Host uwu-server uwu-server.netbird.cloud
+        Host luna-server luna-server.netbird.cloud
           HostName 100.77.228.137
           User luna
           IdentityFile ~/.ssh/id_ed25519
           IdentitiesOnly yes
           StrictHostKeyChecking accept-new
-          HostKeyAlias uwu-server
+          HostKeyAlias luna-server
 
         Host uwu uwu.netbird.cloud
           HostName 100.77.119.175

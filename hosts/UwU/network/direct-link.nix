@@ -1,16 +1,16 @@
-# Direct-link networking: UwU desktop routes through UwU-Server.
+# Direct-link networking: UwU desktop routes through Luna-Server.
 #
 # Physical topology (changed 2026-08-08):
-#   UwU enp10s0 (Realtek 1GbE) -- UwU-Server eth0 (r8152 USB 2.5GbE)
+#   UwU enp10s0 (Realtek 1GbE) -- Luna-Server eth0 (r8152 USB 2.5GbE)
 #
-# UwU now gets internet + DNS through UwU-Server instead of going through
+# UwU now gets internet + DNS through Luna-Server instead of going through
 # the apartment router directly. The direct link uses a /30 subnet:
-#   UwU-Server  -> 10.10.0.1/30  (gateway + AdGuard Home DNS)
+#   Luna-Server  -> 10.10.0.1/30  (gateway + AdGuard Home DNS)
 #   UwU         -> 10.10.0.2/30  (client)
 #
 # UwU's WiFi (wlp7s0) remains on the apartment router LAN as a fallback.
 # The wired direct-link connection has a lower route metric (100 vs 300)
-# so internet traffic prefers the UwU-Server path.
+# so internet traffic prefers the Luna-Server path.
 #
 # HISTORY: This used to use a systemd oneshot + `networking.networkmanager.unmanaged`
 # because NM keyfile symlinks via environment.etc didn't work. As of 2026-08-08
@@ -36,7 +36,7 @@ _:
       networking.networkmanager.ensureProfiles.profiles = {
         direct-link = {
           connection = {
-            id = "Direct Link (UwU-Server)";
+            id = "Direct Link (Luna-Server)";
             type = "ethernet";
             interface-name = linkIface;
             autoconnect = true;
@@ -46,10 +46,10 @@ _:
           ipv4 = {
             method = "manual";
             addresses = "${linkIP}/30, ${gatewayIP}";
-            # Route the internet through UwU-Server. Lower metric = preferred
+            # Route the internet through Luna-Server. Lower metric = preferred
             # over WiFi (which NM assigns metric 300+ via DHCP).
             routes = "0.0.0.0/0, ${gatewayIP}, 100";
-            # Use AdGuard Home on UwU-Server as DNS (ignore DHCP DNS).
+            # Use AdGuard Home on Luna-Server as DNS (ignore DHCP DNS).
             dns = "${gatewayIP}";
             # DNS search domains. Netbird magic-DNS lives under
             # `netbird.cloud` (managed by netbird.io's public DNS, not
@@ -68,16 +68,16 @@ _:
       };
 
       # --- System DNS (resolv.conf) ----------------------------------------
-      # Pin resolv.conf to AdGuard on UwU-Server with public DNS fallbacks.
+      # Pin resolv.conf to AdGuard on Luna-Server with public DNS fallbacks.
       # The NM profile also sets per-connection DNS, but we keep this as the
       # system-wide fallback so nothing depends on NM having connected yet at
       # boot time. Search domains mirror the NM profile: netbird.cloud
       # (magic-DNS) + fritz.box (LAN).
       #
-      # Fallback chain: AdGuard on UwU-Server (gatewayIP) → Cloudflare
+      # Fallback chain: AdGuard on Luna-Server (gatewayIP) → Cloudflare
       # (1.1.1.1) → Quad9 (9.9.9.9). The `timeout:1 attempts:2 rotate` options
       # are critical: glibc tries 5s × 5 retries per server by default, which
-      # means when UwU-Server is down (no PSU / off / AdGuard crashed) every
+      # means when Luna-Server is down (no PSU / off / AdGuard crashed) every
       # DNS lookup blocks for ~10s before hitting 1.1.1.1. With these tunings,
       # a dead primary adds at most ~2s of latency before the fallback fires.
       # `rotate` spreads queries across servers so a single bad resolver
@@ -94,7 +94,7 @@ _:
       '';
 
       # --- Direct-link failover watchdog -----------------------------------
-      # When UwU-Server is down (e.g. forgotten power supply, on the desk
+      # When Luna-Server is down (e.g. forgotten power supply, on the desk
       # without juice), the /30 link to 10.10.0.1 still comes up because the
       # Realtek end negotiates fine — but AdGuard is unreachable and the
       # default route through it blackholes all traffic. Symptom on UwU: every
@@ -108,7 +108,7 @@ _:
       # again. The state file lives in /var/lib/direct-link-watchdog so it
       # survives rebuilds.
       systemd.services.direct-link-watchdog = {
-        description = "Failover direct-link to wifi when UwU-Server (10.10.0.1) is unreachable";
+        description = "Failover direct-link to wifi when Luna-Server (10.10.0.1) is unreachable";
         wantedBy = [ "multi-user.target" ];
         after = [ "NetworkManager.service" ];
         wants = [ "NetworkManager.service" "network-online.target" ];
@@ -121,7 +121,7 @@ _:
               #!/usr/bin/env bash
               set -u
               GATEWAY="${gatewayIP}"
-              PROFILE="Direct Link (UwU-Server)"
+              PROFILE="Direct Link (Luna-Server)"
               STATE_DIR="/var/lib/direct-link-watchdog"
               STATE_FILE="$STATE_DIR/mode"
               RESOLVCONF="/etc/resolv.conf"
@@ -202,7 +202,7 @@ _:
                   pass_count=$((pass_count + 1))
                   fail_count=0
                   if [ "$(mode)" = fallback ] && [ "$pass_count" -ge "$PASS_THRESHOLD" ]; then
-                    echo "[$(date -Iseconds)] UwU-Server reachable again, restoring primary"
+                    echo "[$(date -Iseconds)] Luna-Server reachable again, restoring primary"
                     set_route_metric 100
                     nudge_routes
                     write_resolv "$GATEWAY" "''${SECONDARIES[@]}"
@@ -212,7 +212,7 @@ _:
                   fail_count=$((fail_count + 1))
                   pass_count=0
                   if [ "$(mode)" = primary ] && [ "$fail_count" -ge "$FAIL_THRESHOLD" ]; then
-                    echo "[$(date -Iseconds)] UwU-Server unreachable ($fail_count consecutive failures), failing over to cloud DNS + wifi route"
+                    echo "[$(date -Iseconds)] Luna-Server unreachable ($fail_count consecutive failures), failing over to cloud DNS + wifi route"
                     set_route_metric 1000
                     nudge_routes
                     # Reorder: put cloud fallbacks first, keep gateway last as

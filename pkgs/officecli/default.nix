@@ -32,11 +32,11 @@
 
 stdenv.mkDerivation rec {
   pname = "officecli";
-  version = "1.0.143";
+  version = "1.0.144";
 
   src = fetchurl {
     url = "https://github.com/iOfficeAI/OfficeCLI/releases/download/v${version}/officecli-linux-x64";
-    hash = "sha256-ainFmKeJtXySwD5WCQfT8TGkvQoGh4Wx0ziob8MaWKc=";
+    hash = "sha256-Mu96IaVKTKbJgGv16fPTK/sSkQFzKcVQRMsqrHGCLrg=";
   };
 
   dontUnpack = true;

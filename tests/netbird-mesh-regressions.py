@@ -25,7 +25,7 @@ MODULE = ROOT / "modules/network/netbird-mesh.nix"
 POLICY = ROOT / "modules/network/netbird-policy.json"
 HOSTS = {
     "UwU": ROOT / "hosts/UwU/default.nix",
-    "UwU-Server": ROOT / "hosts/UwU-Server/default.nix",
+    "Luna-Server": ROOT / "hosts/Luna-Server/default.nix",
     "TSBW-W01800": ROOT / "hosts/TSBW-W01800/default.nix",
     "Projet-Printserver": ROOT / "hosts/Projet-Printserver/default.nix",
 }
@@ -171,7 +171,7 @@ for port in ("8642", "9119", "9131"):
 #
 # which builds a tiny derivation in the netbird-mesh role module that
 # wraps the upstream wrapper under the name `netbird` and adds it to
-# `environment.systemPackages`. Hosts that run DMS (UwU, UwU-Server,
+# `environment.systemPackages`. Hosts that run DMS (UwU, Luna-Server,
 # TSBW-W01800) set the flag; hosts without DMS (LaptopAP, Projet-
 # Printserver) leave it at the default `false`.
 #
@@ -203,7 +203,7 @@ require(
 
 # (b) Every DMS-running host opts in. LaptopAP / Projet-Printserver don't
 # run DMS and intentionally leave it off.
-DMS_HOSTS = ["UwU", "UwU-Server", "TSBW-W01800"]
+DMS_HOSTS = ["UwU", "Luna-Server", "TSBW-W01800"]
 for host_name in DMS_HOSTS:
     host_text = HOSTS[host_name].read_text()
     require(
@@ -288,7 +288,7 @@ require(
 )
 
 # --- Mesh DNS resolver (per-host) -------------------------------------
-# UwU-Server opts in to bind the daemon on a stable loopback address
+# Luna-Server opts in to bind the daemon on a stable loopback address
 # so AdGuard can forward `*.netbird.cloud` via a known socket. UwU
 # and TSBW leave it at the default (daemon's own mesh IP at port 5053).
 require(
@@ -299,14 +299,14 @@ require(
     "dnsResolverPort" in module,
     "netbird-mesh role module does not declare the dnsResolverPort option",
 )
-uwu_server_text = HOSTS["UwU-Server"].read_text()
+luna_server_text = HOSTS["Luna-Server"].read_text()
 require(
-    'dnsResolverAddress = "127.0.0.1"' in uwu_server_text,
-    "UwU-Server does not pin dnsResolverAddress to 127.0.0.1 (loopback to AdGuard)",
+    'dnsResolverAddress = "127.0.0.1"' in luna_server_text,
+    "Luna-Server does not pin dnsResolverAddress to 127.0.0.1 (loopback to AdGuard)",
 )
 require(
-    "dnsResolverPort = 5353" in uwu_server_text,
-    "UwU-Server does not pin dnsResolverPort to 5353 (avoids port-53 AdGuard conflict and CAP_NET_BIND_SERVICE)",
+    "dnsResolverPort = 5353" in luna_server_text,
+    "Luna-Server does not pin dnsResolverPort to 5353 (avoids port-53 AdGuard conflict and CAP_NET_BIND_SERVICE)",
 )
 # The role module wires `dns-resolver = lib.mkIf (cfg.dnsResolverAddress != null)`
 # into services.netbird.clients.mesh, so the upstream NixOS module's
@@ -316,41 +316,41 @@ require(
     "netbird-mesh role module does not wire dnsResolverAddress into services.netbird.clients.mesh.dns-resolver",
 )
 
-# --- AdGuard split-horizon DNS forward (UwU-Server) --------------------
+# --- AdGuard split-horizon DNS forward (Luna-Server) --------------------
 # Without this forward, queries for `*.netbird.cloud` go to Unbound
 # (public recursive), which resolves them via the public netbird DNS —
-# works for `uwu-server.netbird.cloud` etc., but the answer is the
+# works for `luna-server.netbird.cloud` etc., but the answer is the
 # daemon's *current* mesh IP, which can lag a fresh enrollment. The
 # local netbird daemon always has the freshest map from the management
 # plane, so the forward chain is the right path.
-adguard_cfg = (ROOT / "hosts/UwU-Server/network/direct-link.nix").read_text()
+adguard_cfg = (ROOT / "hosts/Luna-Server/network/direct-link.nix").read_text()
 require(
     "[/netbird.cloud/]127.0.0.1:5353" in adguard_cfg,
-    "AdGuard on UwU-Server is not configured to forward `*.netbird.cloud` to "
+    "AdGuard on Luna-Server is not configured to forward `*.netbird.cloud` to "
     "the loopback netbird daemon (127.0.0.1:5353). DNS for mesh hostnames will "
     "leak to Unbound / public DNS.",
 )
 # The non-mesh upstream (Unbound on 127.0.0.1:5335) must still be present.
 require(
     "127.0.0.1:5335" in adguard_cfg,
-    "AdGuard on UwU-Server is missing the Unbound upstream (127.0.0.1:5335). "
+    "AdGuard on Luna-Server is missing the Unbound upstream (127.0.0.1:5335). "
     "Public DNS resolution will break for non-mesh queries.",
 )
 # The mesh subnet (100.77.0.0/16) must be in the allowed_clients list —
 # otherwise TSBW's dnsproxy gets REFUSED from AdGuard over the netbird
-# tunnel, and `ssh uwu-server` from TSBW silently fails to resolve.
+# tunnel, and `ssh luna-server` from TSBW silently fails to resolve.
 require(
     "100.77.0.0/16" in adguard_cfg,
-    "AdGuard on UwU-Server must accept DNS queries from the netbird mesh "
+    "AdGuard on Luna-Server must accept DNS queries from the netbird mesh "
     "subnet (100.77.0.0/16) so TSBW-W01800 can reach AdGuard over the mesh "
     "tunnel and chain `*.netbird.cloud` into the local netbird daemon. "
     "Without this entry AdGuard returns REFUSED for every mesh-peer query.",
 )
 
-# --- TSBW dnsproxy: forward mesh DNS to UwU-Server --------------------
+# --- TSBW dnsproxy: forward mesh DNS to Luna-Server --------------------
 # TSBW uses dnsproxy (not AdGuard) and has its own upstream chain.
 # The chain is (most specific first):
-#   1. *.netbird.cloud -> UwU-Server AdGuard (mesh DNS)
+#   1. *.netbird.cloud -> Luna-Server AdGuard (mesh DNS)
 #   2. /run/dnsproxy/internal-upstreams.txt (DHCP *.tsbw.de /
 #      *.ausbildung.tsbw.de)
 #   3. 100.77.228.137:53 (AdGuard default — ad-blocking + Unbound
@@ -361,7 +361,7 @@ tsbw_dns_cfg = (ROOT / "hosts/TSBW-W01800/network/dns.nix").read_text()
 require(
     "[/netbird.cloud/]100.77.228.137:53" in tsbw_dns_cfg,
     "TSBW dnsproxy is not configured to forward `*.netbird.cloud` to "
-    "UwU-Server's AdGuard over the mesh (100.77.228.137:53). Mesh hostname "
+    "Luna-Server's AdGuard over the mesh (100.77.228.137:53). Mesh hostname "
     "resolution from TSBW will silently break.",
 )
 require(
@@ -372,21 +372,21 @@ require(
 )
 require(
     "--upstream 100.77.228.137:53" in tsbw_dns_cfg,
-    "TSBW dnsproxy must route public-domain queries through UwU-Server's "
+    "TSBW dnsproxy must route public-domain queries through Luna-Server's "
     "AdGuard (100.77.228.137:53) for fleet-wide ad-blocking + recursive "
     "resolution. Ad-blocking on TSBW is currently bypassed by DoH.",
 )
 require(
     "--fallback https://1.1.1.1/dns-query" in tsbw_dns_cfg,
     "TSBW dnsproxy must keep the DoH upstreams as --fallback so DNS works "
-    "even when UwU-Server is unreachable. --fallback fires only on "
+    "even when Luna-Server is unreachable. --fallback fires only on "
     "connection error, not on NXDOMAIN, so internal domains still route "
     "to DHCP DNS via the per-domain upstream.",
 )
 
 # --- SSH fleet aliases -----------------------------------------------
 # Every host that opts into automationAccounts gets Luna's declarative
-# ssh_config with `Host` blocks for uwu / uwu-server / tsbw /
+# ssh_config with `Host` blocks for uwu / luna-server / tsbw /
 # uwu-phone. Without the aliases, every cross-host SSH needs
 # `ssh -i ~/.ssh/id_ed25519 luna@100.77.x.x` — the exact ergonomic
 # pain documented in the 2026-08-09 Netbird migration session log.
@@ -395,7 +395,7 @@ require(
     "environment.etc.\"luna/ssh_config\".text" in private_accounts,
     "modules/users/private-accounts.nix is not declaring luna's ssh_config (move from per-host)",
 )
-for alias in ("uwu-server", "uwu", "tsbw", "uwu-phone"):
+for alias in ("luna-server", "uwu", "tsbw", "uwu-phone"):
     require(
         f"Host {alias}" in private_accounts,
         f"ssh_config is missing Host block for `{alias}`",
@@ -419,9 +419,9 @@ for hosts_line, block in alias_blocks:
     )
 
 # The per-host users/users.nix must wire ~/.ssh/config → /etc/luna/ssh_config
-# (rendered by automationAccounts). UwU-Server already had this; UwU was
+# (rendered by automationAccounts). Luna-Server already had this; UwU was
 # missing it. TSBW doesn't have luna at all, so the symlink isn't needed there.
-for host in ("UwU-Server", "UwU"):
+for host in ("Luna-Server", "UwU"):
     users_text = (ROOT / f"hosts/{host}/users/users.nix").read_text()
     require(
         "L+ /home/luna/.ssh/config" in users_text and "/etc/luna/ssh_config" in users_text,

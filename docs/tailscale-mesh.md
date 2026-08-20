@@ -9,7 +9,7 @@ ordinary OpenSSH. Tailscale SSH is deliberately not used: OS accounts,
 | Node | Tag | May initiate SSH | May receive SSH |
 |---|---|---:|---:|
 | `UwU` | `tag:private` | yes | yes |
-| `UwU-Server` | `tag:private` | yes | yes |
+| `Luna-Server` | `tag:private` | yes | yes |
 | `TSBW-W01800` | `tag:work` | yes | yes |
 | explicitly approved personal devices | `tag:personal` | yes | yes |
 | `Projet-Printserver` | `tag:printserver` | **no** | yes |
@@ -32,8 +32,8 @@ no `autogroup:member` rule: mere tailnet membership grants no management access.
    # UwU
    sudo tailscale up --hostname=UwU --advertise-tags=tag:private
 
-   # UwU-Server
-   sudo tailscale up --hostname=UwU-Server --advertise-tags=tag:private
+   # Luna-Server
+   sudo tailscale up --hostname=Luna-Server --advertise-tags=tag:private
 
    # Work laptop; run once locally after its rebuild
    sudo tailscale up --hostname=TSBW-W01800 --advertise-tags=tag:work
@@ -50,7 +50,7 @@ no `autogroup:member` rule: mere tailnet membership grants no management access.
 
 ## Existing Luna account migration
 
-UwU and UwU-Server were originally deployed with Luna's home at
+UwU and Luna-Server were originally deployed with Luna's home at
 `/var/lib/luna`. Do not move that directory during Nix activation.
 
 Before switching each existing host, create and verify the rollback backup:
@@ -85,15 +85,15 @@ From every private/work/personal node:
 ```sh
 tailscale status
 tailscale ping UwU
-tailscale ping UwU-Server
+tailscale ping Luna-Server
 tailscale ping TSBW-W01800
 ssh -o BatchMode=yes <authorized-user>@<destination> true
 ```
 
 From the print server, connections to port 22 on private/work nodes must fail.
 From a private/work node, Jaide's pinned key must reach the print server after
-it is deployed. Luna's distinct UwU-Server fleet key is deployed only on
-UwU-Server and is authorized only where `automationAccounts` is selected.
+it is deployed. Luna's distinct Luna-Server fleet key is deployed only on
+Luna-Server and is authorized only where `automationAccounts` is selected.
 
 After every enrollment, record and pin the node's OpenSSH host key before Luna
 performs administrative work. Tailscale authenticates the network path, but it

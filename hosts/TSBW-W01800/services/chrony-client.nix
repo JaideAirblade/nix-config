@@ -1,5 +1,5 @@
 # Opt in to chrony-client — syncs this host's clock via NTS to
-# UwU-Server (time.jaidechan.moe) over the NetBird mesh.
+# Luna-Server (time.jaidechan.moe) over the NetBird mesh.
 #
 # Why we want this on TSBW specifically: the office LAN firewall
 # (OPNsense HA pair) drops inbound UDP return traffic, so the in-the-
@@ -10,7 +10,7 @@
 # then authenticated UDP/123) gets us a working clock without poking
 # the office firewall.
 #
-# Server side: hosts/UwU-Server/server/chrony.nix.
+# Server side: hosts/Luna-Server/server/chrony.nix.
 #
 # Why this is host-specific (not a shared `modules/` feature):
 # the dendritic walker imports `modules/X.nix` as flake-parts modules
@@ -36,11 +36,11 @@ in
         enable = true;
         package = pkgs.chrony;
 
-        # NTS-KE + NTP pointing at UwU-Server. The NTS path means a
+        # NTS-KE + NTP pointing at Luna-Server. The NTS path means a
         # mangling firewall can't silently corrupt the time stream --
         # either the client authenticates the response or it ignores it.
         servers = [
-          # The mesh DNS should resolve this to UwU-Server's NetBird IP
+          # The mesh DNS should resolve this to Luna-Server's NetBird IP
           # (100.77.228.137) automatically. The `iburst` option sends
           # eight packets on first connect instead of one, which is
           # what we want for a client that was just rebooted.

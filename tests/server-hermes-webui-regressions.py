@@ -3,7 +3,7 @@
 
 The flake substitutes the actual on-disk path of the nixos-secrets input
 into the SOPS_ROOT environment variable before invoking this script; the
-test asserts that secrets/UwU-Server/hermes-webui.yaml exists there with
+test asserts that secrets/Luna-Server/hermes-webui.yaml exists there with
 the hermes_webui_password key. Outside `nix build` (e.g. running the
 script directly), fall back to scanning /nix/store for the same."""
 
@@ -14,9 +14,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE = ROOT / "hosts/UwU-Server/ai/hermes-webui.nix"
+MODULE = ROOT / "hosts/Luna-Server/ai/hermes-webui.nix"
 FLAKE = ROOT / "flake.nix"
-SECRETS_REL = "secrets/UwU-Server/hermes-webui.yaml"
+SECRETS_REL = "secrets/Luna-Server/hermes-webui.yaml"
 
 
 def require(condition: bool, message: str) -> None:
@@ -35,7 +35,7 @@ def resolve_sops_root() -> Path | None:
     return None
 
 
-require(MODULE.exists(), "UwU-Server Hermes WebUI module is missing")
+require(MODULE.exists(), "Luna-Server Hermes WebUI module is missing")
 
 source = MODULE.read_text(encoding="utf-8")
 flake_source = FLAKE.read_text(encoding="utf-8")
@@ -231,11 +231,11 @@ assert sops_root is not None  # require() exits on False; narrow the type for LS
 password_file = sops_root / SECRETS_REL
 require(
     password_file.exists(),
-    "nixos-secrets must contain secrets/UwU-Server/hermes-webui.yaml",
+    "nixos-secrets must contain secrets/Luna-Server/hermes-webui.yaml",
 )
 require(
     "hermes_webui_password" in password_file.read_text(),
-    "secrets/UwU-Server/hermes-webui.yaml must contain the hermes_webui_password key",
+    "secrets/Luna-Server/hermes-webui.yaml must contain the hermes_webui_password key",
 )
 
 print("OK: hermes-webui module passes all regressions", file=sys.stderr)

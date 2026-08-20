@@ -46,10 +46,16 @@
     modules = [
       config.nixos.modules.common
       config.nixos.modules.printServer
+      config.nixos.modules.maintenance
       config.nixos.hosts."Projet-Printserver"
 
       # Generated lower-level module exception.
       ./hardware-configuration.nix
+
+      # Heartbeat dead-man's-switch — same pattern as on UwU/TSBW.
+      # Printserver is on the LAN so it can reach UwU-Server's
+      # Uptime Kuma directly without mesh routing.
+      ./../../modules/maintenance/heartbeat.nix
 
       # witr — process/port/container/file tracing CLI. See flake.nix.
       inputs.self.nixosModules.witr

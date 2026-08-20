@@ -4,7 +4,7 @@
 use `dns.jaidechan.moe` as its Android "Private DNS" provider, so all DNS goes
 through AdGuard's filter lists over an encrypted, authenticated channel.
 
-**Scope:** UwU-Server only. No changes to TSBW, UwU, or uwu-phone configs.
+**Scope:** Luna-Server only. No changes to TSBW, UwU, or uwu-phone configs.
 
 **Why this is small:** the wildcard cert `*.jaidechan.moe` already exists and
 auto-renews. We just need to expose it on a new DoT listener (port 853) and
@@ -24,7 +24,7 @@ Owned via the existing lego Porkbun DNS-01 setup. Either:
 
 The cert is fine as-is. The A record is a Porkbun-side edit, NOT a Nix edit.
 
-### 2. `hosts/UwU-Server/network/direct-link.nix` — AdGuard DoT + wt0:853
+### 2. `hosts/Luna-Server/network/direct-link.nix` — AdGuard DoT + wt0:853
 
 Inside `services.adguardhome.settings.dns`, add a `tls` block:
 

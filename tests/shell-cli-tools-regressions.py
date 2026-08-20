@@ -134,7 +134,7 @@ require(
 
 # --- eval-level assertions ------------------------------------------------
 
-HOSTS = ("UwU", "UwU-Server", "TSBW-W01800", "Projet-Printserver")
+HOSTS = ("UwU", "Luna-Server", "TSBW-W01800", "Projet-Printserver")
 
 for host in HOSTS:
     # programs.zoxide.enable / programs.nh.enable

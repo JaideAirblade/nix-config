@@ -34,7 +34,7 @@ watchdog reports rolled_back, halt the rollout — don't deploy to host 2.
 
 Usage:
     scripts/fleet-deploy.py                       # normal deploy
-    scripts/fleet-deploy.py --hosts UwU UwU-Server  # subset
+    scripts/fleet-deploy.py --hosts UwU Luna-Server  # subset
     scripts/fleet-deploy.py --include-phone       # also push to uwu-phone
     scripts/fleet-deploy.py --rollback            # revert + redeploy prev
     scripts/fleet-deploy.py --skip-build          # use existing build
@@ -156,7 +156,7 @@ def schedule_watchdog(ip: str, ssh_user_: str, prev_gen: str,
     # exit 127 ("bash: No such file or directory") and never writes the
     # verdict file — fleet-deploy then mis-classifies the deploy as failed
     # even though the activation itself succeeded.
-    # 2026-08-13 — first observed: UwU-Server watchdog died with exit 127,
+    # 2026-08-13 — first observed: Luna-Server watchdog died with exit 127,
     # deploy halted, no rollback needed (system was healthy).
     nixos_system_path = (
         "/run/current-system/sw/bin:"
@@ -239,21 +239,29 @@ def nar_roundtrip(host: str, ip: str, out_path: str, ssh_user_: str) -> bool:
     # progress text filling Python's 64KB pipe buffer.
     is_nat_relayed = host == "TSBW-W01800"
     copy_timeout = 1800 if is_nat_relayed else 600
-    script = NAR_SCRIPT_PATCHED if is_nat_relayed else NAR_SCRIPT
+    # 2026-08-19: always use the PATCHED streaming script, not just for
+    # NAT-relayed targets. The upstream script's capture_output=True pipe
+    # buffer hangs on multi-GB closures, and 80 max-attempts is too few
+    # for a first-time multi-thousand-path copy (UwU's gaming closure
+    # exhausted 80 attempts on 2026-08-19 and aborted). The patched
+    # script streams output to a log file and we give it 300 attempts.
+    script = NAR_SCRIPT_PATCHED
     log(f"  NAR-roundtrip closure to {host} (copy_timeout={copy_timeout}s, "
-        f"script={'patched' if is_nat_relayed else 'upstream'})")
+        f"script=patched)")
+    log_file = LOG_DIR / f"nar-{host}-{int(time.time())}.log"
+    log_file.parent.mkdir(parents=True, exist_ok=True)
     # Patched script takes --log-file; upstream does not.
     cmd = ["python3", str(script),
            "--target-path", out_path,
            "--remote-host", ip,
            "--remote-user", ssh_user_,
-           "--max-attempts", "80",
-           "--copy-timeout", str(copy_timeout)]
-    if is_nat_relayed:
-        log_file = LOG_DIR / f"nar-{host}-{int(time.time())}.log"
-        log_file.parent.mkdir(parents=True, exist_ok=True)
-        cmd += ["--log-file", str(log_file)]
-    r = run(cmd, timeout=7200)
+           "--max-attempts", "300",
+           "--copy-timeout", str(copy_timeout),
+           "--log-file", str(log_file)]
+    # 2026-08-19: 14400s — a first-time multi-GB gaming closure (UwU) needs
+    # >2h to ship even with the streaming script; 7200 killed a healthy
+    # copy mid-flight on 2026-08-19.
+    r = run(cmd, timeout=14400)
     if r.returncode != 0:
         log(f"  ! NAR-roundtrip FAILED for {host}")
         log(f"    stderr: {r.stderr[-2000:] if r.stderr else r.stdout[-2000:]}")
@@ -356,7 +364,7 @@ def main() -> int:
     cfg = load_config()
     fleet_cfg = cfg["fleet"]
     ssh_user_ = fleet_cfg["ssh_user"]
-    deploy_host_ip = fleet_cfg["hosts"].get("UwU-Server", "127.0.0.1")
+    deploy_host_ip = fleet_cfg["hosts"].get("Luna-Server", "127.0.0.1")
     deploy_order = list(fleet_cfg["deploy_order"])
     if args.include_phone:
         deploy_order.append("uwu-phone")

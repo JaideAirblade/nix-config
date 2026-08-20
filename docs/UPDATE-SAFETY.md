@@ -18,7 +18,7 @@ to confirm mesh + WAN + DNS are all still up.
 
 ## What this pipeline does NOT do
 
-- It does **not** touch `octarine`, `omniroute`, `hytale`, or `net-report`.
+- It does **not** touch `octarine`, `hytale`, or `net-report`.
   See `pkgs/.update-config.json#scope.manual_only` for per-pkg reasons.
 - It does **not** roll forward automatically after a deploy failure.
   A broken host stays on its previous generation; the next nightly run will
@@ -52,7 +52,7 @@ The pipeline has two complementary watchdogs:
   3. A LAN gateway is reachable (tries 10.10.0.1, 10.10.0.2,
      192.168.178.1, 100.77.0.1 — first success wins)
   4. DNS resolves `github.com`
-  5. Per-host critical ports still listening (uwu-server also checks
+  5. Per-host critical ports still listening (luna-server also checks
      adguard :53, adguard :3000, unbound :5335)
 - On failure: runs the **previous generation's**
   `switch-to-configuration switch` — same mechanism NixOS itself uses
@@ -64,7 +64,7 @@ The pipeline has two complementary watchdogs:
 
 ### Layer 2: Deploy-host verification (`scripts/verify-pipeline.py`)
 
-- Runs on the deploy host (uwu-server) AFTER fleet-deploy.py reports all
+- Runs on the deploy host (luna-server) AFTER fleet-deploy.py reports all
   hosts activated successfully. This is the second line of defense for
   issues the target-side watchdog might have missed (e.g. late-arriving
   breakage, mesh-wide issues).
@@ -82,9 +82,9 @@ The pipeline has two complementary watchdogs:
 | Failure type | Caught by |
 |---|---|
 | Bad package breaks sshd on the target | Layer 1 (target watchdog) — target rolls itself back |
-| Bad module breaks adguard but sshd still up | Layer 1 (target watchdog checks :53/:3000 on uwu-server) |
+| Bad module breaks adguard but sshd still up | Layer 1 (target watchdog checks :53/:3000 on luna-server) |
 | Bad package breaks the network path the deploy host uses to reach target | Layer 1 + Layer 2 — target rolls itself back, deploy host can't even poll |
-| Bad package breaks the build host (uwu-server) itself | Layer 1 on uwu-server catches it; deploy halts |
+| Bad package breaks the build host (luna-server) itself | Layer 1 on luna-server catches it; deploy halts |
 | Late-arriving breakage (e.g. service crashes 10 min after activation) | Layer 2 — caught on the next scheduled run, or by your monitoring |
 | Cross-host mesh breakage | Layer 2 NET-1 gate |
 
@@ -96,7 +96,7 @@ The pipeline has two complementary watchdogs:
    line counts.
 4. **Commit + push to `main`** — only after gates 1-3.
 5. **NAR-roundtrip deploy to fleet** — the new `nixos-system-<host>`
-   closure is built on uwu-server and shipped via the NAR-roundtrip script.
+   closure is built on luna-server and shipped via the NAR-roundtrip script.
 6. **Target-side watchdog verdict** — each host's watchdog reports `ok`.
    If any reports `rolled_back`, the deploy halts.
 7. **Post-deploy network verification** — verify-pipeline.py confirms
@@ -181,10 +181,10 @@ Add new entries below as we encounter them. Format:
   verification is now a second-line check for issues the target
   watchdog missed.
 
-### 2026-08-11 — Watchdog end-to-end test on UwU-Server
+### 2026-08-11 — Watchdog end-to-end test on Luna-Server
 
 - **What we tested:** Ran `target-rollback-watchdog.sh 999 "" 5 1`
-  (5s timeout, 1s sleep, fake prev gen) with sudo on UwU-Server
+  (5s timeout, 1s sleep, fake prev gen) with sudo on Luna-Server
   directly. The watchdog:
   - Started cleanly, captured host identity
   - Iter 1: gateway 10.10.0.1 reachable, all health checks OK
@@ -202,8 +202,8 @@ Add new entries below as we encounter them. Format:
 - **Symptom:** First cron run with an actual pkg bump (helium-bin
   0.15.1.1 -> 0.15.3.1) failed at Phase 6 (fleet deploy) with
   `error: flake 'git+file:///tmp/nixos-wt' does not provide attribute
-  'packages.x86_64-linux.UwU-Server', 'legacyPackages.x86_64-linux.UwU-Server'
-  or 'UwU-Server'`. The build_local() function inside scripts/fleet-deploy.py
+  'packages.x86_64-linux.Luna-Server', 'legacyPackages.x86_64-linux.Luna-Server'
+  or 'Luna-Server'`. The build_local() function inside scripts/fleet-deploy.py
   was calling `nix build .#<host>` which only resolves when the flake
   exposes a top-level attribute named `<host>`. Our flake uses flake-parts
   and exposes the configuration only as `nixosConfigurations.<host>`.
@@ -212,7 +212,7 @@ Add new entries below as we encounter them. Format:
   The Justfile's `just deploy` uses `nixos-rebuild` (which works), so the
   `nix build` path in fleet-deploy.py was never actually exercised end-to-end
   before this run. The earlier ad-hoc verification script used
-  `nix build .#UwU-Server` but only at a shape-check layer; the actual
+  `nix build .#Luna-Server` but only at a shape-check layer; the actual
   build/NAR-roundtrip path was never exercised.
 - **Fix:** Changed `nix build .#<host>` to
   `nix build .#nixosConfigurations.<host>.config.system.build.toplevel`
@@ -224,7 +224,7 @@ Add new entries below as we encounter them. Format:
 
 ### 2026-08-12 — Read-only /home snapshot blocks the cron
 
-- **Symptom:** Original cron entry on UwU-Server, when run from a
+- **Symptom:** Original cron entry on Luna-Server, when run from a
   btrfs-ro snapshot of `/home` (the standard NixOS impermanence setup
   on this fleet), fails at the orchestrator's pre-flight `git status`
   check with `FATAL: working tree is dirty. Commit or stash before running.`
@@ -251,7 +251,7 @@ Add new entries below as we encounter them. Format:
 
 ### 2026-08-13 — Watchdog unit needs explicit PATH (bash-not-found on NixOS systemd)
 
-- **Symptom:** fleet-deploy halted with `activation FAILED` on UwU-Server
+- **Symptom:** fleet-deploy halted with `activation FAILED` on Luna-Server
   immediately after the activate step. stderr included
   `warning: the following units failed: nginx-config-reload.service,
   nixos-rollback-watchdog-<gen>-<ts>.service`. No
@@ -297,7 +297,7 @@ Add new entries below as we encounter them. Format:
   is safe on the build host but NOT on fleet devices (they manage their own
   GC via the existing NixOS module).
 - **Time budget:** A full green run with 8 packages takes ~15-25 min on
-  uwu-server (builds) + ~5-20 min per fleet host for the watchdog window =
+  luna-server (builds) + ~5-20 min per fleet host for the watchdog window =
   30-90 minutes total. Cron timeout is set to 90 min.
 - **Watchdog timeout:** default 300s (5 min). Increase with
   `--watchdog-timeout 600` for slow hosts or rollouts that touch

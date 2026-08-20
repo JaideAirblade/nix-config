@@ -8,10 +8,10 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 ROLE = ROOT / "modules/users/private-accounts.nix"
 UWU = ROOT / "hosts/UwU/default.nix"
-SERVER = ROOT / "hosts/UwU-Server/default.nix"
+SERVER = ROOT / "hosts/Luna-Server/default.nix"
 WORK = ROOT / "hosts/TSBW-W01800/default.nix"
 UWU_USERS = ROOT / "hosts/UwU/users/users.nix"
-SERVER_USERS = ROOT / "hosts/UwU-Server/users/users.nix"
+SERVER_USERS = ROOT / "hosts/Luna-Server/users/users.nix"
 PRINTSERVER_USERS = ROOT / "hosts/Projet-Printserver/users/users.nix"
 
 
@@ -107,8 +107,8 @@ require(
 require(
     role.count("restrict ssh-ed25519") == 2
     and "luna-agent@UwU" in role
-    and "luna-agent@UwU-Server" in role,
-    "Luna targets do not authorize distinct UwU and UwU-Server fleet identities",
+    and "luna-agent@Luna-Server" in role,
+    "Luna targets do not authorize distinct UwU and Luna-Server fleet identities",
 )
 require(
     re.search(r'extraGroups\s*=\s*\[[^]]*"wheel"', role, re.S) is not None,
@@ -166,7 +166,7 @@ require(
     "UwU does not publish the newline-safe Luna identity template path",
 )
 require(
-    "secrets/UwU-Server/luna-agent.yaml" in server_users
+    "secrets/Luna-Server/luna-agent.yaml" in server_users
     and "sops.secrets.luna_server_ssh_private_key" in server_users
     and 'key = "luna_ssh_private_key";' in server_users
     and "sops.templates.luna_server_ssh_identity" in server_users
@@ -174,7 +174,7 @@ require(
     and 'group = "luna";' in server_users
     and 'mode = "0600";' in server_users
     and '"L+ /home/luna/.ssh/id_ed25519' in server_users,
-    "UwU-Server does not deploy Luna's distinct fleet identity into /home/luna",
+    "Luna-Server does not deploy Luna's distinct fleet identity into /home/luna",
 )
 require(
     "users.mutableUsers = false;" in printserver_users,

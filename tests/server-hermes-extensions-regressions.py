@@ -4,13 +4,13 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE = ROOT / "hosts/UwU-Server/ai/hermes-router.nix"
-LOCAL_STACK = ROOT / "hosts/UwU-Server/ai/honcho.nix"
-ROUTER_PATCH = ROOT / "hosts/UwU-Server/ai/patches/hermes-router-disable-admin-surfaces.patch"
-ROUTER_MINIMAX_PATCH = ROOT / "hosts/UwU-Server/ai/patches/hermes-router-minimax-provider.patch"
-MATH_PATCH = ROOT / "hosts/UwU-Server/ai/patches/math-via-code-secure-tempdir.patch"
-MINIMAX_IMAGE_PATCH = ROOT / "hosts/UwU-Server/ai/patches/minimax-image-managed-media-only.patch"
-MINIMAX_VIDEO_PATCH = ROOT / "hosts/UwU-Server/ai/patches/minimax-video-managed-media-only.patch"
+MODULE = ROOT / "hosts/Luna-Server/ai/hermes-router.nix"
+LOCAL_STACK = ROOT / "hosts/Luna-Server/ai/honcho.nix"
+ROUTER_PATCH = ROOT / "hosts/Luna-Server/ai/patches/hermes-router-disable-admin-surfaces.patch"
+ROUTER_MINIMAX_PATCH = ROOT / "hosts/Luna-Server/ai/patches/hermes-router-minimax-provider.patch"
+MATH_PATCH = ROOT / "hosts/Luna-Server/ai/patches/math-via-code-secure-tempdir.patch"
+MINIMAX_IMAGE_PATCH = ROOT / "hosts/Luna-Server/ai/patches/minimax-image-managed-media-only.patch"
+MINIMAX_VIDEO_PATCH = ROOT / "hosts/Luna-Server/ai/patches/minimax-video-managed-media-only.patch"
 
 
 def require(condition: bool, message: str) -> None:
@@ -18,7 +18,7 @@ def require(condition: bool, message: str) -> None:
         raise SystemExit(f"FAIL: {message}")
 
 
-require(MODULE.exists(), "UwU-Server Hermes Router module is missing")
+require(MODULE.exists(), "Luna-Server Hermes Router module is missing")
 require(ROUTER_PATCH.exists(), "reviewed router admin-surface patch is missing")
 require(ROUTER_MINIMAX_PATCH.exists(), "router MiniMax provider patch is missing")
 require(MATH_PATCH.exists(), "reviewed math skill temp-directory patch is missing")

@@ -30,7 +30,7 @@
 # catches that exact class of mistake: the user has to deliberately
 # type the wrong hostname to bypass the guard. The match branch is
 # prompt-free by design -- the user's words: "if I run just deploy
-# uwu-server on this device there is no reason to confirm since it
+# luna-server on this device there is no reason to confirm since it
 # has the same hostane [hostname]".
 
 set -euo pipefail

@@ -28,11 +28,22 @@
       # instead — the dispatcher never fires. NM itself logs a warning if
       # you use HTTPS: "use of HTTPS for connectivity checking is not
       # reliable and is discouraged".
+      #
+      # The default `connectivity.uri` (`http://nmcheck.gnome.org/...`)
+      # is the only URL that actually resolves. The "newer" GNOME URL
+      # `http://connectivity-check.networkmanager.dev/` was deprecated
+      # upstream and no longer resolves — using it as the configured
+      # URL causes every connectivity check to fail, leaving
+      # NetworkManager in `limited` state permanently and the captive
+      # portal dispatcher firing on every state transition (WiFi blips,
+      # VPN reconnects, etc.), spamming Helium with `http://1.1.1.1`.
+      # nmcheck.gnome.org returns 200 + the literal body
+      # "NetworkManager is online" — that's what we want.
       networking.networkmanager.settings = {
         connectivity = {
-          uri = "http://connectivity-check.networkmanager.dev/";
+          uri = "http://nmcheck.gnome.org/check_network_status.txt";
           interval = 300;
-          response = "Connectivity check successful";
+          response = "NetworkManager is online";
         };
       };
 
@@ -332,64 +343,88 @@
 
       # --- Captive portal detection --------------------------------------------
       # NetworkManager performs connectivity checks after connecting to a
-      # network. When it detects a captive portal (CONNECTIVITY_STATE=PORTAL
-      # or LIMITED), this dispatcher opens Helium to an HTTP URL that the
-      # portal intercepts and redirects to its login page.
+      # network. When it detects a real captive portal (state = PORTAL),
+      # the portal intercepts the HTTP probe and returns a redirect. NM
+      # sees the redirect, marks state PORTAL, and fires
+      # `connectivity-change`. This dispatcher opens Helium to a direct-IP
+      # URL that the portal intercepts and rewrites to its login page.
       #
-      # We use http://1.1.1.1 (Cloudflare's DNS resolver, which responds to
-      # HTTP on port 80) instead of a hostname like captive.apple.com because
-      # captive portals block DNS resolution — the browser can't resolve any
-      # hostname until after login. A direct IP needs no DNS. The captive
-      # portal intercepts the HTTP request and redirects to its login page.
+      # We use http://1.1.1.1 (Cloudflare's DNS resolver, which responds
+      # to HTTP on port 80) instead of a hostname like captive.apple.com
+      # because captive portals block DNS resolution — the browser
+      # can't resolve any hostname until after login. A direct IP needs
+      # no DNS. The captive portal intercepts the HTTP request and
+      # redirects to its login page.
+      #
+      # What we DO NOT do (and why):
+      #
+      #   * React to state == LIMITED. LIMITED means "I can't reach the
+      #     connectivity URL, but the network exists" — e.g. corporate
+      #     MITM, captive portal already authenticated, or the URL
+      #     itself is blocked. Opening Helium in that case is just
+      #     annoying — there's nothing the user can sign into. Only
+      #     PORTAL (the portal intercepts the request and replies
+      #     with a redirect) means there's actually a login to do.
+      #
+      #   * React to the `up` action (connection-up). With the working
+      #     connectivity URI, `connectivity-change` fires correctly
+      #     on PORTAL transitions. The `up` branch was a fallback for
+      #     the broken URI case — it duplicated launches on every
+      #     connect/reconnect (DHCP renew, WiFi roam, link flap). On a
+      #     dual-stack host (wired + WiFi both active) it triggered
+      #     Helium on every DHCP cycle even when the network was fine.
+      #     See commit history for the broken-URI debugging notes.
+      #
+      #   * React on ethernet interfaces. Captive portals are a WiFi
+      #     phenomenon — coffee shops, hotels, airports. On a wired
+      #     LAN there is no portal, and the redirect probe to 1.1.1.1
+      #     would just succeed. The dispatcher exits early on non-WiFi
+      #     interfaces so LAN users never see a stray Helium tab.
       #
       # Implementation notes:
-      #   - We use systemd-run --uid (not su) because su requires a TTY and
-      #     fails in the NM dispatcher context ("must be run from a terminal").
-      #   - We call helium directly (not xdg-open) because xdg-open doesn't
-      #     recognize XDG_CURRENT_DESKTOP=mango and falls through to a
-      #     hardcoded browser list that doesn't find helium in the
-      #     systemd-run PATH.
+      #   - We use systemd-run --uid (not su) because su requires a TTY
+      #     and fails in the NM dispatcher context ("must be run from
+      #     a terminal").
+      #   - We call helium directly (not xdg-open) because xdg-open
+      #     doesn't recognize XDG_CURRENT_DESKTOP=mango and falls
+      #     through to a hardcoded browser list that doesn't find
+      #     helium in the systemd-run PATH.
       #   - On Wayland we need WAYLAND_DISPLAY + XDG_RUNTIME_DIR, not
       #     DISPLAY/XAUTHORITY.
       #
-      # DMS issue #2632 tracks native captive portal integration, but until
-      # that ships, this dispatcher is the standard approach.
+      # DMS issue #2632 tracks native captive portal integration, but
+      # until that ships, this dispatcher is the standard approach.
       environment.etc."NetworkManager/dispatcher.d/30-captive-portal.sh" = {
         mode = "0755";
         text = ''
           #!/bin/sh
-          # Open captive portal login page when NM detects captive state.
+          # Open captive portal login page when NM detects PORTAL state.
           # $1 = interface, $2 = action
           #
-          # We listen on TWO actions:
-          #   connectivity-change — fires when NM's connectivity state
-          #     transitions (e.g. FULL→PORTAL). This is the standard path.
-          #   up — fires when a connection is established. We check the
-          #     connectivity state ourselves because NM may already report
-          #     LIMITED/PORTAL at connection-up without ever firing a
-          #     separate connectivity-change event (the state was never
-          #     FULL, so there's no transition to detect).
+          # We only react to `connectivity-change` (not `up`) and only
+          # to PORTAL (not LIMITED). See the parent module for the
+          # rationale.
           export PATH="/run/current-system/sw/bin:/run/wrappers/bin:$PATH"
 
-          case "$2" in
-            connectivity-change)
-              # $CONNECTIVITY_STATE is set by NM for this action.
-              case "$CONNECTIVITY_STATE" in
-                PORTAL|LIMITED) ;;
-                *) exit 0 ;;
-              esac
-              ;;
-            up)
-              # Wait for NM to complete its connectivity check before
-              # querying the state. NM checks immediately on connect,
-              # but the result takes a few seconds (HTTP request + DNS).
-              sleep 5
-              STATE=$(nmcli -t -f CONNECTIVITY general 2>/dev/null)
-              case "$STATE" in
-                "portal"|"limited") ;;
-                *) exit 0 ;;
-              esac
-              ;;
+          # Captive portals are a WiFi phenomenon. On a wired LAN
+          # there's no portal — exit immediately so a transient NM
+          # state change (e.g. DHCP renew on enp10s0) never opens
+          # Helium.
+          case "$1" in
+            wlan*|wlp*|wifi*) ;;
+            *) exit 0 ;;
+          esac
+
+          if [ "$2" != "connectivity-change" ]; then
+            exit 0
+          fi
+
+          # $CONNECTIVITY_STATE is set by NM for this action.
+          # Only PORTAL means there's actually a login to do. LIMITED
+          # means the connectivity probe failed (e.g. MITM, broken
+          # URI) and opening Helium would just be annoying.
+          case "$CONNECTIVITY_STATE" in
+            PORTAL) ;;
             *) exit 0 ;;
           esac
 
@@ -409,15 +444,16 @@
             [ -n "$wl_display" ] || continue
 
             # Launch Helium as the session user with the Wayland env.
-            # systemd-run is used instead of su because su requires a TTY
-            # and fails in the NM dispatcher context. Helium is called
-            # directly because xdg-open doesn't recognize mango as a DE
-            # and can't find helium in the restricted systemd-run PATH.
+            # systemd-run is used instead of su because su requires a
+            # TTY and fails in the NM dispatcher context. Helium is
+            # called directly because xdg-open doesn't recognize
+            # mango as a DE and can't find helium in the restricted
+            # systemd-run PATH.
             #
-            # We use http://1.1.1.1 (direct IP, no DNS) because captive
-            # portals block DNS — the browser can't resolve hostnames
-            # until after login. The portal intercepts HTTP on port 80
-            # and redirects to its login page.
+            # We use http://1.1.1.1 (direct IP, no DNS) because
+            # captive portals block DNS — the browser can't resolve
+            # hostnames until after login. The portal intercepts
+            # HTTP on port 80 and redirects to its login page.
             systemd-run --uid="$uid" --collect --quiet \
               --property=Environment=XDG_RUNTIME_DIR="$runtime" \
               --property=Environment=WAYLAND_DISPLAY="$wl_display" \
