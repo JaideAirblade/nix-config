@@ -151,7 +151,15 @@
         # Nix sends the OAuth token via Authorization: Bearer header).
         # Put the value in nixos-secrets/secrets/shared/github-token.yaml
         # as the top-level key `github_token`.
-        secrets.github_token = {
+        #
+        # Optional: the secret is only loaded if the file exists in
+        # nixos-secrets at flake-eval time. Hosts that haven't set up
+        # the PAT yet (i.e. before the operator runs `sops encrypt`
+        # and pushes to nixos-secrets) build fine without it; flake
+        # update just falls back to the anonymous 60/h rate limit.
+        # Once the sops file is pushed, redeploy and the include
+        # path picks it up automatically.
+        secrets.github_token = lib.mkIf (builtins.pathExists "${inputs.nixos-secrets}/secrets/shared/github-token.yaml") {
           sopsFile = "${inputs.nixos-secrets}/secrets/shared/github-token.yaml";
           owner = "root";
           group = "nixbld";
@@ -164,7 +172,13 @@
       # the `include` in nix.extraOptions resolves correctly. The file
       # contents are literally: `access-tokens = github.com=<token>` —
       # nix.conf parses that and uses it for all GitHub API calls.
-      sops.templates."nix-access-tokens" = {
+      # Same mkIf gating as the secret above — only active when the
+      # sops file exists; otherwise /etc/nix/access-tokens.conf is
+      # never created and the `include` line in nix.extraOptions
+      # is a no-op (nix gracefully ignores missing include targets
+      # when prefixed with `!include` — but here we just skip the
+      # include line entirely via the same conditional).
+      sops.templates."nix-access-tokens" = lib.mkIf (builtins.pathExists "${inputs.nixos-secrets}/secrets/shared/github-token.yaml") {
         content = "access-tokens = github.com=${config.sops.placeholder.github_token}\n";
         file = "/etc/nix/access-tokens.conf";
         owner = "root";

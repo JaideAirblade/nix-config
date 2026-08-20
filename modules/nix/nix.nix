@@ -1,5 +1,5 @@
 # Nix / nixpkgs settings: flakes, unfree, editor.
-_:
+{ inputs, ... }:
 {
   nixos.modules.common =
     { lib, ... }:
@@ -47,9 +47,18 @@ _:
       # from /etc/nix/nix.conf via nix.extraOptions. The fragment file
       # is mode 0440 root:nixbld so non-root nix commands (e.g. jaide
       # running nix flake update) can read it.
-      nix.extraOptions = ''
-        include /etc/nix/access-tokens.conf
-      '';
+      #
+      # mkIf-gated on the sops file existing — see the matching
+      # lib.mkIf in modules/secrets/secrets.nix. When the operator
+      # hasn't yet created nixos-secrets/secrets/shared/github-token.yaml,
+      # the include line is omitted and flake update runs on the
+      # anonymous 60/h rate limit. Once the sops file is pushed, the
+      # next deploy picks up the include automatically.
+      nix.extraOptions = lib.optionalString
+        (builtins.pathExists "${inputs.nixos-secrets}/secrets/shared/github-token.yaml")
+        ''
+          include /etc/nix/access-tokens.conf
+        '';
 
       # Avoid pulling every package's optional HTML documentation output into
       # the system closure. In the pinned nixpkgs revision, Python 3.12's docs
