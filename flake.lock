@@ -8,11 +8,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1787234937,
-        "narHash": "sha256-n4ldoeyd5DiIX2xky1cqK48SVgqN6l7qdfwFf8tbXx4=",
+        "lastModified": 1787243426,
+        "narHash": "sha256-VYdCpmyEaHVW3ryqnXbvwiokUL9X+jhzkiqWE2stMS0=",
         "owner": "AvengeMedia",
         "repo": "dank-greeter",
-        "rev": "b5db41903043bb9367fcc9db6ae3c566dd760ea4",
+        "rev": "47daf48fcb884e929018e759ce04839c07894c97",
         "type": "github"
       },
       "original": {
@@ -77,11 +77,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1787068285,
-        "narHash": "sha256-l5Mz+hBgxcz0+fYum4WvHi5vGbgc8/kS7AT6vDArBc8=",
+        "lastModified": 1787243439,
+        "narHash": "sha256-Zy43kvzB2nNxRuDbbcxaYoZ94LX+EWYzaQeSdEm8VsA=",
         "owner": "AvengeMedia",
         "repo": "dankcalendar",
-        "rev": "b766e85a5fd4811013c6e45fca1bb70c48b95d0d",
+        "rev": "c6952df587fab8b6ce242e50a28517373049521e",
         "type": "github"
       },
       "original": {
@@ -141,11 +141,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1787236137,
-        "narHash": "sha256-FxSFknX2LSoUy746ILPxWEKYFOYNDiuO8k8UJQNBAro=",
+        "lastModified": 1787255703,
+        "narHash": "sha256-pRTzxvARxQy3xjE/xfQRCcMeolMu32y4M7k38a5t7tM=",
         "owner": "AvengeMedia",
         "repo": "DankMaterialShell",
-        "rev": "d10ca3865137fd94db43e57ff10ee576aaf8f9ea",
+        "rev": "486febd4ce5f98ea751383abf0f5bba102670496",
         "type": "github"
       },
       "original": {
@@ -282,11 +282,11 @@
         "uv2nix": "uv2nix"
       },
       "locked": {
-        "lastModified": 1787231595,
-        "narHash": "sha256-9JazoN9YPAp7hQYg8kt18M4RIya73b+dg1NDqhT8xm0=",
+        "lastModified": 1787252873,
+        "narHash": "sha256-SImdvejwzyDK3ivmLjSbzHReGQJoZJDB5Hy6MjfTbEA=",
         "owner": "NousResearch",
         "repo": "hermes-agent",
-        "rev": "f43eabee5f36e11448086ee8ee17c499958e81bf",
+        "rev": "4a5b6dd4512a10c3c18da3e5b9e5c7fb681cbfbb",
         "type": "github"
       },
       "original": {
@@ -473,11 +473,11 @@
     "nixos-secrets": {
       "flake": false,
       "locked": {
-        "lastModified": 1787163136,
-        "narHash": "sha256-Rn/znBSHzDDqYJHYtBlpHPtlwtbLh85s0ID7a44iR/8=",
+        "lastModified": 1787257705,
+        "narHash": "sha256-WdvKtbDgLLKyr76PGOfwnWPxfBkRS9mJ17Q1vy8aPrc=",
         "ref": "main",
-        "rev": "9adc2d44d5b712e75a03bcded387e389ab025700",
-        "revCount": 33,
+        "rev": "41408695ee1e5534a1b3f0eb6ec747866818e7a4",
+        "revCount": 34,
         "type": "git",
         "url": "ssh://git@github.com/JaideAirblade/nixos-secrets.git"
       },

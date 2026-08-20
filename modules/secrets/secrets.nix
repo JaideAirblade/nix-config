@@ -169,18 +169,33 @@
 
       # Render /etc/nix/access-tokens.conf from the sops secret.
       # Written at activation BEFORE the nix-daemon reads nix.conf, so
-      # the `include` in nix.extraOptions resolves correctly. The file
+      # the `!include` in nix.extraOptions resolves correctly. The file
       # contents are literally: `access-tokens = github.com=<token>` —
       # nix.conf parses that and uses it for all GitHub API calls.
+      #
+      # Subtle sops-nix semantics:
+      #   `file` (optional, defaults to `pkgs.writeText name content`)
+      #     is the TEMPLATE SOURCE — sops-install-secrets reads it,
+      #     substitutes SOPS placeholders, and writes the rendered
+      #     output to `path`. Setting `file = "/etc/nix/..."` would
+      #     make sops-install-secrets try to READ that path as the
+      #     template input — but on first activation that file
+      #     doesn't exist yet, so the build fails. We let `file`
+      #     default to a real Nix store path containing the placeholder
+      #     text, and set `path = "/etc/nix/access-tokens.conf"` so
+      #     sops-install-secrets renders the secret there (actually
+      #     at /run/secrets/rendered/nix-access-tokens, symlinked
+      #     to /etc/nix/access-tokens.conf). The `!include` in
+      #     nix.extraOptions (modules/nix/nix.nix) is what bridges
+      #     the build-time/render-time gap.
+      #
       # Same mkIf gating as the secret above — only active when the
-      # sops file exists; otherwise /etc/nix/access-tokens.conf is
-      # never created and the `include` line in nix.extraOptions
-      # is a no-op (nix gracefully ignores missing include targets
-      # when prefixed with `!include` — but here we just skip the
-      # include line entirely via the same conditional).
+      # sops file exists; otherwise no template is rendered and the
+      # `!include` line is omitted (via the matching lib.optionalString
+      # in modules/nix/nix.nix).
       sops.templates."nix-access-tokens" = lib.mkIf (builtins.pathExists "${inputs.nixos-secrets}/secrets/shared/github-token.yaml") {
         content = "access-tokens = github.com=${config.sops.placeholder.github_token}\n";
-        file = "/etc/nix/access-tokens.conf";
+        path = "/etc/nix/access-tokens.conf";
         owner = "root";
         group = "nixbld";
         mode = "0440";

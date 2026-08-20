@@ -43,10 +43,19 @@
       # modules/secrets/secrets.nix — sops.secrets.github_token); the
       # resolved value lands at /run/secrets/github_token at activation.
       # We then have sops write a fragment file /etc/nix/access-tokens.conf
-      # containing the actual access-tokens line, and `include` it
+      # containing the actual access-tokens line, and `!include` it
       # from /etc/nix/nix.conf via nix.extraOptions. The fragment file
       # is mode 0440 root:nixbld so non-root nix commands (e.g. jaide
       # running nix flake update) can read it.
+      #
+      # Note the `!include` (with bang) — a missing include target is
+      # silently ignored instead of erroring. /etc/nix/access-tokens.conf
+      # is produced at activation by sops-install-secrets (see the
+      # sops.templates."nix-access-tokens" entry in secrets.nix), but the
+      # nix.conf builder runs in a build sandbox BEFORE activation, so
+      # the file is absent at validation time. `!include` makes that
+      # OK; once activation runs, nix.conf + access-tokens.conf are both
+      # in place and nix-daemon reads the token on its next start.
       #
       # mkIf-gated on the sops file existing — see the matching
       # lib.mkIf in modules/secrets/secrets.nix. When the operator
@@ -57,7 +66,7 @@
       nix.extraOptions = lib.optionalString
         (builtins.pathExists "${inputs.nixos-secrets}/secrets/shared/github-token.yaml")
         ''
-          include /etc/nix/access-tokens.conf
+          !include /etc/nix/access-tokens.conf
         '';
 
       # Avoid pulling every package's optional HTML documentation output into
